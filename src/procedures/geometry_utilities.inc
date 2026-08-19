@@ -1,3 +1,11 @@
+!> Construct and draw an ellipse fitted inside a four-point quadrilateral.
+!! @param[in,out] pgx Horizontal point coordinates; points 1--4 are input and
+!!                    helper points 5, 6, and 9 are written.
+!! @param[in,out] pgy Vertical point coordinates; points 1--4 are input and
+!!                    helper points 5, 6, and 9 are written.
+!! @param[in] param1 Longitudinal ellipse size as a percentage of the center span.
+!! @param[in] param2 Transverse size as a percentage of the two side distances.
+!! @note Draws the resulting 50-segment ellipse through `line` on DXF unit 20.
        SUBROUTINE elliquad(pgx,pgy,param1,param2)
 
        real*8 pgx(100),pgy(100) ! generic point
@@ -54,6 +62,15 @@ c      SUBROUTINE distpr
 c      Distance between point P3 and line r (P1-P2)
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Calculate the perpendicular distance from a point to an infinite 2D line.
+!! @param[in] p1x Horizontal coordinate of the first line point.
+!! @param[in] p1y Vertical coordinate of the first line point.
+!! @param[in] p2x Horizontal coordinate of the second line point.
+!! @param[in] p2y Vertical coordinate of the second line point.
+!! @param[in] p3x Horizontal coordinate of the query point.
+!! @param[in] p3y Vertical coordinate of the query point.
+!! @param[out] distance Absolute perpendicular distance.
+!! @note Nearly vertical lines use the absolute X-coordinate difference.
        SUBROUTINE distpr(p1x,p1y,p2x,p2y,p3x,p3y,distance)
 
        real*8 p1x,p1y,p2x,p2y,p3x,p3y,distance
@@ -84,6 +101,15 @@ c      Draw arc known the segment 1-2 and the arrow flet
 c      Arc between points P1-P2, arrow flet, sign, and color
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw a circular arc between two endpoints for a specified sagitta.
+!! @param[in] p1x Horizontal coordinate of the first arc endpoint.
+!! @param[in] p1y Vertical coordinate of the first arc endpoint.
+!! @param[in] p2x Horizontal coordinate of the second arc endpoint.
+!! @param[in] p2y Vertical coordinate of the second arc endpoint.
+!! @param[in,out] flet Sagitta magnitude; values at or below 0.01 are raised to 0.01.
+!! @param[in] iflet Arc-side sign, normally `-1` or `1`.
+!! @param[in] isvet AutoCAD color index passed to the line writer.
+!! @note The arc is approximated with 20 line segments on DXF unit 20.
        SUBROUTINE arcfle(p1x,p1y,p2x,p2y,flet,iflet,isvet)
 
        real*8 p1x,p1y,p2x,p2y,p3x,p3y,p4x,p4y,p5x,p5y,flet
@@ -139,6 +165,16 @@ c      SUBROUTINE interpoly2D
 c      Interpolate a point in a 2D polyline
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Locate a point at a cumulative distance along a 2D polyline interval.
+!! @param[in] xpoly Polyline horizontal coordinates.
+!! @param[in] ypoly Polyline vertical coordinates.
+!! @param[out] x_poly Interpolated horizontal coordinate.
+!! @param[out] y_poly Interpolated vertical coordinate.
+!! @param[in] xpolylen Requested cumulative distance from `npoly1`.
+!! @param[in] npoly1 First source point index.
+!! @param[in] npoly2 Last source point index.
+!! @param[out] npoly3 Index of the segment containing the result.
+!! @param[out] distrel Fractional distance within that segment.
        SUBROUTINE interpoly2d(xpoly,ypoly,x_poly,y_poly
      + ,xpolylen,npoly1,npoly2,npoly3,distrel)
 
@@ -180,6 +216,18 @@ c      SUBROUTINE interpoly3D
 c      Interpolate a point in a 2D polyline
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Locate a point at a cumulative distance along a 3D polyline interval.
+!! @param[in] xpoly Polyline X coordinates.
+!! @param[in] ypoly Polyline Y coordinates.
+!! @param[in] zpoly Polyline Z coordinates.
+!! @param[out] x_poly Interpolated X coordinate.
+!! @param[out] y_poly Interpolated Y coordinate.
+!! @param[out] z_poly Interpolated Z coordinate.
+!! @param[in] xpolylen Requested cumulative distance from `npoly1`.
+!! @param[in] npoly1 First source point index.
+!! @param[in] npoly2 Last source point index.
+!! @param[out] npoly3 Index of the segment containing the result.
+!! @param[out] distrel Fractional distance within that segment.
        SUBROUTINE interpoly3d(xpoly,ypoly,zpoly,x_poly,y_poly,z_poly,
      + xpolylen,npoly1,npoly2,npoly3,distrel)
 
@@ -228,6 +276,9 @@ c     evenodd = 0 ---> even (senar 29)
 c
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Classify a cell count as even or odd using the legacy convention.
+!! @param[in] ncells Total number of wing cells.
+!! @param[out] evenodd `0` for an even cell count and `1` for an odd count.
        SUBROUTINE eo(ncells,evenodd)
 
        integer evenodd,nribss,ncells
@@ -257,6 +308,17 @@ c     Calcules point 3 at a distance from 1, in segment between points 1 and 2
 c
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Locate a point a signed distance from point 1 along the line toward point 2.
+!! @param[in] x1 X coordinate of the line origin.
+!! @param[in] y1 Y coordinate of the line origin.
+!! @param[in] z1 Z coordinate of the line origin.
+!! @param[in] x2 X coordinate of a point defining the line direction.
+!! @param[in] y2 Y coordinate of a point defining the line direction.
+!! @param[in] z2 Z coordinate of a point defining the line direction.
+!! @param[out] x3 Result X coordinate.
+!! @param[out] y3 Result Y coordinate.
+!! @param[out] z3 Result Z coordinate.
+!! @param[in] distance Signed distance measured from point 1.
        SUBROUTINE distance123(x1,y1,z1,x2,y2,z2,x3,y3,z3,distance)
 
        implicit none
@@ -281,6 +343,17 @@ c
 c
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Generate transverse tessellation points across a ballooned panel.
+!! @param[in] i Right-hand rib index; rib `i-1` supplies the opposite panel side.
+!! @param[in] rib Rib matrix retained for interface compatibility.
+!! @param[in] np Profile point counts.
+!! @param[in] u Prepared global X coordinates in slot 47.
+!! @param[in] v Prepared global Y coordinates in slot 48.
+!! @param[in] w Prepared global Z coordinates in slot 49.
+!! @param[in] hautok Ballooning height at each profile point.
+!! @param[in] nsegments Number of transverse subdivisions; must be positive.
+!! @param[out] tesse3d Generated coordinates indexed by component, rib, point,
+!!                     and transverse sample.
        SUBROUTINE tessella(i,rib,np,u,v,w,hautok,nsegments,tesse3d)
 
        real*8 x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3,distance,distot,distu

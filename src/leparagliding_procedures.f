@@ -4,6 +4,11 @@ c      Procedures remain in fixed form; explicit module interfaces allow
 c      the compiler to validate every call while migration continues.
 c***********************************************************************
 
+!> Expose the legacy calculation and output procedures through explicit APIs.
+!!
+!! Grouped include files retain their historical implementations while this
+!! module gives callers compiler-checked interfaces. New procedures should use
+!! `implicit none` and explicit argument intents whenever practical.
        module leparagliding_procedures
        use leparagliding_geometry
        use leparagliding_mark_types

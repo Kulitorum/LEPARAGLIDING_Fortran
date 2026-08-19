@@ -88,4 +88,12 @@ if(BUILD_TESTING)
           "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/Plan B Parakite"
           "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/plan-b-regression"
           -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_plan_b_regression.cmake")
+
+  add_test(
+      NAME profile_capacity_guard
+      COMMAND "${CMAKE_COMMAND}"
+          "-DPROGRAM=$<TARGET_FILE:leparagliding>"
+          "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/Plan B Parakite"
+          "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/profile-capacity-check"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_profile_capacity_check.cmake")
 endif()

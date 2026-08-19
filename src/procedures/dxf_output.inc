@@ -6,6 +6,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE pointg (radius xcir)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the configured construction-point symbol on DXF unit 20.
+!! @param[in] xu Point X coordinate.
+!! @param[in,out] xv Point Y coordinate; legacy cross mode reverses its sign.
+!! @param[out] xcir Effective symbol radius derived from mark configuration.
+!! @param[in] pointcolor AutoCAD color index.
+!! @note Uses category 1 from `leparagliding_mark_types`.
        SUBROUTINE pointg(xu,xv,xcir,pointcolor)
 
        integer pointcolor
@@ -50,6 +56,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE POINT 2D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a configured POINT or small CIRCLE entity to DXF unit 20.
+!! @param[in] x1 Point X coordinate.
+!! @param[in] y1 Point Y coordinate in design coordinates.
+!! @param[in] pointcolor AutoCAD color index.
+!! @note The Y coordinate is negated for the 2D DXF convention.
        SUBROUTINE point(x1,y1,pointcolor)
 c      line P1-P2
 
@@ -77,6 +88,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE POINTLAYER 2D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a circle used as a point marker to a selected DXF layer.
+!! @param[in] x1 Circle-center X coordinate.
+!! @param[in] y1 Circle-center Y coordinate in design coordinates.
+!! @param[in] xrad Circle radius.
+!! @param[in] gname DXF layer name.
+!! @param[in] pointcolor AutoCAD color index.
        SUBROUTINE poinc(x1,y1,xrad,gname,pointcolor)
 c      Point as minicicle radius xrad in layer gname
 
@@ -94,6 +111,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE POINTLAYER 2D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a Euclidean POINT entity to a selected DXF layer.
+!! @param[in] x1 Point X coordinate.
+!! @param[in] y1 Point Y coordinate in design coordinates.
+!! @param[in] gname DXF layer name.
+!! @param[in] pointcolor AutoCAD color index.
        SUBROUTINE poinl(x1,y1,gname,pointcolor)
 c      Euclidean point in layer gname
 
@@ -110,6 +132,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE CIRCLE
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a general circle to DXF unit 20.
+!! @param[in] x1 Circle-center X coordinate.
+!! @param[in] y1 Circle-center Y coordinate in design coordinates.
+!! @param[in] radc Circle radius.
+!! @param[in] gname DXF layer name.
+!! @param[in] pointcolor AutoCAD color index.
        SUBROUTINE circle(x1,y1,radc,gname,pointcolor)
 c      Circle radius radc in layer gname
 
@@ -127,6 +155,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE MTRIANGLE
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw an equilateral triangular mark on the `triangles` DXF layer.
+!! @param[in] p1x X coordinate of the triangle reference vertex.
+!! @param[in] p1y Y coordinate of the triangle reference vertex.
+!! @param[in] xh Triangle height.
+!! @param[in] xrot Rotation angle in radians.
+!! @param[in] linecolor AutoCAD color index.
        SUBROUTINE mtriangle(p1x,p1y,xh,xrot,linecolor)
 c      line P1-P2
 
@@ -176,6 +210,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE LINEVENT
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a 2D line segment on the `vents` DXF layer.
+!! @param[in] p1x Horizontal coordinate of the first endpoint.
+!! @param[in] p1y Vertical coordinate of the first endpoint.
+!! @param[in] p2x Horizontal coordinate of the second endpoint.
+!! @param[in] p2y Vertical coordinate of the second endpoint.
+!! @param[in] linecolor AutoCAD color index.
        SUBROUTINE linevent(p1x,p1y,p2x,p2y,linecolor)
 c      line P1-P2
 
@@ -193,6 +233,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE SEGMENT101
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the first and last thirds of a segment, leaving its middle third open.
+!! @param[in] p1x Horizontal coordinate of the first endpoint.
+!! @param[in] p1y Vertical coordinate of the first endpoint.
+!! @param[in] p2x Horizontal coordinate of the second endpoint.
+!! @param[in] p2y Vertical coordinate of the second endpoint.
+!! @param[in] linecolor AutoCAD color index.
+!! @note Writes both pieces to the `segment101` layer on DXF unit 20.
        SUBROUTINE segment101(p1x,p1y,p2x,p2y,linecolor)
 c      line P1-P2
 
@@ -222,6 +269,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE LINE 2D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a 2D line segment to the default layer on DXF unit 20.
+!! @param[in] p1x Horizontal coordinate of the first endpoint.
+!! @param[in] p1y Vertical coordinate of the first endpoint.
+!! @param[in] p2x Horizontal coordinate of the second endpoint.
+!! @param[in] p2y Vertical coordinate of the second endpoint.
+!! @param[in] linecolor AutoCAD color index.
        SUBROUTINE line(p1x,p1y,p2x,p2y,linecolor)
 c      line P1-P2
 
@@ -239,6 +292,14 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     SUBROUTINE LINE 3D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a 3D line segment to the default layer on DXF unit 25.
+!! @param[in] p1x X coordinate of the first endpoint.
+!! @param[in] p1y Y coordinate of the first endpoint.
+!! @param[in] p1z Z coordinate of the first endpoint.
+!! @param[in] p2x X coordinate of the second endpoint.
+!! @param[in] p2y Y coordinate of the second endpoint.
+!! @param[in] p2z Z coordinate of the second endpoint.
+!! @param[in] linecolor AutoCAD color index.
        SUBROUTINE line3d(p1x,p1y,p1z,p2x,p2y,p2z,linecolor)
 c      line P1-P2
 
@@ -253,6 +314,14 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     SUBROUTINE LINE 3D IN FILE NUMBER 26
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a 3D line segment to the auxiliary DXF stream on unit 26.
+!! @param[in] p1x X coordinate of the first endpoint.
+!! @param[in] p1y Y coordinate of the first endpoint.
+!! @param[in] p1z Z coordinate of the first endpoint.
+!! @param[in] p2x X coordinate of the second endpoint.
+!! @param[in] p2y Y coordinate of the second endpoint.
+!! @param[in] p2z Z coordinate of the second endpoint.
+!! @param[in] linecolor AutoCAD color index.
        SUBROUTINE line3dn(p1x,p1y,p1z,p2x,p2y,p2z,linecolor)
 c      line P1-P2
 
@@ -268,6 +337,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      POLYLINE 2D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write an open 2D POLYLINE entity to DXF unit 20.
+!! @param[in] plx X coordinates of the vertices.
+!! @param[in] ply Y coordinates of the vertices in DXF coordinates.
+!! @param[in] nvertex Number of vertices to emit from the arrays.
+!! @param[in] linecolor AutoCAD color index.
        SUBROUTINE poly2d(plx,ply,nvertex,linecolor)
 
        real*8 plx(500),ply(500)
@@ -315,6 +389,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      ELLIPSE
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Approximate and draw a rotated ellipse with 39 line segments.
+!! @param[in] u0 Horizontal coordinate of the ellipse center.
+!! @param[in] v0 Vertical coordinate of the ellipse center.
+!! @param[in] a First ellipse semiaxis.
+!! @param[in] b Second ellipse semiaxis.
+!! @param[in] tet0 Ellipse rotation in radians.
+!! @param[in] linecolor AutoCAD color index.
        SUBROUTINE ellipse(u0,v0,a,b,tet0,linecolor)
 
        real*8 xe(500),ye(500)
@@ -357,6 +438,13 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE ROMANO
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw a Romano-style sequence of point marks for an integer label.
+!! @param[in] rn Integer value encoded by the mark sequence.
+!! @param[in] rx0 Horizontal starting position in design coordinates.
+!! @param[in] ry0 Vertical starting position in design coordinates.
+!! @param[in] ralp Baseline angle in radians.
+!! @param[in] requi Spacing between symbol positions.
+!! @param[in] rcolor AutoCAD color index.
        SUBROUTINE romano(rn,rx0,ry0,ralp,requi,rcolor)
 
        integer rn, rn1, rn2, rn3, rcolor
@@ -414,6 +502,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE TEXT
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write a character-string TEXT entity to DXF unit 20.
+!! @param[in] p1x Horizontal coordinate of the text insertion point.
+!! @param[in] p1y Vertical coordinate of the text insertion point.
+!! @param[in] htext Text height.
+!! @param[in] atext Text rotation in DXF angle units (degrees).
+!! @param[in] xtext Fixed-width text to write.
+!! @param[in] txtcolor AutoCAD color index.
        SUBROUTINE txt(p1x,p1y,htext,atext,xtext,txtcolor)
 c      line P1-P2
 
@@ -432,6 +527,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE ITEXT
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write an integer TEXT entity using a twelve-column integer field.
+!! @param[in] p1x Horizontal coordinate of the text insertion point.
+!! @param[in] p1y Vertical coordinate of the text insertion point.
+!! @param[in] htext Text height.
+!! @param[in] atext Text rotation in degrees.
+!! @param[in] itext Integer label value.
+!! @param[in] txtcolor AutoCAD color index.
        SUBROUTINE itxt(p1x,p1y,htext,atext,itext,txtcolor)
 c      line P1-P2
 
@@ -450,6 +552,13 @@ c      SUBROUTINE ITEXT2
 c      Only format two digits
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Write an integer TEXT entity using the legacy two-column field.
+!! @param[in] p1x Horizontal coordinate of the text insertion point.
+!! @param[in] p1y Vertical coordinate of the text insertion point.
+!! @param[in] htext Text height.
+!! @param[in] atext Text rotation in degrees.
+!! @param[in] itext Integer label value, normally limited to two digits.
+!! @param[in] txtcolor AutoCAD color index.
        SUBROUTINE itxt2(p1x,p1y,htext,atext,itext,txtcolor)
 c      line P1-P2
 
@@ -467,6 +576,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Private DXF entity writers shared by the public drawing routines.
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Emit the common DXF records for a POINT entity on unit 20.
+!! @param[in] x1 Horizontal point coordinate.
+!! @param[in] y1 Vertical point coordinate, converted to the DXF convention.
+!! @param[in] gname DXF layer name.
+!! @param[in] pointcolor AutoCAD color index.
+!! @private
        SUBROUTINE dxf_point_entity(x1,y1,gname,pointcolor)
        implicit none
        character*(*) gname
@@ -479,6 +594,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        write(20,'(I2,/,I2,/,I2,/,I3,/,I2)') 39,0,62,pointcolor,0
        end
 
+!> Emit the common DXF records for a CIRCLE entity on unit 20.
+!! @param[in] x1 Horizontal center coordinate.
+!! @param[in] y1 Vertical center coordinate, converted to the DXF convention.
+!! @param[in] xrad Circle radius.
+!! @param[in] gname DXF layer name.
+!! @param[in] pointcolor AutoCAD color index.
+!! @private
        SUBROUTINE dxf_circle_entity(x1,y1,xrad,gname,pointcolor)
        implicit none
        character*(*) gname
@@ -492,6 +614,16 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
      + pointcolor,0
        end
 
+!> Emit the common DXF records for a 3D LINE entity.
+!! @param[in] nunit Open Fortran unit receiving the entity.
+!! @param[in] p1x X coordinate of the first endpoint.
+!! @param[in] p1y Y coordinate of the first endpoint.
+!! @param[in] p1z Z coordinate of the first endpoint.
+!! @param[in] p2x X coordinate of the second endpoint.
+!! @param[in] p2y Y coordinate of the second endpoint.
+!! @param[in] p2z Z coordinate of the second endpoint.
+!! @param[in] linecolor AutoCAD color index.
+!! @private
        SUBROUTINE dxf_line3d_entity(nunit,p1x,p1y,p1z,p2x,p2y,p2z,
      + linecolor)
        implicit none
@@ -508,6 +640,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
      + linecolor,0
        end
 
+!> Emit the records common to all TEXT entities before their value record.
+!! @param[in] p1x Horizontal coordinate of the text insertion point.
+!! @param[in] p1y Vertical coordinate of the text insertion point.
+!! @param[in] htext Text height.
+!! @param[in] txtcolor AutoCAD color index.
+!! @private
        SUBROUTINE dxf_text_header(p1x,p1y,htext,txtcolor)
        implicit none
        real*8 p1x,p1y,htext
@@ -522,6 +660,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        write(20,'(I2,/,F12.2)') 40,htext
        end
 
+!> Emit the rotation and terminator records for a TEXT entity.
+!! @param[in] atext Text rotation in degrees.
+!! @private
        SUBROUTINE dxf_text_footer(atext)
        implicit none
        real*8 atext
@@ -533,6 +674,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      DXF init
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        
+!> Start a minimal DXF document and open its ENTITIES section.
+!! @param[in] nunit Open Fortran output unit.
+!! @note The historical fixed drawing extents are preserved.
        SUBROUTINE dxfinit(nunit)
        
        write(nunit,'(I1,/,A,/,I1)') 0,"SECTION",2
@@ -552,6 +696,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      DXF end
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Close the ENTITIES section and terminate a DXF document.
+!! @param[in] nunit Open Fortran output unit initialized by `dxfinit`.
        SUBROUTINE dxfend(nunit)
 
        write(nunit,'(A,/,I1,/,A)') "ENDSEC",0,"EOF"

@@ -894,6 +894,10 @@ c      Define points
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        write(27,*) "PolPoints_Ext = [ "
+
+c      Keep the closing metadata valid when the selected panel range is empty
+       npoints=0
+       nlpanels=max(0,pp29(5,3)-pp29(5,2)+1)
        
        do i=pp29(5,2),pp29(5,3) ! Iterate in panels
        npoints=np(i,2)
@@ -989,6 +993,10 @@ c      Define points
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        write(27,*) "PolPoints_Ven = [ "
+
+c      Keep the closing metadata valid when the selected panel range is empty
+       npoints=0
+       nlpanels=max(0,pp29(5,3)-pp29(5,2)+1)
        
        do i=pp29(5,2),pp29(5,3) ! Iterate in panels
        npoints=np(i,3)
@@ -1087,6 +1095,10 @@ c      Define points
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        write(27,*) "PolPoints_Int = [ "
+
+c      Keep the closing metadata valid when the selected panel range is empty
+       npoints=0
+       nlpanels=max(0,pp29(5,3)-pp29(5,2)+1)
        
        do i=pp29(5,2),pp29(5,3) ! Iterate in panels
        npoints=np(i,4)

@@ -1,10 +1,22 @@
+!> Read and prepare the profile assigned to one rib from open unit 24.
+!! @param[in] i Rib index receiving the profile.
+!! @param[in] rib Rib settings, including inlet start/end percentages.
+!! @param[in,out] np Profile point counts and derived segment counts.
+!! @param[in,out] u Profile horizontal coordinates; slot 1 is populated and may
+!!                  be adjusted to place inlet-boundary points exactly.
+!! @param[in,out] v Profile vertical coordinates; slot 1 is populated and may be
+!!                  adjusted to place inlet-boundary points exactly.
+!! @note Rewinds unit 24 and writes verbose diagnostics to standard output.
+!! @note Input is buffered for up to 1,000 points, then rejected cleanly if it
+!!       exceeds the caller's profile-array capacity.
       SUBROUTINE datair(i,rib,np,u,v)
 
       integer np(0:100,9),kini(0:100),kfin(0:100),npini,npfin
-      integer jkini,jkfin
+      integer jkini,jkfin,read_count,point_capacity
       real*8 u(0:100,500,99),v(0:100,500,99)
       real*8 rib(0:100,500),xini,xfin,yini,yfin,d0,d1,d2,d3,dm
       real*8 ucont(500),vcont(500)
+      real*8 read_u(1000),read_v(1000)
 
 c     Read and count airfoil points
 
@@ -12,26 +24,38 @@ c     Read and count airfoil points
 
       read (24,*)
 
-c      Read up to 1000 points and exit if end of file
-
-       k=1
+c      Read into a capacity-independent buffer before touching the caller.
+       read_count=0
 
        do 100 j=1,1000
 
-       read (24,*,IOSTAT=io) u(i,j,1),v(i,j,1)
-
-       write (*,*) i,k,u(i,j,1),v(i,j,1)
-
-       k=k+1
-
-c      Exit if end of file
+       read (24,*,IOSTAT=io) read_u(j),read_v(j)
        if (io.lt.0) goto 200
+       if (io.gt.0) then
+       write (*,*) "ERROR: malformed profile coordinate at line",j+1
+       stop 1
+       end if
+
+       read_count=read_count+1
+       write (*,*) i,read_count,read_u(j),read_v(j)
 
  100   continue
 
  200   continue
 
-       np(i,1)=k-2
+       point_capacity=ubound(u,2)
+       if (read_count.gt.point_capacity) then
+       write (*,*) "ERROR: profile has",read_count,"points; capacity is",
+     + point_capacity
+       stop 1
+       end if
+
+       do j=1,read_count
+       u(i,j,1)=read_u(j)
+       v(i,j,1)=read_v(j)
+       end do
+
+       np(i,1)=read_count
       
        write (*,*) "Num punts initial",np(i,1)
 
@@ -41,8 +65,10 @@ c      Set inlet points
        xfin=rib(i,12)/100.
        kini(i)=0
        kfin(i)=0
+       jkini=0
+       jkfin=0
 
-       do j=1,np(i,1)
+       do j=2,np(i,1)-2
 
 c      Detect xini and reasign if necesary
 
@@ -128,6 +154,11 @@ c      Detect xfin and reasign if necesary
 
        end do ! j
 
+       if (jkini.eq.0.or.jkfin.eq.0) then
+       write (*,*) "ERROR: unable to locate profile inlet boundaries"
+       stop 1
+       end if
+
 c      Points counting
        np(i,1)=np(i,1)+kini(i)+kfin(i)
        np(i,2)=jkini+kini(i)
@@ -164,12 +195,20 @@ c      SUBROUTINE REMAP CONTOUR
 c      call subroutine remapcont
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Analyze the spacing law required to remap a contour to a target point count.
+!! @param[in] npini First contour point index.
+!! @param[in] npfin Last contour point index.
+!! @param[in] npobj Requested number of points in the proposed remapping.
+!! @param[in] ucont Source contour horizontal coordinates.
+!! @param[in] vcont Source contour vertical coordinates.
+!! @note The current legacy implementation calculates and prints spacing arrays
+!!       but does not yet write resampled coordinates back to `ucont`/`vcont`.
        SUBROUTINE remapcont (npini,npfin,npobj,ucont,vcont)
 
        integer npini,npfin,npobj
        real*8 ucont(500),vcont(500),dx(500),dy(500),da(0:500),ds(500)
        real*8 dxn(0:500),dyn(0:500),dsn(0:500),dan(0:500)
-       real*8 xl,dm,dmn,dyy,xln
+       real*8 xl,dm,dmn,xln
 
 
 c      Remap airfoils using predefined points
@@ -217,8 +256,6 @@ c      Reformat unitari segment
        xln=0.0d0
 
        do k=1,npobj-1
-
-       dsn(k)=dmn*dyy
 
        dxn(k)=dmn*dfloat(k-1)
 
@@ -278,6 +315,20 @@ c      Rotates points in airfoils in tree axes and moves
 c      to absolute ccordinates
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Transform one auxiliary profile point into absolute wing coordinates.
+!! @param[in] i Rib index controlling the transformation.
+!! @param[in] j Profile point index.
+!! @param[in] u Main horizontal coordinates retained for interface compatibility.
+!! @param[in] v Main vertical coordinates retained for interface compatibility.
+!! @param[in] w Main depth coordinates retained for interface compatibility.
+!! @param[in] rib Rib chord, rotation, and absolute-position parameters.
+!! @param[in] np Profile counts retained for interface compatibility.
+!! @param[in,out] u_aux Auxiliary horizontal coordinates; slot 1 is local input
+!!                      and slots 2--5 receive transformed positions.
+!! @param[in,out] v_aux Auxiliary vertical coordinates; slot 1 is local input and
+!!                      slots 2--5 receive transformed positions.
+!! @param[in,out] w_aux Auxiliary depth coordinates; slot 1 is local input and
+!!                      slots 2--5 receive transformed positions.
        SUBROUTINE xyzt(i,j,u,v,w,rib,np,u_aux,v_aux,w_aux)
 
        real*8 u(0:100,500,99),v(0:100,500,99),w(0:100,500,99) ! airfoil 3D

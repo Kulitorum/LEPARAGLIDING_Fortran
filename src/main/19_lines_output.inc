@@ -8,6 +8,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        write (30,*) "Line number - Label - Lenght (cm) - Type"
        write (30,*) 
 
+c      Missing line-plan groups remain empty in the notes section
+       slpi=cordam+1
+
        do i=1, cordat
 
 c      Select letter as final row of the line
@@ -108,7 +111,8 @@ c      Row plan A
 
 c      Rows plan B,C,D,E,F
 
-       if(i.ge.2.and.corda(i-1,1).lt.corda(i,1)) then
+       if (i.ge.2) then
+       if (corda(max(1,i-1),1).lt.corda(i,1)) then
 
        if (corda(i,1).eq.2) then
        slpi(2)=i
@@ -138,6 +142,7 @@ c      Rows plan B,C,D,E,F
        write (30,*) 
        end if
 
+       end if
        end if
 
 c      Plan F

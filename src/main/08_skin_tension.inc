@@ -683,7 +683,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     Compute rib and panels lengths (also done in chapter 11. (!!!!))
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-       do i=0,nribss
+       do i=1,nribss
 
        rib(i,30)=0. ! extra panel left
        rib(i,31)=0. ! extra rib
@@ -754,12 +754,13 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Identify point jirl-r where initialize reformating skin(3,1) in %
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-       do i=0,nribss
+       do i=1,nribss
 
 c      Left side
 
        xirl(i)=rib(i,30)*skin(3,1)/100.
 
+       jirl(i)=1
        rib(i,40)=0.
        do j=1,np(i,2)-1
        rib(i,40)=rib(i,40)+sqrt((u(i-1,j,10)-u(i-1,j+1,10))**2.+
@@ -774,6 +775,7 @@ c      Right side
 
        xirr(i)=rib(i,32)*skin(3,1)/100.
 
+       jirr(i)=1
        rib(i,42)=0.
        do j=1,np(i,2)-1
        rib(i,42)=rib(i,42)+sqrt((u(i,j,9)-u(i,j+1,9))**2.+
@@ -903,7 +905,7 @@ c      Calcule length of the reformating polyline
 
 c      Reformat
       
-       j=jirr(i-1)-1
+       j=max(1,int(jirr(i))-1)
        u(i,j,32)=u(i,j,9)
        v(i,j,32)=v(i,j,9)
 
@@ -2067,7 +2069,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     Compute rib and panels lengths (also done in chapter 11. (!))
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-       do i=0,nribss
+       do i=1,nribss
 
        rib(i,33)=0. ! intra panel left
        rib(i,34)=0. ! intra rib
@@ -2117,12 +2119,13 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Identify point jirl-r where initialize reformating skin(3,3) in %
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-       do i=0,nribss
+       do i=1,nribss
 
 c      Left side
 
        xirl(i)=rib(i,33)*skin(3,3)/100.
 
+       jirl(i)=np(i,2)+np(i,3)-1
        rib(i,43)=0.
        do j=np(i,2)+np(i,3)-1,np(i,1)-1
        rib(i,43)=rib(i,43)+sqrt((u(i-1,j,10)-u(i-1,j+1,10))**2.+
@@ -2137,6 +2140,7 @@ c      Right side
 
        xirr(i)=rib(i,35)*skin(3,3)/100.
 
+       jirr(i)=np(i,2)+np(i,3)-1
        rib(i,45)=0.
        do j=np(i,2)+np(i,3)-1,np(i,1)-1
        rib(i,45)=rib(i,45)+sqrt((u(i,j,9)-u(i,j+1,9))**2.+
@@ -2286,7 +2290,7 @@ c     + dist1+dist2-rib(i,35)
 
 c      Reformat
       
-       j=jirr(i-1)+1
+       j=min(np(i,1),int(jirr(i))+1)
        u(i,j,35)=u(i,j,9)
        v(i,j,35)=v(i,j,9)
 
@@ -2696,7 +2700,7 @@ c      Computes ovalized median local 2D airfoil (54)
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 c      Call panels 3D
-       do i=0,nribss
+       do i=1,nribss
        call panels3d(i,rib,np,u,v,w,
      + uppcuts,iupp,kiupp,lowcuts,ilow,kilow,hautok)
        end do
@@ -2706,6 +2710,7 @@ c      Provisional fix:
        i=1
        do j=1,np(i,1)
        hautok(i,j)=hautok(2,j)
+       hautok(0,j)=hautok(i,j)
        end do
        
 
@@ -2753,8 +2758,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        rib(i,60)=0. ! Extrados minirib length
 
 c      Detect point extrados
+       jcontrole=1
+       xequise=u(i-1,1,3)
+       yequise=v(i-1,1,3)
+       xminirib=rib(i-1,5)*rib(i,56)/100.
        do j=1,np(i,2)-1
-       xminirib=rib(i-1,5)*rib(i,56)/100.       
        if (u(i-1,1,3)-u(i-1,j,3).lt.xminirib.and.u(i-1,1,3)-u(i-1,j+1,3)
      + .ge.xminirib) then
        jcontrole=j
@@ -2771,10 +2779,8 @@ c      Final point interpolation
 c      Modification parameters
        rib(i-1,57)=c3001(3) !mod length
        rib(i-1,58)=c3001(4)*hautok(i-1,jcontrole)
-       rib(i-1,59)=c3001(4)*hautok(i-1,jcontroli)
        xminimod=rib(i-1,5)*rib(i-1,57)/100.
        xminisup=rib(i-1,58)
-       xminiinf=rib(i-1,59)
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Set no modification i3001(2)=0
@@ -2927,8 +2933,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        rib(i,61)=0. ! Intrados minirib length
 
 c      Detect point intrados
+       jcontroli=np(i,1)
+       xequisi=u(i-1,np(i,1),3)
+       yequisi=v(i-1,np(i,1),3)
+       xminirib=rib(i-1,5)*rib(i,56)/100.
        do j=np(i,1),np(i,2),-1
-       xminirib=rib(i-1,5)*rib(i,56)/100.       
        if (u(i-1,1,3)-u(i-1,j,3).lt.xminirib.and.u(i-1,1,3)-u(i-1,j-1,3)
      + .ge.xminirib) then
        jcontroli=j
@@ -3144,7 +3153,7 @@ c      zinf(i,6,2) second cut extrados
 c      zinf(i,6,4) first cut intrados
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       
-       do i=0,nribss
+       do i=1,nribss
        call czinf(i,rib,np,u,v,w,
      + uppcuts,iupp,kiupp,lowcuts,ilow,kilow,hautok,zinf)
        end do

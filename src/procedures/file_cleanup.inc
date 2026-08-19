@@ -1,3 +1,7 @@
+!> Replace every literal `NaN` token in a text file with `0.0`.
+!! @param[in] FNAME Path of the file to rewrite in place.
+!! @warning Uses units 1 and 2 plus the fixed temporary name `temp_fix.dxf`;
+!!          it is not reentrant and truncates input records after 204 characters.
       SUBROUTINE NONAN(FNAME)
 C     Direct sed replacement: s/NaN/0.0/g
       
@@ -92,6 +96,10 @@ C     Clean up
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 
+!> Replace DXF NaN tokens and ensure that the document has an EOF marker.
+!! @param[in] FILENAME Path of the DXF file to rewrite in place.
+!! @warning Uses units 10 and 11 and the fixed temporary name `dxf_fixed.tmp`;
+!!          it must not run concurrently in the same working directory.
       SUBROUTINE FIX_DXF_NAN(FILENAME)
 C     Complete fix for AutoCAD DXF with NaN replacement
       
@@ -166,6 +174,11 @@ C     Clean up
       
       END
       
+!> Replace all non-overlapping occurrences of one token in a fixed-length string.
+!! @param[in,out] STR String to scan and overwrite with the replacement result.
+!! @param[in] OLD Nonempty token to locate; trailing blanks are ignored.
+!! @param[in] NEW Replacement token; trailing blanks are ignored.
+!! @warning The intermediate result is limited to 2,048 characters.
       SUBROUTINE REPLACE_IN_STRING(STR, OLD, NEW)
 C     Replace all occurrences of OLD with NEW in STR
       

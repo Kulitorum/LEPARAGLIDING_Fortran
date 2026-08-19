@@ -60,6 +60,10 @@ c      Select flat or projected area (default is flat)
        fparea=parea
        end if
 
+c      Aspect ratio is required by the instrumental glide estimate below
+       fspan=2.*rib(nribss,2)/100.
+       x35lambda=fspan*fspan/farea
+
 c      Wing lift (N) previous
        x35wlp=x35cl*x35cle*0.5*x35ro*x35v*x35v*fparea
 
@@ -789,8 +793,6 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 c      Induced drag estimation (N)
 c      MODELISATION D'UN PARAPENTE - JEROME SARTHE - SEPTEMBRE 1999, page 22
-       fspan=2.*rib(nribss,2)/100.
-       x35lambda=fspan*fspan/farea
        x35oswald=0.9
        x35xi=x35cl*x35cl*x35cle*x35cle/(pi*x35lambda*x35oswald)  ! Cd induced drag
        x35inducedd=x35xi*0.5*x35ro*x35vi*x35vi*farea*x35_k ! Induced drag (N)

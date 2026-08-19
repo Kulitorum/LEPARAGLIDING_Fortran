@@ -1,3 +1,16 @@
+!> Interpolate a point at a requested arc length along a 2D polyline.
+!! @param[in] jini First source point index.
+!! @param[in] jfin Last source point index.
+!! @param[out] jc Index of the source segment containing the requested distance.
+!! @param[out] ldif Distance from the beginning of segment `jc`.
+!! @param[in] useg Source polyline horizontal coordinates.
+!! @param[in] vseg Source polyline vertical coordinates.
+!! @param[out] ltotal Total length of the selected polyline interval.
+!! @param[in] linter Requested distance from source point `jini`.
+!! @param[out] upoint Result horizontal coordinate, returned in element 1.
+!! @param[out] vpoint Result vertical coordinate, returned in element 1.
+!! @note The selected segment must not be vertical because the legacy Y
+!!       interpolation uses its slope-intercept equation.
        SUBROUTINE interpseg(jini,jfin,jc,ldif,
      + useg,vseg,ltotal,linter,upoint,vpoint)
 

@@ -1,3 +1,12 @@
+!> Redistribute a 2D polyline to a requested number of approximately spaced points.
+!! @param[in] xlin1 Horizontal coordinates of the source polyline.
+!! @param[in] ylin1 Vertical coordinates of the source polyline.
+!! @param[out] xlin3 Horizontal coordinates of the redistributed polyline.
+!! @param[out] ylin3 Vertical coordinates of the redistributed polyline.
+!! @param[in] n1vr Number of valid source points; must be at least two.
+!! @param[in] n2vr Requested number of output points; must be at least two.
+!! @note The legacy algorithm first samples every source segment in tenths; it
+!!       is therefore approximate rather than an arc-length resampler.
        subroutine vredis(xlin1,ylin1,xlin3,ylin3,n1vr,n2vr)  
 
        real*8 xlin1(5000),ylin1(5000)
@@ -91,6 +100,15 @@ c     SUBROUTINE r and s lines 2D intersection
 c
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Find the intersection of two infinite 2D lines, r and s.
+!! @param[in] xru Horizontal coordinates of two points defining line r.
+!! @param[in] xrv Vertical coordinates of two points defining line r.
+!! @param[in] xsu Horizontal coordinates of two points defining line s.
+!! @param[in] xsv Vertical coordinates of two points defining line s.
+!! @param[out] xtu Horizontal coordinate of the line intersection.
+!! @param[out] xtv Vertical coordinate of the line intersection.
+!! @note Vertical lines receive special handling; parallel coincident lines do
+!!       not have a defined result in this legacy implementation.
       SUBROUTINE xrxs(xru,xrv,xsu,xsv,xtu,xtv)
 
       real*8 xru(2),xrv(2),xsu(2),xsv(2)
@@ -132,6 +150,21 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     SUBROUTINE  flattening
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Develop the quadrilateral strip between ribs `ni` and `ni+1` into 2D.
+!! @param[in] ni Index of the first rib in the strip.
+!! @param[in] npunts Number of spanwise/profile quadrilaterals to develop.
+!! @param[in] rx Source X coordinates of the rib grid.
+!! @param[in] ry Source Y coordinates of the rib grid.
+!! @param[in] rz Source Z coordinates of the rib grid.
+!! @param[out] pl1x Developed first-left X coordinate per quadrilateral.
+!! @param[out] pl1y Developed first-left Y coordinate per quadrilateral.
+!! @param[out] pl2x Developed second-left X coordinate per quadrilateral.
+!! @param[out] pl2y Developed second-left Y coordinate per quadrilateral.
+!! @param[out] pr1x Developed first-right X coordinate per quadrilateral.
+!! @param[out] pr1y Developed first-right Y coordinate per quadrilateral.
+!! @param[out] pr2x Developed second-right X coordinate per quadrilateral.
+!! @param[out] pr2y Developed second-right Y coordinate per quadrilateral.
+!! @note Distances are preserved by triangulating each source quadrilateral.
        SUBROUTINE flatt(ni,npunts,rx,ry,rz,
      + pl1x,pl1y,pl2x,pl2y,pr1x,pr1y,pr2x,pr2y)
 
@@ -212,6 +245,14 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     SUBROUTINE  axisch
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Copy a 2D point sequence through the legacy axis-change rotation.
+!! @param[in] npunts Number of valid points.
+!! @param[out] angle Applied angle in degrees; currently forced to zero.
+!! @param[in] px9i Input horizontal coordinates.
+!! @param[in] py9i Input vertical coordinates.
+!! @param[out] px9o Rotated horizontal coordinates.
+!! @param[out] py9o Rotated vertical coordinates.
+!! @note Because the routine resets `angle`, current behavior is an identity copy.
        SUBROUTINE axisch(npunts,angle,px9i,py9i,px9o,py9o)
 
        real*8 px9i(500),py9i(500)
@@ -252,6 +293,17 @@ c      -falign-commons -fno-automatic -finit-local-zero
 c      -mcmodel=medium leparagliding.f 
 c 
 
+!> Preserve the unfinished legacy angle/distance helper for compatibility.
+!! @param[in] p1u Horizontal coordinate of the first direction point.
+!! @param[in] p1v Vertical coordinate of the first direction point.
+!! @param[in] p2u Horizontal coordinate of the second direction point.
+!! @param[in] p2v Vertical coordinate of the second direction point.
+!! @param[in,out] p3u Intended offset horizontal coordinate; currently unchanged.
+!! @param[in,out] p3v Intended offset vertical coordinate; currently unchanged.
+!! @param[in,out] angl Intended line angle; currently left unchanged.
+!! @param[in] dist Intended offset distance.
+!! @warning All calculations that would set `angl` or point 3 are commented out;
+!!          callers must not rely on this routine producing geometry.
        SUBROUTINE angdis2(p1u,p1v,p2u,p2v,p3u,p3v,angl,dist)
 
        real*8 du,dv,angl

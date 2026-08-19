@@ -28,9 +28,15 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        do ii=1,slp      ! Itera en numero de plans
 
-       do k=2,8,2       ! Explora fins 4 nivells
+       do k=2,10,2      ! Explore all five possible levels
        
        do j=1,cam(ii)-1 ! Itera en camins de cada pla
+
+c      A level not present in this path represents no line
+       a=0.0d0
+       b=0.0d0
+       aa=0.0d0
+       bb=0.0d0
 
        if (mc(ii,j,1).le.4.and.k.le.8) then ! Detecta fins 4 nivells
        a=dfloat(mc(ii,j,k))
@@ -259,6 +265,8 @@ c      Brake distribution
        if (j.eq.6) then
 
        xprib=(rib(i,2)/rib(nribss,2))*100.0d0
+       xlx=0.0d0
+       xly=0.0d0
        
        if (xprib.ge.bd(1,1).and.xprib.lt.bd(2,1)) then
        xm=(bd(2,2)-bd(1,2))/(bd(2,1)-bd(1,1))

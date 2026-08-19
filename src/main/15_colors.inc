@@ -21,6 +21,7 @@ c      Detect if mark is exactly in the rib
        i=npc1e(k) ! rib number corresponding to k order
 
 c      Detect segment (j,j+1) where color changes
+       jcontrol=1
        do j=1,np(i,2)-1
 
        if ((100.-(u(i,j,2)).le.xpc1e(k,l).and.
@@ -143,6 +144,7 @@ c      Detect if mark is exactly in the rib
 
 c      Detect segment (j,j-1) where color changes
 
+       jcontrol=np(i,1)
        do j=np(i,1),np(i,2)+1,-1
 
        if ((100.-(u(i,j,2)).le.xpc1i(k,l).and.

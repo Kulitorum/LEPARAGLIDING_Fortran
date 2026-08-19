@@ -1,3 +1,16 @@
+!> Extract a standard two-surface junction contour from one rib profile.
+!! @param[in] i Rib index.
+!! @param[in,out] u Horizontal profile coordinates; `ss` profiles may receive a
+!!                  virtual point at the vent boundary.
+!! @param[in,out] v Vertical profile coordinates; `ss` profiles may receive a
+!!                  virtual point at the vent boundary.
+!! @param[in] rib Rib geometry and selected junction-group index.
+!! @param[in] xintra Intrados start/end percentages by junction group.
+!! @param[in] xextra Extrados start/end percentages by junction group.
+!! @param[out] xjonc Junction contour coordinates for rib `i`.
+!! @param[out] npo Number of generated contour points.
+!! @param[in] atp Airfoil-type code controlling how far around the profile to scan.
+!! @param[in] np Profile point counts and vent indices.
        SUBROUTINE joncs(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np)
 
        real*8 u(0:100,500,99),v(0:100,500,99)
@@ -188,6 +201,17 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE JONCS TYPE 3 SUP
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Extract the upper/extrados three-transition junction contour for one rib.
+!! @param[in] i Rib index.
+!! @param[in,out] u Horizontal profile coordinates; `ss` may gain a virtual point.
+!! @param[in,out] v Vertical profile coordinates; `ss` may gain a virtual point.
+!! @param[in] rib Rib geometry and junction-group selection.
+!! @param[in] xintra Intrados transition percentages by group.
+!! @param[in] xextra Extrados transition percentages by group.
+!! @param[out] xjonc Generated composite junction contour.
+!! @param[out] npo Number of generated contour points.
+!! @param[in] atp Airfoil-type code controlling the scanned contour range.
+!! @param[in] np Profile point counts and vent indices.
        SUBROUTINE joncst3s(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np)
 
        real*8 u(0:100,500,99),v(0:100,500,99)
@@ -388,6 +412,17 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE JONCS TYPE 3 INF
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Extract the lower/intrados three-transition junction contour for one rib.
+!! @param[in] i Rib index.
+!! @param[in,out] u Horizontal profile coordinates; `ss` may gain a virtual point.
+!! @param[in,out] v Vertical profile coordinates; `ss` may gain a virtual point.
+!! @param[in] rib Rib geometry and junction-group selection.
+!! @param[in] xintra Intrados transition percentages by group.
+!! @param[in] xextra Extrados transition percentages by group.
+!! @param[out] xjonc Generated composite junction contour.
+!! @param[out] npo Number of generated contour points.
+!! @param[in] atp Airfoil-type code controlling the scanned contour range.
+!! @param[in] np Profile point counts and vent indices.
        SUBROUTINE joncst3i(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np)
 
        real*8 u(0:100,500,99),v(0:100,500,99)
@@ -611,6 +646,18 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE JONCS2
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Generate a straight or circular junction centerline from section-21 parameters.
+!! @param[in] i Rib index receiving the junction.
+!! @param[in] u Horizontal profile array retained for interface compatibility.
+!! @param[in] v Vertical profile array retained for interface compatibility.
+!! @param[in,out] rib Rib matrix; element 167 receives the junction length.
+!! @param[in] x21 Section-21 junction endpoint and curvature definitions.
+!! @param[out] xjonc Generated junction centerline coordinates.
+!! @param[in] nparc Number of points used to discretize the centerline.
+!! @param[in] atp Airfoil code retained for interface compatibility.
+!! @param[in] np Profile counts retained for interface compatibility.
+!! @param[in] m Section-21 block index.
+!! @param[in] ng Junction definition within the block.
        SUBROUTINE joncs2(i,u,v,rib,x21,xjonc,nparc,atp,np,m,ng)
 
        real*8 u(0:100,500,99),v(0:100,500,99)
@@ -754,6 +801,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE LINEAL INTERPOLATION
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Interpolate Y at a supplied X on the infinite line through two points.
+!! @param[in] x1 Horizontal coordinate of the first line point.
+!! @param[in] y1 Vertical coordinate of the first line point.
+!! @param[in] x2 Horizontal coordinate of the second point; must differ from `x1`.
+!! @param[in] y2 Vertical coordinate of the second line point.
+!! @param[in] x3 X coordinate to evaluate.
+!! @param[out] y3 Interpolated Y coordinate.
        SUBROUTINE interpola(x1,y1,x2,y2,x3,y3)
 
        real*8 x1,y1,x2,y2,x3,y3,xm,xb
@@ -769,6 +823,14 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE LINEAL INTERPOLATION AT DISTANCE D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Locate a point a signed distance from point 1 toward point 2 in 2D.
+!! @param[in] x1 Horizontal coordinate of the starting point.
+!! @param[in] y1 Vertical coordinate of the starting point.
+!! @param[in] x2 Horizontal coordinate defining the direction.
+!! @param[in] y2 Vertical coordinate defining the direction.
+!! @param[out] x3 Result horizontal coordinate, or `x1` for coincident inputs.
+!! @param[out] y3 Result vertical coordinate, or `y1` for coincident inputs.
+!! @param[in] xd Signed travel distance.
        SUBROUTINE interpd(x1,y1,x2,y2,x3,y3,xd)
 
        real*8 x1,y1,x2,y2,x3,y3
@@ -797,6 +859,16 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE PRINT JONCS
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the standard multi-line junction pattern and its alignment marks.
+!! @param[in] i Rib index.
+!! @param[in] xjonc Junction centerline coordinates.
+!! @param[in] npo Number of valid centerline points.
+!! @param[in] sjo Seam and allowance offsets by junction group.
+!! @param[in] sepx Horizontal drawing translation.
+!! @param[in] sepy Vertical drawing translation.
+!! @param[in,out] rib Rib matrix; element 167 receives measured junction length.
+!! @param[in] xkf Drawing scale factor used for duplicate layout boxes.
+!! @note Writes DXF geometry and marks on unit 20.
        SUBROUTINE pjoncs(i,xjonc,npo,sjo,sepx,sepy,rib,xkf)
 
        real*8 xjonc(0:100,0:500,10),sjo(0:100,10),sepx,sepy
@@ -934,6 +1006,16 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE PRINT JONCS B12
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the B12 variant of the junction pattern.
+!! @param[in] i Rib index.
+!! @param[in] xjonc Junction centerline coordinates.
+!! @param[in] npo Number of valid centerline points.
+!! @param[in] sjo Seam and allowance offsets by junction group.
+!! @param[in] sepx Horizontal drawing translation.
+!! @param[in] sepy Vertical drawing translation.
+!! @param[in,out] rib Rib matrix; element 167 receives measured junction length.
+!! @param[in] xkf Drawing scale factor.
+!! @note Retains the B12-specific line set, colors, duplicated boxes, and marks.
        SUBROUTINE pjoncs_b12(i,xjonc,npo,sjo,sepx,sepy,rib,xkf)
 
        real*8 xjonc(0:100,0:500,10),sjo(0:100,10),sepx,sepy
@@ -1048,6 +1130,15 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE PRINT JONCS B17
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the reduced B17 junction layout used in the external reference box.
+!! @param[in] i Rib index.
+!! @param[in] xjonc Junction centerline coordinates.
+!! @param[in] npo Number of valid centerline points.
+!! @param[in] sjo Seam and allowance offsets by junction group.
+!! @param[in] sepx Horizontal drawing translation.
+!! @param[in] sepy Vertical drawing translation.
+!! @param[in,out] rib Rib matrix; element 167 receives measured junction length.
+!! @param[in] xkf Drawing scale factor for the external layout box.
        SUBROUTINE pjoncs_b17(i,xjonc,npo,sjo,sepx,sepy,rib,xkf)
 
        real*8 xjonc(0:100,0:500,10),sjo(0:100,10),sepx,sepy
@@ -1155,6 +1246,16 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE PRINT JONCS2
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the symmetric offset pattern around a section-21 junction centerline.
+!! @param[in] i Rib index.
+!! @param[in] xjonc Junction centerline coordinates.
+!! @param[in] nparc Number of centerline points.
+!! @param[in] sjo Seam and allowance offsets by junction group.
+!! @param[in] sepx Horizontal drawing translation.
+!! @param[in] sepy Vertical drawing translation.
+!! @param[in,out] rib Rib matrix; element 167 receives measured junction length.
+!! @param[in] xkf Drawing scale factor for duplicated boxes.
+!! @note Writes seam lines, points, and Romano identification marks to DXF.
        SUBROUTINE pjoncs2(i,xjonc,nparc,sjo,sepx,sepy,rib,xkf)
 
        real*8 xjonc(0:100,0:500,10),sjo(0:100,10),sepx,sepy

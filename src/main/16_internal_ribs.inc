@@ -18,6 +18,11 @@ c       end do
 
        do k=1,nhvr
 
+c      Defaults prevent optional or degenerate segments reusing stale values
+       xm=0.0d0
+       xb=0.0d0
+       xsegment=0.0d0
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      16.1 H straps Type 1
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

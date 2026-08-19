@@ -1,3 +1,15 @@
+!> Calculate extended leading- and trailing-edge corners for a panel.
+!! The routine stores construction-line endpoints in coordinate slots 14/15
+!! and the resulting side intersections or orthogonal corners in slots 24/25.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in,out] uf Developed-panel horizontal coordinates.
+!! @param[in,out] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] xpal General side allowance, used by the orthogonal method.
+!! @param[in] xpale Leading-edge extension allowance.
+!! @param[in] xpate Trailing-edge extension allowance.
+!! @param[in] icase Extension method: 1 follows the side tangents; 2 uses
+!!                  corners orthogonal to the end construction line.
        SUBROUTINE extpoints(i,uf,vf,npo,xpal,xpale,xpate,icase)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -158,6 +170,15 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL COMPLETE
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw a complete developed panel, including allowances and seam borders.
+!! Geometry is read from the conventional coordinate slots in `uf` and `vf`
+!! and emitted as DXF entities through `line`.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelc(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -265,6 +286,15 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL COMPLETE WITH CONTROL (ic)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw a selected-border variant of a complete developed panel.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] ic Legacy border-selection mode controlling which end and side
+!!               construction lines are emitted.
        SUBROUTINE dpanelcc(i,uf,vf,npo,psep,psey,ic)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -437,6 +467,19 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW ARC BY 3 POINTS WITH CONTROL (ic)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Construct and draw a circular panel edge from two endpoints and a sagitta.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] npunt Profile-point index at which the curved edge is built.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in,out] dfle Requested sagitta; raised to the routine's minimum
+!!                      usable value when necessary.
+!! @param[in,out] is Arc-side selector; a negative sagitta reverses its sign.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] ic Output mode: 1 draws all construction borders; 2 draws only
+!!               the external border.
+!! @param[in] xupp Panel allowance used to offset the companion arc.
        SUBROUTINE arc3p(i,npunt,uf,vf,dfle,is,psep,psey,ic,xupp)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -666,6 +709,19 @@ c      USED ONLY FOR OBTAINIG SOME POINTS FOR ROMAN PRINTING....
 c      INTEGRAR DINS romanoparc
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Build the circular-edge construction used by Romano arc marks.
+!! This specialized companion to `arc3p` retains the historical construction
+!! sequence expected by the mark-printing code.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] npunt Profile-point index at which the arc is constructed.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in,out] dfle Requested sagitta, normalized when too small or signed.
+!! @param[in,out] is Arc-side selector, updated for a negative sagitta.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] ic Legacy construction-output mode.
+!! @param[in] xupp Panel allowance applied to the companion arc.
        SUBROUTINE arc3parc(i,npunt,uf,vf,dfle,is,psep,psey,ic,xupp)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -674,10 +730,18 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        real*8 g,mu,xi,parcu(0:21),parcv(0:21),parcul(0:21),parcvl(0:21)
        real*8 parcve(0:21),parcue(0:21)
        real*8 xru(2),xrv(2),xsu(2),xsv(2)
-       real*8 uu1,vv1,uu2,vv2,xlen1,xlen2
-       integer npunt,ic,is,kini,kfin
+       real*8 uu1,vv1,uu2,vv2,xlen1,xlen2,xlenco
+       integer npunt,ic,is,kini,kfin,ii
 
        j=npunt
+       xlenco=typm2(8)
+
+c      Normalize signed sagittas in the same way as arc3p.
+       ii=1
+       if (dfle.lt.0.0d0) then
+       ii=-1
+       end if
+       is=is*ii
 
 c      Evita radi infinit
        if (dfle.lt.0.000001d0) then
@@ -748,13 +812,6 @@ c      Arc global coordinates (u,v) using 21 points
        parcv(k-1)=puntv(0)+radi*dcos(ep)
        end do
 
-c      Case intrados
-       if (ii.eq.-1) then
-       do k=21,1,-1
-
-       end do
-       end if
-
 c      Arc local coordinates (u',v')
        do k=0,20
        parcul(k)=parcu(k)-puntu(1)
@@ -784,10 +841,12 @@ c      Arc length
 
 c      Detect kini and kfin
        xlen2=0.0d0
+       kini=0
+       kfin=2
        do k=0,20-1
-       xlen2=xlen+dsqrt((parcu(k+1)-parcu(k))**2.+
+       xlen2=xlen2+dsqrt((parcu(k+1)-parcu(k))**2.+
      + (parcv(k+1)-parcv(k))**2)
-       if (len2.le.len1*xlenco) then
+       if (xlen2.le.xlen1*xlenco) then
        kini=k
        kfin=k+2
        end if
@@ -816,6 +875,25 @@ c      Draw vent panels types
 c      ic1=1 > print; ic1=2 > laser
 c      ic2= vent type 1,0,-1,-2,-3
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc     
+!> Draw a developed vent panel and its cutting/sewing construction geometry.
+!! The routine supports the historical vent variants encoded by `ic2` and
+!! writes the chosen representation as DXF line, curve, point, and mark
+!! entities. Coordinate slot meanings follow the panel development pipeline.
+!! @param[in] i Panel or rib index.
+!! @param[in] np Number of points defining the panel/profile geometry.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] ufv Vent-specific horizontal coordinates.
+!! @param[in] vfv Vent-specific vertical coordinates.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] xupp General seam allowance.
+!! @param[in] xupple Leading-edge allowance.
+!! @param[in] xuppte Trailing-edge allowance.
+!! @param[in] xkf Global drawing scale factor.
+!! @param[in] ic1 Output process selector used by the legacy print/laser paths.
+!! @param[in] ic2 Vent construction variant selector.
+!! @param[in,out] csi Per-rib vent control and construction parameters.
        SUBROUTINE drwvent(i,np,uf,vf,ufv,vfv,psep,psey,xupp,xupple,
      + xuppte,xkf,ic1,ic2,csi)
 
@@ -1525,7 +1603,7 @@ c      Point 12'
      + distrel2
 
        npoly=npolyr
-       if (nployr.eq.1) then
+       if (npolyr.eq.1) then
        npoly=2
        end if  
 
@@ -1818,7 +1896,7 @@ c      Point 12'
      + distrel2
 
        npoly=npolyr
-       if (nployr.eq.1) then
+       if (npolyr.eq.1) then
        npoly=2
        end if  
 
@@ -2001,6 +2079,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL WITHOUT FIRST LIMIT
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw a complete developed panel while omitting its first end border.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelc1(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -2079,6 +2164,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL WITHOUT LAST BORDER
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw a complete developed panel while omitting its last end border.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelc2(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -2154,6 +2246,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL TYPE -2  WITHOUT LAST BORDER
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the legacy type -2 panel variant without its last end border.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelcm2(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -2232,6 +2331,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL TYPE -3  WITHOUT LAST BORDER
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw the legacy type -3 panel variant without its last end border.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelcm3(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -2307,6 +2413,14 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL ONLY BORDERS
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw only the seam-border geometry of a developed panel.
+!! This reduced representation is used by cutting/laser output paths.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelb(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -2368,6 +2482,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL WITHOUT FIRST LIMIT (LASER)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw seam borders while omitting the panel's first end border.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelb1(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)
@@ -2413,6 +2534,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE DRAW PANEL WITHOUT LAST BORDER (LASER)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw seam borders while omitting the panel's last end border.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
        SUBROUTINE dpanelb2(i,uf,vf,npo,psep,psey)
 
        real*8 uf(0:100,500,50),vf(0:100,500,50)

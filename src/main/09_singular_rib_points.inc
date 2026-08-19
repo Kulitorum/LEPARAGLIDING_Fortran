@@ -631,6 +631,9 @@ c      9.9.2 Compute external cut edges in airfoils (i,j,46)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        xcos=xrib/10. ! rib sewing allowance mm to cm
+
+c      Also used for the two endpoints when there are no interior points
+       xcosk=1.0d0
       
        do j=2,np(i,1)-1
 

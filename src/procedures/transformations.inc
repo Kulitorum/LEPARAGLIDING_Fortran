@@ -1,3 +1,12 @@
+!> Rotate and translate a sequence of local 2D points into global coordinates.
+!! @param[in] n Number of valid points in the coordinate arrays.
+!! @param[in] xloc Local horizontal coordinates.
+!! @param[in] yloc Local vertical coordinates.
+!! @param[out] xglo Transformed global horizontal coordinates.
+!! @param[out] yglo Transformed global vertical coordinates.
+!! @param[in] x0 Global horizontal coordinate of the local origin.
+!! @param[in] y0 Global vertical coordinate of the local origin.
+!! @param[in] angle Counter-clockwise rotation in degrees.
       SUBROUTINE loc2glo2D(n,xloc,yloc,xglo,yglo,x0,y0,angle)
 
       implicit none

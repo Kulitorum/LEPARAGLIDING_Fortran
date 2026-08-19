@@ -123,6 +123,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        rot_z=rib(i,250)*pi/180.0d0
        pos=rib(i,5)*rib(i,251)/100.0d0
 
+c      Default to a valid point and then locate the profile point nearest
+c      the normalized leading-edge origin. Real profile files do not always
+c      contain an exact (0,0) sample.
+       np(i,6)=1
+       nose_distance_sq=huge(nose_distance_sq)
+
        do j=1,np(i,1)
 
 c      6.3 Airfoil coordinates *100
@@ -187,11 +193,11 @@ c      WARNING! Això no ho veig clar
 c      Fer experiment per a verificar. És necessari?
 c       v(i,j,3)=v(i,j,3)+rib(i,50)
 
-c      Calcule nose point np(i,6) with coordinates (0,0)
-       if(dabs(u(i,j,2)).lt.0.000001d0.and.dabs(v(i,j,2)).lt.
-     + 0.000001d0) then
+c      Calculate nose point np(i,6) as the sample nearest (0,0)
+       if(u(i,j,2)*u(i,j,2)+v(i,j,2)*v(i,j,2).lt.
+     + nose_distance_sq) then
        np(i,6)=j
-       np(0,6)=np(1,6)
+       nose_distance_sq=u(i,j,2)*u(i,j,2)+v(i,j,2)*v(i,j,2)
        end if
 
        end do ! j
@@ -207,6 +213,8 @@ c      Additional point in airfoil plane (use in 10.1+)
        z_apap(i)=v_aux(i,j,5)
 
        end do ! i
+
+       np(0,6)=np(1,6)
 
 c      6.9 Airfoil 0 = 1' (symetrical to airfoil 1) BUT NON DISPLACED COORD
 
@@ -310,6 +318,9 @@ c      REVISAR LA PREOGRAMACIO. SIMPLIFICAR
        xcos=xrib/10. ! rib sewing allowance mm to cm
 
        do i=0,nribss
+
+c      Also used for the two endpoints when there are no interior points
+       xcosk=1.0d0
       
        do j=2,np(i,1)-1
 
@@ -408,6 +419,10 @@ c      Special airfoils not considered
 c      Please improve
 
        do i=0,nribss
+
+c      A degenerate profile has zero thickness unless extrema are found
+       xth1=0.0d0
+       xth2=0.0d0
 
 c      Extrados thickness
        do j=1,np(i,1)-1
@@ -1502,14 +1517,8 @@ c      Trailing edge
 
 c      Leading edge
 
-c      Calcula punt de LE
-       do j=10,np(1,2)
-       if (u(1,j,3).eq.0) then
-       jzero=j
-       end if
-       end do
-
-       j=jzero
+c      Use the leading-edge index selected from the nearest profile point
+       j=np(1,6)
 
        do i=1,nribss-1
 
@@ -1672,14 +1681,8 @@ c      Control if cell is closed
        end do
 
 c      Drawing leading edge
-c      Calculus point in LE
-       do j=10,np(1,2)
-       if (u(1,j,3).eq.0) then
-       jzero=j
-       end if
-       end do
-
-       j=jzero
+c      Use the leading-edge index selected from the nearest profile point
+       j=np(1,6)
 
        do i=1,nribss-1
 

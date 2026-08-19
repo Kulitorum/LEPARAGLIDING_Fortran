@@ -16,6 +16,28 @@ c      Set n1draw=1 xyextra=2.0 yxintra=1.0 to return previous version
        xyshift=500.0d0 ! Control Y-position extrados
        iflag_assiette=0 ! Assiette flag
 
+c      Safe defaults for values populated only by optional input sections
+       alphat=0.0d0
+       cencell=0.0d0
+       ii11=0
+       nhols11=0
+       iflag2000=0
+       jcontrole=1
+       jcontroli=1
+       xminirib=0.0d0
+       xequise=0.0d0
+       yequise=0.0d0
+       ysaut=0.0d0
+       x35_k1fi=1.0d0
+       x35_k2fi=1.0d0
+       x35gammafi=0.01d0
+       x35gamma=0.0d0
+       x35theta=0.0d0
+       i35m2contr=0
+       i35m5contr=0
+       x35distwcp=0.0d0
+       x35ypp=0.0d0
+
 c      integer color
 c      common typepoint
 

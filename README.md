@@ -1,8 +1,9 @@
 # LEparagliding 3.28 — maintainer guide
 
 LEparagliding is Pere Casellas' fixed-input paraglider and parachute design
-program. This repository contains a behavior-preserving structural refactor of
-version 3.28, "Jardins".
+program. This repository contains a structural refactor of version 3.28,
+"Jardins", followed by targeted repairs to the unsafe legacy paths found by
+compiler diagnostics and runtime checks.
 
 This pass deliberately does **not** implement the new designer features yet.
 Its purpose is to make those changes safer: automatic color-piece division,
@@ -12,11 +13,12 @@ autocompletion are the next layer of work.
 ## What changed
 
 The original 36,252-line `leparagliding.f` compiled and ran, but the main
-program, all 84 procedures, global mark state, input parsing, geometry, and DXF
-writing occupied one file. Procedure calls had no explicit interfaces, and one
-COMMON block repeated the same declarations in nine places.
+program, all legacy procedures, global mark state, input parsing, geometry, and
+DXF writing occupied one file. Procedure calls had no explicit interfaces, and
+one COMMON block repeated the same declarations in nine places.
 
-The refactor made these changes without changing the Plan B wing result:
+The initial refactor made these changes without changing the Plan B wing
+result:
 
 - Split the main calculation into 21 files named after the existing numbered
   sections under `src/main/`.
@@ -37,6 +39,20 @@ The refactor made these changes without changing the Plan B wing result:
   legacy calculation.
 - Added a CMake build and an end-to-end regression test using the full Plan B
   Parakite wing.
+
+The subsequent safety pass:
+
+- makes profile loading capacity-safe and rejects profiles over 500 points with
+  a clear diagnostic instead of writing past an array;
+- removes the identified negative and zero index paths in profile, panel,
+  mark, rib, and 3D geometry calculations;
+- chooses the leading-edge sample nearest the profile origin, so a valid
+  profile no longer needs an exact floating-point `(0, 0)` point;
+- initializes optional-section results and interpolation fallbacks before use;
+- restores the reachable fifth line level and sizes the V-rib coordinate
+  buffers for the 121 samples the algorithm writes; and
+- repairs the incomplete `arc3parc` compatibility routine and legacy spelling
+  mistakes that selected the wrong variables.
 
 The original source archive, `leparagliding3.28.f.zip`, remains in the root as
 the historical reference.
@@ -75,9 +91,14 @@ normalized contents of:
 - `lines.txt`
 - `run-log.txt`
 
-All five files match the output of the untouched 3.28 source byte-for-byte on
-the Windows/GNU Fortran baseline. The test normalizes line endings before
-hashing so the same oracle can be used on GNU/Linux.
+The five files match the reviewed 3.28 safety baseline. They are not all
+byte-for-byte identical to the untouched program: replacing invalid-memory
+behavior and selecting a deterministic leading-edge point intentionally changes
+parts of `leparagliding.dxf` and `lep-out.txt`. The test normalizes line endings
+before hashing so the same oracle can be used on GNU/Linux.
+
+A second test, `profile_capacity_guard`, builds a synthetic 501-point profile
+from the Plan B case and verifies that it is rejected safely.
 
 ### Running another design
 
@@ -104,7 +125,8 @@ inspection.
 ```text
 CMakeLists.txt
 cmake/
-  run_plan_b_regression.cmake    isolated end-to-end test
+  run_plan_b_regression.cmake    isolated end-to-end output test
+  run_profile_capacity_check.cmake  oversized-profile rejection test
 src/
   leparagliding.f                named program and ordered section includes
   leparagliding_procedures.f     explicit interface facade for legacy routines
@@ -131,6 +153,32 @@ The important procedure groups are:
 | `interpolation.inc` | equal-distance polyline interpolation |
 | `file_cleanup.inc` | post-processing of NaN text in generated files |
 | `transformations.inc` | 2D local-to-global transformation |
+
+## Procedure documentation
+
+Every procedure is documented where it is defined: 89 legacy subroutines and
+six typed geometry functions. Modules, public derived types, their components,
+and the main program also have summaries. The comments use Doxygen/FORD-style
+Fortran markup:
+
+```fortran
+!> One-sentence purpose and any important side effects.
+!! @param[in] input Meaning, units, valid range, or indexing convention.
+!! @param[out] output Meaning of the returned value.
+!! @param[in,out] state What is read and what is changed.
+!! @return Function result and its interpretation.
+!! @note Preconditions or legacy behavior that callers must understand.
+```
+
+Each formal argument has its own `@param` entry, including compatibility
+arguments that the current implementation does not use. For legacy routines,
+the documented `[in]`, `[out]`, and `[in,out]` directions describe observed
+behavior; they are not yet compiler-enforced `intent` declarations. Add those
+declarations only while migrating a routine with a focused regression test.
+
+Keep documentation next to the implementation and update it in the same change
+whenever a signature, coordinate-slot convention, output unit, or side effect
+changes.
 
 ### Why the numbered main files are includes
 
@@ -170,37 +218,29 @@ owner.
 6. Do not “clean up” floating-point expression order casually. The exact-output
    regression is intentionally sensitive to numerical drift.
 
-## Known legacy risks still to resolve
+## Legacy safety status
 
-The structural refactor exposes problems; it does not guess at fixes that could
-silently alter a wing. A diagnostic GNU Fortran build still reports 1,438
-warnings, mostly implicit single-precision temporaries/conversions and direct
-REAL equality comparisons. It also identifies these higher-priority defects:
+The high-priority risks formerly listed here are resolved. In particular,
+profile capacity is checked, all reported `j-1`/`j-2` and rib `-1` paths are
+guarded, the leading-edge index is always valid, and the named uninitialized or
+misspelled values have been repaired. A warning-enabled Release build now
+reports no possibly-uninitialized values and no statically provable array-bound
+violations. The full Plan B case also completes with all GNU Fortran runtime
+checks enabled.
 
-- Some profile arrays are declared for 500 points while `datair` can read up to
-  1,000 (`src/procedures/profile_data.inc`).
-- Several loops access `j-1` or `j-2` while their arrays have a lower bound of
-  1 (`pattern_marks.inc` and `geometry_3d.inc`).
-- Section 8 contains paths that can access rib index `-1` even though the lower
-  bound is `0`.
-- A runtime-checked Plan B build stops when `np(i,6)` is zero and is used as the
-  second index of `u`, whose declared lower bound is `1`, in
-  `main/06_airfoil_geometry.inc`.
-- The compiler reports several possibly uninitialized legacy values, including
-  `dyy`, `ii`, `len1`, `len2`, `nployr`, `xlen`, and `xlenco`.
+The legacy main program still produces many lower-priority warnings, chiefly
+implicit single-precision-to-double-precision conversions, exact REAL
+comparisons, unused variables, and old-style implicit typing. These are cleanup
+work rather than known memory-safety failures. Address them incrementally with
+focused tests because changing expression types or order can change numerical
+output.
 
-The normal legacy-compatible build completes Plan B because bounds checking was
-not historically enabled. These issues should be fixed with targeted test cases
-for the affected design options, not by globally changing array bounds: changing
-an explicit-shape bound also changes array strides and can alter every caller.
-
-For investigation, GNU Fortran runtime checks can be enabled with:
+Run the same diagnostic configuration with:
 
 ```sh
-cmake -S . -B build-check -DLEPARAGLIDING_RUNTIME_CHECKS=ON
+cmake -S . -B build-check -DCMAKE_BUILD_TYPE=Release \
+  -DLEPARAGLIDING_ENABLE_WARNINGS=ON \
+  -DLEPARAGLIDING_RUNTIME_CHECKS=ON
 cmake --build build-check --parallel
+ctest --test-dir build-check --output-on-failure
 ```
-
-At present, the Plan B regression is expected to expose the known bound error
-under that diagnostic configuration. Use the normal Release configuration for
-the behavior-preserving baseline.

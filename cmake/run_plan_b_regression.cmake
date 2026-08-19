@@ -45,14 +45,15 @@ endif()
 # Hash the text after normalizing line endings so GNU/Linux and Windows can
 # share the same regression oracle.
 set(expected_outputs
-    leparagliding.dxf bf5ec2c7230e685cea4f931a209f10c97daefbeeec9dc38932daa3d07e83f982
+    leparagliding.dxf 836176f70755e5343be1a2a285123c14f45b447b79fba81a7ce3aa5fa3af0125
     lep-3d.dxf        26543ac41008ca7f3d7df739238b124fa60953517b7703da998635457c1fc1ee
-    lep-out.txt       736938dd4c485be80191f6a6511c7d016fa736c27cd3f683f7387d1f408505f4
+    lep-out.txt       7f236a9a65d680a51b72adcef1889f40d98649da8ff3fa154b505c46f917fa80
     lines.txt         0e9cc3879f81d77e3909918f4391e786af34ed22d9c5c3acf483a5dcf6da6cc8
     run-log.txt       e85d948c4bc287854e49b73a4f4bb56bc34607d58435bbac5a5726e4a5791bae)
 
 list(LENGTH expected_outputs output_list_length)
 math(EXPR last_output_index "${output_list_length} - 1")
+set(changed_outputs "")
 
 foreach(index RANGE 0 ${last_output_index} 2)
   math(EXPR hash_index "${index} + 1")
@@ -70,11 +71,15 @@ foreach(index RANGE 0 ${last_output_index} 2)
   string(SHA256 actual_hash "${output_text}")
 
   if(NOT actual_hash STREQUAL expected_hash)
-    message(FATAL_ERROR
-        "Plan B output changed: ${output_name}\n"
-        "expected ${expected_hash}\n"
-        "actual   ${actual_hash}")
+    string(APPEND changed_outputs
+        "\n${output_name}\n"
+        "  expected ${expected_hash}\n"
+        "  actual   ${actual_hash}\n")
   endif()
 endforeach()
 
-message(STATUS "Plan B regression outputs match the version 3.28 baseline")
+if(NOT changed_outputs STREQUAL "")
+  message(FATAL_ERROR "Plan B outputs changed:${changed_outputs}")
+endif()
+
+message(STATUS "Plan B outputs match the corrected 3.28 safety baseline")

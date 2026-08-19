@@ -1,3 +1,11 @@
+!> Offset a closed airfoil-like 2D contour using the original side-selection rules.
+!! @param[in,out] uo Horizontal coordinates; column 1 is the source and column 2
+!!                   receives the offset contour.
+!! @param[in,out] vo Vertical coordinates; column 1 is the source and column 2
+!!                   receives the offset contour.
+!! @param[in] npo Number of valid source points.
+!! @param[in] xo Offset magnitude, scaled internally by 0.1.
+!! @note Offset direction depends on the sign of V and local X progression.
        SUBROUTINE loffset(uo,vo,npo,xo)
 
        real*8 uo(0:500,2),vo(0:500,2)
@@ -82,6 +90,13 @@ c      SUBROUTINE LINE OFFSET2
 c      Another version
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Offset a 2D contour using tangent direction and a fixed outward-side sign.
+!! @param[in,out] uo Horizontal coordinates; column 1 is input and column 2 output.
+!! @param[in,out] vo Vertical coordinates; column 1 is input and column 2 output.
+!! @param[in] npo Number of valid contour points.
+!! @param[in] xo Offset magnitude, scaled internally by 0.1.
+!! @note This is the later alternative to `loffset`; it corrects tangent angles
+!!       when the contour's X coordinate is increasing.
        SUBROUTINE loffset2(uo,vo,npo,xo)
 
        real*8 uo(0:500,2),vo(0:500,2)
@@ -138,6 +153,20 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE PUNTS LATERALS
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Calculate offset lateral endpoints for the left or right side of a pattern.
+!! @param[in] i Rib/panel index.
+!! @param[in] pulat1x Horizontal coordinates of the first segment endpoints.
+!! @param[in] pulat1y Vertical coordinates of the first segment endpoints.
+!! @param[in] pulat2x Horizontal coordinates of the second segment endpoints.
+!! @param[in] pulat2y Vertical coordinates of the second segment endpoints.
+!! @param[in] npulati First segment index to process.
+!! @param[in] npulatf Last segment index to process.
+!! @param[in,out] latu Pattern horizontal coordinates; slots 7/8 contain offset
+!!                     distances and slots 9--12 receive lateral points.
+!! @param[in,out] latv Pattern vertical coordinates; slots 7/8 contain offset
+!!                     distances and slots 9--12 receive lateral points.
+!! @param[in] xupp Additional allowance magnitude, scaled internally by 0.1.
+!! @param[in] latsgn Side selector: `-1` for left and `1` for right.
        SUBROUTINE puntslat(i,pulat1x,pulat1y,pulat2x,pulat2y,npulati,
      + npulatf,latu,latv,xupp,latsgn)
 
@@ -287,6 +316,18 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE MYLARS
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Construct and draw the nose-mylar reinforcement for one rib.
+!! @param[in] i Rib index.
+!! @param[in] u Prepared horizontal profile coordinates.
+!! @param[in] v Prepared vertical profile coordinates.
+!! @param[in] sepx Horizontal drawing translation for the rib pattern.
+!! @param[in] sepy Vertical drawing translation for the rib pattern.
+!! @param[in] rib Rib geometry and selected mylar-group indices.
+!! @param[in] xmy Mylar shape parameters by group.
+!! @param[in] np Profile point counts and vent indices.
+!! @param[in] xkf Drawing scale factor.
+!! @param[in] atp Airfoil-type code; `pc` enables the vent gap in the contour.
+!! @note Writes reinforcement outlines, matching marks, and Romano labels to DXF.
        SUBROUTINE mylars(i,u,v,sepx,sepy,rib,xmy,np,xkf,atp)
 
        real*8 u(0:100,500,99),v(0:100,500,99),sepx,sepy
@@ -531,6 +572,12 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     SUBROUTINE interpolation of polyline - linear
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Linearly interpolate a scalar value on a piecewise-linear function.
+!! @param[in] n Number of tabulated points.
+!! @param[in] xpoint Tabulated, nondecreasing X coordinates.
+!! @param[in] ypoint Corresponding tabulated Y coordinates.
+!! @param[in] xvalue X coordinate to evaluate.
+!! @param[out] yvalue Interpolated Y value, or zero when X is outside all intervals.
       SUBROUTINE interpolyg(n,xpoint,ypoint,xvalue,yvalue)
 
       real*8 xpoint(50),ypoint(50),xvalue,yvalue,xm,xb
@@ -557,6 +604,12 @@ c     SUBROUTINE interpolation of polyline - lagrange
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 
+!> Evaluate the global Lagrange interpolating polynomial through tabulated points.
+!! @param[in] n Number of interpolation points.
+!! @param[in] xpoint Distinct tabulated X coordinates.
+!! @param[in] ypoint Corresponding tabulated Y coordinates.
+!! @param[in] xvalue X coordinate to evaluate.
+!! @param[out] yvalue Interpolated polynomial value.
       SUBROUTINE lagrangeip(n,xpoint,ypoint,xvalue,yvalue)
 
       real*8 xpoint(50),ypoint(50),xvalue,yvalue
@@ -598,6 +651,12 @@ c      s = segment of the arc
 c      sm =length of the arc
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Solve the sagitta of a circular segment from chord and arc lengths.
+!! @param[in] s Chord length.
+!! @param[in] sm Target arc length; normally between `s` and `pi*s/2`.
+!! @param[out] haut Solved sagitta (arrow height).
+!! @note Uses a one-percent stepping search followed by linear interpolation and
+!!       writes convergence diagnostics to standard output.
        SUBROUTINE fletxa(s,sm,haut)
 
        real*8 s,g,sm,haut,llarg,radi,pi

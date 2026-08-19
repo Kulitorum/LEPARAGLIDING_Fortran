@@ -147,6 +147,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        real*8 p1x,p1y,p1z,p2x,p2y,p2z,p3x,p3y,p3z,p4x,p4y,p4z
        real*8 distance,param1,param2,param3 ! general parameters
+       real*8 nose_distance_sq
 
 c       real*8 amte,amter,amtel,amle,amler,amlel
        real*8 amle,amler
@@ -242,9 +243,9 @@ c      Coordenades airfoil en gir Z
        real*8 hx2(0:100,50,10), hy2(0:100,50,10), hz2(0:100,50,10)
        real*8 hx3(0:100,50,10), hy3(0:100,50,10), hz3(0:100,50,10)
 
-       real*8 rx1(0:100,50,10), ry1(0:100,50,10), rz1(0:100,50,10)
-       real*8 rx2(0:100,50,10), ry2(0:100,50,10), rz2(0:100,50,10)
-       real*8 rx3(0:100,50,10), ry3(0:100,50,10), rz3(0:100,50,10)
+       real*8 rx1(0:100,500,10), ry1(0:100,500,10), rz1(0:100,500,10)
+       real*8 rx2(0:100,500,10), ry2(0:100,500,10), rz2(0:100,500,10)
+       real*8 rx3(0:100,500,10), ry3(0:100,500,10), rz3(0:100,500,10)
 
        real*8 sx1(0:100,50,10), sy1(0:100,50,10), sz1(0:100,50,10)
        real*8 sx2(0:100,50,10), sy2(0:100,50,10), sz2(0:100,50,10)
@@ -334,14 +335,15 @@ c      Sections 15 and 16 (colors)
 
        real*8 xarp(10), yarp(10)
 
-       real*8 hdist(100), hangle(100)
+       real*8 hdist(0:100), hangle(0:100)
 
        real*8 xtri(50),ytri(50)
 
        real*8 csus(10,10), cdis(10,10)
 
        real*8 aload(100,10), xload(500), xlide(500), xlifi(500)
-       real*8 lvcx(500,500), lvcy(500,500),rvcx(500,500),rvcy(500,500)
+       real*8 lvcx(0:500,500),lvcy(0:500,500)
+       real*8 rvcx(0:500,500),rvcy(0:500,500)
 
        real*8 anccont(0:100,10),ancconti(0:100,10)
 
@@ -368,8 +370,8 @@ c       real*8 px9i(300),py9i(300)
        real*8 px9o(500),py9o(500)
 
        real*8 xanchor(100,6),yanchor(100,6)
-       real*8 xanchoril(100,6),yanchoril(100,6)
-       real*8 xanchorir(100,6),yanchorir(100,6)
+       real*8 xanchoril(0:100,6),yanchoril(0:100,6)
+       real*8 xanchorir(0:100,6),yanchorir(0:100,6)
 
        real*8 xprb(0:100,6,0:10),yprb(0:100,6,0:10)
        real*8 jconi(6),jconf(6),xkprb(6)

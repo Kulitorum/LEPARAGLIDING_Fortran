@@ -1,3 +1,10 @@
+!> Draw the first cross-panel edge when generating printed patterns.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] u Developed-panel horizontal coordinates.
+!! @param[in] v Developed-panel vertical coordinates.
+!! @param[in] icase Output mode; the segment is drawn when `icase` is 1.
        SUBROUTINE print01(i,psep,psey,u,v,icase)
 
        real*8 u(0:100,500,99),v(0:100,500,99),w(0:100,500,99)
@@ -25,6 +32,19 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Print initial i final points
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw registration marks at both ends of both panel sides.
+!! Marks are emitted for the print layout and for the horizontally displaced
+!! laser layout.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] npi First profile-point index to mark.
+!! @param[in] npf Last profile-point index to mark.
+!! @param[in] u Developed-panel horizontal coordinates.
+!! @param[in] v Developed-panel vertical coordinates.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] xcir Printed registration-circle radius.
+!! @param[in] xdes Normal displacement from the seam edge.
+!! @param[in] xkf Global drawing scale used to locate the laser copy.
        SUBROUTINE prinifp(i,npi,npf,u,v,psep,psey,xcir,xdes,xkf)
        
        real*8 u(0:100,500,99),v(0:100,500,99),psep,psey,xcir
@@ -78,6 +98,19 @@ c      Case print, case laser (ic1)
 c      Case type vent (ic2)
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Draw final-point registration marks for the selected vent variant.
+!! @param[in] i Panel or rib index.
+!! @param[in] j9 Profile index on the left side (coordinate slot 9).
+!! @param[in] j10 Profile index on the right side (coordinate slot 10).
+!! @param[in] ufr Developed vent-panel horizontal coordinates.
+!! @param[in] vfr Developed vent-panel vertical coordinates.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] xcir Printed registration-circle radius.
+!! @param[in] xdes Normal displacement from the seam edge.
+!! @param[in] xkf Global drawing scale used to locate the laser copy.
+!! @param[in] ic1 Output process selector: 1 print; 2 laser.
+!! @param[in] ic2 Legacy vent construction variant.
        SUBROUTINE prinfpv(i,j9,j10,ufr,vfr,psep,psey,xcir,xdes,xkf,
      + ic1,ic2)
        
@@ -309,6 +342,15 @@ c      Computes length at left and right of the partial rectagular
 c      panel i formed by npo points
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Calculate the developed lengths of a panel's left and right sides.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] i12 Surface/category index used in the result arrays.
+!! @param[in] i22 Panel-variant index used in the result arrays.
+!! @param[in] npo Number of profile points in the partial panel.
+!! @param[in] ufr Developed-panel horizontal coordinates.
+!! @param[in] vfr Developed-panel vertical coordinates.
+!! @param[in,out] llarl Left-side lengths; the selected entry is overwritten.
+!! @param[in,out] llarr Right-side lengths; the selected entry is overwritten.
        SUBROUTINE llarlr(i,i12,i22,npo,ufr,vfr,llarl,llarr)
 
        real*8 ufr(0:100,500,50),vfr(0:100,500,50)
@@ -337,6 +379,28 @@ c      SUBROUTINE xmarksi
 c      Makes internal marks in a rectangular panel
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Place regularly spaced internal registration marks on both panel sides.
+!! Traversal direction follows the upper/lower-surface selector, and the final
+!! residual spacings are returned for continuity with the next panel section.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] i1 Surface selector: 1 extrados; 2 intrados.
+!! @param[in] i2 Panel-section index used by the length/result arrays.
+!! @param[in] npo Number of profile points in the panel.
+!! @param[in] u Developed-panel horizontal coordinates.
+!! @param[in] v Developed-panel vertical coordinates.
+!! @param[in] rib Rib data table retained by the legacy interface.
+!! @param[in] xinil Initial distance to the first mark on the left side.
+!! @param[in] xinir Initial distance to the first mark on the right side.
+!! @param[in,out] xfinl Residual left-side spacing for the following section.
+!! @param[in,out] xfinr Residual right-side spacing for the following section.
+!! @param[in] xmark Nominal interval between successive marks.
+!! @param[in] llarl Previously calculated left-side lengths.
+!! @param[in] llarr Previously calculated right-side lengths.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] xcir Printed registration-circle radius.
+!! @param[in] xdes Normal displacement from the seam edge.
+!! @param[in] xkf Global drawing scale used to locate the laser copy.
        SUBROUTINE xmarksi(i,i1,i2,npo,u,v,rib,xinil,xinir,
      + xfinl,xfinr,xmark,llarl,llarr,psep,psey,xcir,xdes,xkf)
 
@@ -647,6 +711,38 @@ c      SUBROUTINE iam
 c      intrados anchor marks
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Locate and draw intrados anchor marks on both sides of a panel.
+!! Anchor distances are read from the rib table, interpolated along the
+!! developed seam edges, stored as planar anchor coordinates, and rendered in
+!! the print and laser layouts according to the configured mark style.
+!! @param[in] i Panel index in the coordinate arrays.
+!! @param[in] i1 Surface selector retained by the panel-mark interface.
+!! @param[in] i2 Panel-section selector; vent sections receive a base shift.
+!! @param[in] np Profile point-count table retained by the legacy interface.
+!! @param[in] npo Number of profile points in the developed panel.
+!! @param[in] u Developed-panel horizontal coordinates.
+!! @param[in] v Developed-panel vertical coordinates.
+!! @param[in,out] rib Rib and anchor-distance data; scratch interpolation
+!!                     entries 107 and 108 are updated.
+!! @param[in] xinil Initial accumulated distance on the left side.
+!! @param[in] xinir Initial accumulated distance on the right side.
+!! @param[in,out] xfinl Legacy continuity-result array.
+!! @param[in,out] xfinr Legacy continuity-result array.
+!! @param[in] xmark Legacy regular-mark interval.
+!! @param[in] llarl Previously calculated left-side lengths.
+!! @param[in] llarr Previously calculated right-side lengths.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] xcir Printed mark radius retained by the shared interface.
+!! @param[in] xdes Normal displacement from the seam edge.
+!! @param[in] xkf Global drawing scale used to locate the laser copy.
+!! @param[in] mark1 Integer mark configuration retained by the interface.
+!! @param[in] mark2 Real mark configuration retained by the interface.
+!! @param[in] mark3 Real mark configuration retained by the interface.
+!! @param[in] mark4 Mark style selectors; entry 5 controls anchor marks.
+!! @param[in] mark5 Mark sizes; entry 5 controls anchor marks.
+!! @param[in] mark6 Mark offsets; entry 5 controls anchor marks.
+!! @param[in] xrib Nominal rib-mark width.
        SUBROUTINE iam(i,i1,i2,np,npo,u,v,rib,xinil,xinir,
      + xfinl,xfinr,xmark,llarl,llarr,psep,psey,xcir,xdes,xkf,
      + mark1,mark2,mark3,mark4,mark5,mark6,xrib)
@@ -662,9 +758,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        integer klz
        real*8 xlen,xlenp,xequis,yequis,xdu,xdv,alpha,pi
-       real*8 xanchor(100,6),yanchor(100,6)
-       real*8 xanchoril(100,6),yanchoril(100,6)
-       real*8 xanchorir(100,6),yanchorir(100,6)
+       real*8 xanchor(0:100,6),yanchor(0:100,6)
+       real*8 xanchoril(0:100,6),yanchoril(0:100,6)
+       real*8 xanchorir(0:100,6),yanchorir(0:100,6)
 c       real*8 xpeq,ypeq,xdesp,xdesp1x,xdesp1y,xdesp2x,xdesp2y
 
        integer mark1(50),mark4(50)
@@ -783,8 +879,10 @@ c      Case 3: triangle h mm
 
        xlen=xlen+sqrt((v(i,j,9)-v(i,j-1,9))**2.+(u(i,j,9)-u(i,j-1,9))
      + **2.)
-       xlenp=xlen+sqrt((v(i,j-1,9)-v(i,j-2,9))**2.+
-     + (u(i,j-1,9)-u(i,j-2,9))**2.)
+       if (j.gt.2) then
+       xlenp=xlen+sqrt((v(i,j-1,9)-v(i,max(1,j-2),9))**2.+
+     + (u(i,j-1,9)-u(i,max(1,j-2),9))**2.)
+       end if
 
        end do ! j
 
@@ -888,8 +986,10 @@ c      Case 3: triangle 2 mm
 
        xlen=xlen+dsqrt((v(i,j,10)-v(i,j-1,10))**2.+(u(i,j,10)-
      + u(i,j-1,10))**2.)
-       xlenp=xlen+dsqrt((v(i,j-1,10)-v(i,j-2,10))**2.+
-     + (u(i,j-1,10)-u(i,j-2,10))**2.)
+       if (j.gt.2) then
+       xlenp=xlen+dsqrt((v(i,j-1,10)-v(i,max(1,j-2),10))**2.+
+     + (u(i,j-1,10)-u(i,max(1,j-2),10))**2.)
+       end if
 
        end do ! j
 
@@ -903,6 +1003,17 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUROUTINE ROMANO POINT I LINE 1-2
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Place a numbered Romano mark relative to a straight panel segment.
+!! @param[in] i Zero-based number source; the rendered label is `i + 1`.
+!! @param[in] is Surface orientation: 1 extrados; -1 intrados.
+!! @param[in] x1 Horizontal coordinate of the mark's reference endpoint.
+!! @param[in] y1 Vertical coordinate of the mark's reference endpoint.
+!! @param[in] x2 Horizontal coordinate defining the segment direction.
+!! @param[in] y2 Vertical coordinate defining the segment direction.
+!! @param[in] y3 Legacy reference coordinate retained for call compatibility.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] xkf Global drawing scale used to locate the laser copy.
        SUBROUTINE romanop(i,is,x1,y1,x2,y2,y3,psep,psey,xkf)
 
        real*8 x1,x2,x3,x4,y1,y2,y3,y4,xkf,psep,psey
@@ -944,6 +1055,18 @@ c      SUROUTINE ROMANO POINT IN ARC using points 1-2
 c      call subroutine arc3parc
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Place a numbered Romano mark tangent to a sagitta-defined panel arc.
+!! @param[in] i Zero-based number source; the rendered label is `i + 1`.
+!! @param[in] iq Surface orientation: 1 extrados; -1 intrados.
+!! @param[in] npunt Profile-point index containing the arc endpoints.
+!! @param[in] uf Developed-panel horizontal coordinates.
+!! @param[in] vf Developed-panel vertical coordinates.
+!! @param[in,out] dfle Arc sagitta; its sign is normalized internally.
+!! @param[in] is Sagitta-side selector: 1 positive; -1 negative.
+!! @param[in] psep Horizontal drawing offset.
+!! @param[in] psey Vertical drawing offset.
+!! @param[in] ic Output process selector retained by the legacy interface.
+!! @param[in] xkf Global drawing scale used to locate the laser copy.
        SUBROUTINE romanoparc(i,iq,npunt,uf,vf,dfle,is,psep,psey,ic,xkf)
 
 c      SUBROUTINE romanoparc(i,uu1,vv1,uu2,vv2,y3,psep,psey,xkf)

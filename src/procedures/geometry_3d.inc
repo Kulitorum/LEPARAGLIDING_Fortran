@@ -1,3 +1,18 @@
+!> Build the shaped median profile and local coordinate frames for one panel.
+!! @param[in] i Right-hand rib index of the panel; rib `i-1` is the left side.
+!! @param[in] rib Rib geometry and section-control matrix.
+!! @param[in] np Profile point counts and leading/trailing-edge indices.
+!! @param[in,out] u Wing X-coordinate array; local/global geometry slots are produced.
+!! @param[in,out] v Wing Y-coordinate array; slots 48, 49, 53, and 54 are produced.
+!! @param[in,out] w Wing Z-coordinate array; slots 48, 49, 53, and 54 are produced.
+!! @param[in] uppcuts Number of upper-surface shaping cuts by panel group.
+!! @param[in] iupp Upper-cut point-index definitions.
+!! @param[in] kiupp Upper-cut shaping coefficients.
+!! @param[in] lowcuts Number of lower-surface shaping cuts by panel group.
+!! @param[in] ilow Lower-cut point-index definitions.
+!! @param[in] kilow Lower-cut shaping coefficients.
+!! @param[out] hautok Solved ballooning height at each profile point.
+!! @note Uses profile slots 47, 69, and 70 as previously prepared inputs.
        SUBROUTINE panels3d(i,rib,np,u,v,w,
      + uppcuts,iupp,kiupp,lowcuts,ilow,kilow,hautok)
 
@@ -129,38 +144,30 @@ c      Points 55 perpendicular to the airfoil plane
 c      Points 49 of the ovalized airfoil
        do j=1,np(i,1)
 
-       punt1(1)=u(i,j-1,48)
-       punt1(2)=v(i,j-1,48)
-       punt1(3)=w(i,j-1,48)
-       punt2(1)=u(i,j+1,48)
-       punt2(2)=v(i,j+1,48)
-       punt2(3)=w(i,j+1,48)
-       punt3(1)=u(i,j,55)
-       punt3(2)=v(i,j,55)
-       punt3(3)=w(i,j,55)
-
        if (j.eq.1) then
        punt1(1)=u(i,j,48)
        punt1(2)=v(i,j,48)
        punt1(3)=w(i,j,48)
+       else
+       punt1(1)=u(i,max(1,j-1),48)
+       punt1(2)=v(i,max(1,j-1),48)
+       punt1(3)=w(i,max(1,j-1),48)
+       end if
+
+       if (j.eq.np(i,1)) then
+       punt2(1)=u(i,j,48)
+       punt2(2)=v(i,j,48)
+       punt2(3)=w(i,j,48)
+       punt3(1)=u(i,max(1,j-1),55)
+       punt3(2)=v(i,max(1,j-1),55)
+       punt3(3)=w(i,max(1,j-1),55)
+       else
        punt2(1)=u(i,j+1,48)
        punt2(2)=v(i,j+1,48)
        punt2(3)=w(i,j+1,48)
        punt3(1)=u(i,j,55)
        punt3(2)=v(i,j,55)
        punt3(3)=w(i,j,55)
-       end if
-
-       if (j.eq.np(i,1)) then
-       punt1(1)=u(i,j-1,48)
-       punt1(2)=v(i,j-1,48)
-       punt1(3)=w(i,j-1,48)
-       punt2(1)=u(i,j,48)
-       punt2(2)=v(i,j,48)
-       punt2(3)=w(i,j,48)
-       punt3(1)=u(i,j-1,55)
-       punt3(2)=v(i,j-1,55)
-       punt3(3)=w(i,j-1,55)
        end if
 
 c      Plane 1-2-3 perpendicular to the airfoil in point j
@@ -249,6 +256,21 @@ c      REMOVE write (*,*)
 c      REMOVE not used variables
 c      print in lep-out.txt
 
+!> Measure the zones influenced by upper and lower 3D-shaping cuts.
+!! @param[in] i Panel/rib index to evaluate.
+!! @param[in] rib Rib geometry and panel-group matrix.
+!! @param[in] np Profile point counts and edge indices.
+!! @param[in] u Profile X coordinates, including local slots 53 and 54.
+!! @param[in] v Profile Y coordinates, including local slots 53 and 54.
+!! @param[in] w Profile Z coordinates, including local slots 53 and 54.
+!! @param[in] uppcuts Number of upper cuts by panel group.
+!! @param[in] iupp Upper-cut index definitions.
+!! @param[in] kiupp Upper-cut coefficients retained for interface compatibility.
+!! @param[in] lowcuts Number of lower cuts by panel group.
+!! @param[in] ilow Lower-cut index definitions.
+!! @param[in] kilow Lower-cut coefficients retained for interface compatibility.
+!! @param[in] hautok Ballooning heights retained for interface compatibility.
+!! @param[out] zinf Per-panel zone lengths and shaped-minus-flat differences.
        SUBROUTINE czinf(i,rib,np,u,v,w,
      + uppcuts,iupp,kiupp,lowcuts,ilow,kilow,hautok,zinf)
 
@@ -471,6 +493,14 @@ c     SUBROUTINE planeby123
 c     Plane Ax+By+Cz+D=0 defined by points 1,2,3
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Calculate Cartesian plane coefficients through three points.
+!! @param[in] punt1 First non-collinear 3D point.
+!! @param[in] punt2 Second non-collinear 3D point.
+!! @param[in] punt3 Third non-collinear 3D point.
+!! @param[out] aplane X component of the plane normal.
+!! @param[out] bplane Y component of the plane normal.
+!! @param[out] cplane Z component of the plane normal.
+!! @param[out] dplane Constant in `A*x + B*y + C*z + D = 0`.
        SUBROUTINE planeby123(punt1,punt2,punt3,aplane,bplane,cplane,
      + dplane)
 
@@ -498,6 +528,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     Unitary vector and normal to plane by 123
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Normalize Cartesian plane-normal coefficients.
+!! @param[out] unitv Three components of the unit normal.
+!! @param[in] aplane X component of a nonzero plane normal.
+!! @param[in] bplane Y component of a nonzero plane normal.
+!! @param[in] cplane Z component of a nonzero plane normal.
        SUBROUTINE unitaryto123(unitv,
      + aplane,bplane,cplane)
 
@@ -521,6 +556,13 @@ c     Point by 0 perpendicular to plane Ax+By+Cz+D=0 at distance d
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 
+!> Offset a 3D point by a signed distance normal to a plane.
+!! @param[in] punt0 Starting point.
+!! @param[in] aplane X component of a nonzero plane normal.
+!! @param[in] bplane Y component of a nonzero plane normal.
+!! @param[in] cplane Z component of a nonzero plane normal.
+!! @param[in] dp0 Signed offset distance.
+!! @param[out] punt4 Resulting point.
        SUBROUTINE pointp3d(punt0,aplane,bplane,cplane,dp0,punt4)
 
        implicit none
@@ -552,6 +594,19 @@ c      Index 49 = 3D ovalized median airfoil
 c      Index 53 = 2D median airfoil
 c      Index 54 = 2D ovalized median airfoil
 
+!> Transform median profiles from global coordinates into a panel-local frame.
+!! @param[in] i Panel/rib index to transform.
+!! @param[in] punt0 Origin of the local frame in global coordinates.
+!! @param[in] lcosd First direction-cosine row of the transformation.
+!! @param[in] mcosd Second direction-cosine row of the transformation.
+!! @param[in] ncosd Third direction-cosine row of the transformation.
+!! @param[in,out] u X-coordinate array; global slots 48/49 are read and local
+!!                  slots 53/54 are written.
+!! @param[in,out] v Y-coordinate array; global slots 48/49 are read and local
+!!                  slots 53/54 are written.
+!! @param[in,out] w Z-coordinate array; global slots 48/49 are read and local
+!!                  slots 53/54 are written.
+!! @param[in] np Profile point counts.
        SUBROUTINE glo2loc(i,punt0,lcosd,mcosd,ncosd,u,v,w,np)
 
        real*8 lcosd(3),mcosd(3),ncosd(3)

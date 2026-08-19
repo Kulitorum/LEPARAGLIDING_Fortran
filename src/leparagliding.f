@@ -76,6 +76,14 @@ c       program leparagliding
 c
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+!> Run the complete LEparagliding design pipeline.
+!!
+!! The program reads `leparagliding.txt` and its referenced profile files from
+!! the current working directory, calculates the wing geometry, and writes the
+!! DXF and text deliverables documented in the project README.
+!!
+!! @note The numbered include files deliberately share this program's legacy
+!!       variable scope and must remain in calculation order.
        program leparagliding
        use leparagliding_procedures
        use leparagliding_mark_types
