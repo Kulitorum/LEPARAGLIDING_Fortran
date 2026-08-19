@@ -1,0 +1,16 @@
+/build/
+/build-*/
+*.mod
+*.o
+*.obj
+*.exe
+
+/lep-3d.dxf
+/lep-out.txt
+/leparagliding.dxf
+/lines.txt
+/run-log.txt
+
+# Supplied/generated CAD references are kept locally; the Plan B regression
+# uses leparagliding.txt and its two profile inputs.
+/Plan B Parakite/*.dxf
