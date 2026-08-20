@@ -1,0 +1,754 @@
+# Data-model refactor: inventory and migration design
+
+Status: implementation plan and legacy-schema inventory  
+Evidence baseline: commit `8e0a1cb` (LEparagliding 3.29)  
+Primary scope: profiles, ribs, the spatial wing, flattened panels, production
+edges, and their immediate consumers
+
+## Purpose
+
+The goal is to make the construction of the wing in space and in two dimensions
+explicit in the program's types and names. This is not a mechanical rename. The
+same legacy arrays currently contain input data, intermediate transforms,
+manufacturing geometry, feature-specific workspaces, and temporary
+accumulators. The numbered includes all execute in one program scope and their
+order is a numerical dependency (`src/leparagliding.f:86-113`). A safe refactor
+must therefore change one semantic boundary at a time and prove equivalence at
+each boundary.
+
+This document records what can be established from the code, marks uncertain
+interpretations as such, proposes the target model, and defines a phased
+migration with objective exit criteria.
+
+## Implementation checkpoint: 2026-08-20
+
+The first migration boundary is implemented alongside this plan:
+
+- `src/leparagliding_domain_model.f90` defines validated normalized-profile,
+  spatial-rib, production-panel, and color-division types.
+- Named compatibility constants quarantine legacy slots 2 and 9:12.
+- Transactional adapters copy normalized profiles, spatial `x/y/z` ribs, and
+  complete production-panel sewing/cut edges without exposing partially valid
+  objects.
+- The section-15/16 color construction is the first production consumer: it
+  now reads named profiles and sewing edges from `production_panel_2d` rather
+  than indexing slots 2, 9, and 10 directly.
+- `tests/test_domain_model.f90` covers validation, independent adjacent-profile
+  topology, panel zero, non-finite rejection, and adapter ownership.
+- `tools/dxf_semantic_diff.py` adds a tolerance-aware DXF geometry oracle for
+  later numerical migrations.
+
+This checkpoint does **not** make the typed model authoritative. Stages 6--8
+still produce the legacy arrays, and the production-panel adapter copies their
+results. The remaining work in the first slice is to model `np` as explicit
+profile topology, add physical/virtual rib roles, and migrate a spatial or
+neutral-development consumer before changing any geometry producer.
+
+## Terminology used in this plan
+
+The names below describe coordinate domains, not presentation views:
+
+- **Normalized profile**: the signed two-dimensional airfoil contour, initially
+  expressed as fractions of chord and then as percentages.
+- **Rib-local profile**: the normalized contour scaled to a rib chord, before
+  placement in the full spatial wing.
+- **Spatial rib**: one complete profile placed in the wing's three-dimensional
+  coordinate system.
+- **Neutral development**: the chained two-dimensional quadrilaterals obtained
+  from spatial distances before skin-tension shaping.
+- **Production panel**: the tensioned developed panel, including sewing and cut
+  edges, but excluding drawing-sheet translation.
+- **Sheet layout**: translation, mirroring, labels, and duplicated print/laser
+  placement applied only while emitting a drawing.
+
+“Extrados” and “intrados” are retained because those are the source and file
+format terms. “Left” and “right” mean the lower and higher rib-index sides of a
+panel in this document; the physical viewing convention needs confirmation from
+Pere.
+
+## What the current program proves
+
+### Execution and ownership
+
+`declarations.inc` is included before every executable stage, and stages 3
+through 23 follow in a fixed order (`src/leparagliding.f:93-113`). There is no
+stage-owned state: every numbered include can read or overwrite every declared
+array. The declarations themselves explicitly call this a shared legacy schema
+and advise that new state belong in typed modules
+(`src/main/declarations.inc:1-6`).
+
+The practical blast radius is large:
+
+- `rib` is referenced by input, drawing, profile construction, panel shaping,
+  singular-point, line, brake, internal-rib, reporting, and 3D-output stages.
+- `np` controls loops in stages 6, 7, 8, 9, 10, 11, 12, 16, 18, and 21.
+- `u/v/w` stores unrelated domains used by stages 6, 8, 9, 10, 11, 12, 14,
+  15, 16, and 21.
+- `pl*/pr*` is produced in stage 7, transformed in stage 8, and also consumed
+  extensively by internal-rib construction in stage 16.
+
+This is why a repository-wide textual rename is unsafe: a name such as `u`
+does not identify a domain without its third subscript and the current stage.
+
+### Length and angle units
+
+The strongest code evidence is that working geometry is intended to be in
+centimetres:
+
+- Planform coordinates are multiplied by the dimensionless wing scale `xwf`
+  immediately after input (`src/main/04_data_reading.inc:95-103`).
+- A sewing allowance read in millimetres is divided by 10 before being applied
+  to rib or panel geometry (`src/main/06_airfoil_geometry.inc:316-321` and
+  `src/main/08_skin_tension.inc:14-16`).
+- The report labels spatial centre-of-mass coordinates and cell width as `cm`
+  (`src/main/18_text_output.inc:113-115` and `src/main/18_text_output.inc:162`).
+- Profile fractions are multiplied by chord to enter the same working length
+  domain (`src/main/06_airfoil_geometry.inc:144-150`).
+
+`xkf` and `xwf` are separate inputs (`src/main/04_data_reading.inc:26-34`).
+`xwf` scales wing geometry, while `xkf` scales fixed drawing-sheet locations,
+as shown by the panel layout origins in `src/main/07_panel_development.inc:94-97`.
+The target model must not store either drawing scale or sheet origin in a
+geometric object.
+
+Input angles are degrees. They are converted locally to radians for
+trigonometry (`src/main/06_airfoil_geometry.inc:136-140`). The target model
+should make that conversion once at the input boundary and suffix any remaining
+scalar names with `_deg` or `_rad`.
+
+There are inconsistent later uses of `xwf`, including expressions that appear
+to scale already-scaled rib values. Those expressions must be preserved during
+the compatibility phases and investigated separately; they are not evidence
+for introducing a second physical length unit.
+
+## Legacy schema inventory
+
+### `rib(0:100,500)`
+
+The array is declared at `src/main/declarations.inc:216`. It combines at least
+four categories that should not share a type: user input, derived rib geometry,
+panel measurements, and scratch accumulators.
+
+#### Core planform and profile columns
+
+| Column | Proposed name | Unit/domain | Producer | Principal consumers/evidence |
+|---:|---|---|---|---|
+| 1 | `source_rib_number` | identifier stored as real | section 1 input | Read with the geometry row (`src/main/04_data_reading.inc:68-77`); not safe as an array index without conversion. |
+| 2 | `planform_station` | working length, planform | section 1 input, then `*xwf` | Planform drawing and span calculations; scaling is at `src/main/04_data_reading.inc:95-100`. Exact physical axis name needs confirmation. |
+| 3 | `leading_edge_position` | working length, planform/chordwise | section 1 input, then `*xwf` | Added to scaled profile U to form spatial Y (`src/main/06_airfoil_geometry.inc:180-183`). |
+| 4 | `trailing_edge_position` | working length, planform/chordwise | section 1 input, then `*xwf` | Used with column 3 to derive chord (`src/main/04_data_reading.inc:102-103`). |
+| 5 | `chord_length` | working length | derived as column 4 minus 3 | Scales normalized profiles (`src/main/06_airfoil_geometry.inc:148-150`) and converts percentages to lengths. |
+| 6 | `spatial_station_x_prime` | working length | section 1 input, then `*xwf` | Used in absolute spatial X placement (`src/main/06_airfoil_geometry.inc:180-183`). The legacy header calls it `x'`; the aerodynamic meaning is uncertain. |
+| 7 | `spatial_height` | working length | section 1 input, then `*xwf` | Used in absolute spatial Z placement (`src/main/06_airfoil_geometry.inc:180-183`). |
+| 8 | `washin_angle_deg` | degrees | copied or derived from wash-in mode | Converted to radians before rib-local rotation (`src/main/06_airfoil_geometry.inc:136-155`). |
+| 9 | `rib_plane_angle_deg` | degrees | section 1 input | Used for the next spatial rotation (`src/main/06_airfoil_geometry.inc:173-178`). Legacy comments call it `beta`. |
+| 10 | `washin_pivot_percent` | percent chord | section 1 input | Divided by 100 and multiplied by chord for the rotation pivot (`src/main/06_airfoil_geometry.inc:152-156`). A zero input is changed to `0.01` (`src/main/04_data_reading.inc:82-85`). |
+| 11 | `intake_start_percent` | percent chord, signed convention | section 2 input | Used by profile reformatting to insert the intake boundary (`src/procedures/profile_data.inc:64-101`). |
+| 12 | `intake_end_percent` | percent chord | section 2 input | Used by profile reformatting for the other intake boundary (`src/procedures/profile_data.inc:120-166`). |
+| 14 | `cell_open_flag` | integer-like flag stored as real | section 2 input | Both adjacent ribs are tested to decide whether a cell is closed (`src/main/07_panel_development.inc:179-183`). |
+| 15 | `anchor_count` | integer-like count stored as real | section 3 input | Controls A--F iteration (`src/main/06_airfoil_geometry.inc:275-311`). |
+| 16:21 | `anchor_percent(1:6)` | percent chord | section 3 input | Converted to chord lengths and interpolated on profiles (`src/main/04_data_reading.inc:2476-2487`; `src/main/09_singular_rib_points.inc:14-43`). |
+| 22 | `extrados_cell_width` | working length | stage 8 | Measured between neutral developed sides around an extrados mid-index (`src/main/08_skin_tension.inc:71-77`). |
+| 23 | `extrados_contour_length` | working length | stage 8 | Accumulated from neutral developed segments (`src/main/08_skin_tension.inc:22-28`, `53-57`). |
+| 24 | `intrados_cell_width` | working length | stage 8 | Measured at an intrados mid-index (`src/main/08_skin_tension.inc:79-80`, `90-98`). |
+| 25 | `intrados_contour_length` | working length | stage 8 | Accumulated from neutral developed segments (`src/main/08_skin_tension.inc:30-36`, `59-63`). |
+| 26 | `intake_contour_length` | working length | stage 8 | Accumulated over the intake range (`src/main/08_skin_tension.inc:38-44`, `65-68`). |
+| 50 | `profile_vertical_displacement` | working length | section 2 input, later `*xwf` | Subtracted before rotation and restored afterward (`src/main/06_airfoil_geometry.inc:148-150`, `189-190`). The design intent of “unloaded rib descent” needs confirmation. |
+| 51 | `input_washin_angle_deg` | degrees | section 1 input | Copied to column 8 for wash-in mode 0 (`src/main/04_data_reading.inc:105-111`). |
+| 55:56 | unresolved section-2 parameters | mixed/unknown | section 2 input | Read beside airfoil configuration (`src/main/04_data_reading.inc:149-165`); column 56 is later applied as a percentage of mean chord in a planform construction (`src/main/05_graphic_design.inc:398-402`). Pere should name both. |
+| 66:70 | `anchor_chord_length(1:5)` | working length | data post-processing | Derived from columns 16:20 (`src/main/04_data_reading.inc:2476-2487`). |
+| 110:115 | `anchor_profile_u(1:6)` | rib-local working length | stage 6 | Interpolated anchor U coordinates (`src/main/06_airfoil_geometry.inc:281-301`). |
+| 120:125 | `anchor_profile_v(1:6)` | rib-local working length | stage 6 | Interpolated anchor V coordinates in the same block. |
+| 130:135 | `te_to_anchor_contour_length(1:6)` | working length | stage 6 | Accumulated along the lower contour (`src/main/06_airfoil_geometry.inc:293-301`). |
+| 160 | `profile_height_scale` | dimensionless | later input section | Multiplies normalized V while reading profiles (`src/main/06_airfoil_geometry.inc:37-41`). |
+| 165 | feature/control value, unresolved | unknown | input and later geometry | Widely shared by stages 4, 5, 6, 8, 9, 11, and 21; it must be named only after tracing its input section with Pere. |
+| 169 | `shaping_group_index` | integer-like index stored as real | input | Converted to `ng` by 3D shaping (`src/procedures/geometry_3d.inc:39-40`). |
+| 190:193 | four rib/panel side lengths | working length | stage 11 | Explicitly initialized and measured for both sides of an extrados panel (`src/main/11_panel_lengths.inc:84-119`). |
+| 194:195 | `extrados_left/right_length_ratio` | dimensionless | stage 11 | Ratios of production-panel length to source-rib length (`src/main/11_panel_lengths.inc:118-119`). |
+| 196:199 | four rib/panel side lengths | working length | stage 11 | Intrados equivalents (`src/main/11_panel_lengths.inc:123-133`). |
+| 200:201 | `intrados_left/right_length_ratio` | dimensionless | stage 11 | Intrados ratios (`src/main/11_panel_lengths.inc:134-135`). |
+| 250 | `profile_rotation_z_deg` | degrees | section 1 input | Converted to radians in spatial construction (`src/main/06_airfoil_geometry.inc:136-140`). |
+| 251 | `profile_rotation_pivot_percent` | percent chord | section 1 input | Converts to a chordwise pivot length (`src/main/06_airfoil_geometry.inc:139-140`). |
+
+#### Columns that must become locals rather than fields
+
+Columns 30:39 are derived lengths and ratios for corresponding panel/rib sides
+(`src/main/11_panel_lengths.inc:18-67`). Columns 40:45 are repeatedly zeroed and
+reused as partial-length accumulators inside mark loops
+(`src/main/11_panel_lengths.inc:210-229`). Columns 107:108 are also overwritten
+as interpolation scratch while locating each anchor mark
+(`src/main/11_panel_lengths.inc:1073-1086`). These values are not rib identity;
+they should become named local records such as `side_length_metrics` and
+`polyline_position`.
+
+The declaration comment currently labels both columns 33 and 34 as the rib
+intrados length (`src/main/declarations.inc:39-45`), while executable stage 11
+shows 33 = left panel, 34 = rib, and 35 = right panel
+(`src/main/11_panel_lengths.inc:20-25`). Executable code is the evidence used in
+this plan.
+
+The remaining high-numbered columns support individual features and are not
+safe to carry into a general `rib` type wholesale. Each feature migration must
+either give its columns a focused type or leave them behind a legacy adapter.
+
+### `np(0:100,9)`
+
+`np` is declared at `src/main/declarations.inc:262`. Only columns 1:6 have a
+confirmed meaning; 7:9 have no literal executable references in the inspected
+3.29 source and should not be reproduced in the new model without evidence.
+
+| Column | Proposed name | Meaning and evidence |
+|---:|---|---|
+| 1 | `point_count` | Total contour points, read from `.txt` profiles (`src/main/06_airfoil_geometry.inc:28-39`) or produced by `.dat` reformatting (`src/procedures/profile_data.inc:54-58`, `163-166`). |
+| 2 | `extrados_end_index` | Last extrados point and first intake point. Stage 7 uses extrados segments `1:np(2)-1` (`src/main/07_panel_development.inc:300-308`). |
+| 3 | `intake_point_count` | Number of intake points. The last intake point is `np(2)+np(3)-1` (`src/main/06_airfoil_geometry.inc:30-35`). |
+| 4 | `intrados_point_count` | Read/reformatted lower-surface count (`src/main/06_airfoil_geometry.inc:30-33`; `src/procedures/profile_data.inc:163-166`). It is mostly redundant once explicit index ranges exist. |
+| 5 | `intake_end_index` | Derived as column 2 + column 3 - 1 (`src/main/06_airfoil_geometry.inc:35`). |
+| 6 | `leading_edge_index` | Index nearest `(0,0)` in the original normalized contour (`src/main/06_airfoil_geometry.inc:55-67`). |
+
+Confirmed contour partitions are:
+
+```text
+extrados points: 1 ... extrados_end_index
+intake points:   extrados_end_index ... intake_end_index
+intrados points: intake_end_index ... point_count
+```
+
+The endpoints are shared between adjacent partitions. Segment loops therefore
+end one point before the inclusive point bound. For example, stage 7 uses
+`1:np(2)-1`, `np(2):np(2)+np(3)-2`, and
+`np(2)+np(3)-1:np(1)-1` (`src/main/07_panel_development.inc:20`, `193`,
+`374`). The target must represent these as inclusive `index_range` values so
+callers cannot mix point counts with end indices.
+
+### `u/v/w(0:100,500,99)`
+
+The arrays are declared together at `src/main/declarations.inc:224`. The first
+subscript is sometimes a rib and sometimes a panel, the second is usually a
+profile point, and the third is a semantic slot. `w` is meaningful only for
+three-dimensional slots. The same slot number does not guarantee that all three
+arrays form a point.
+
+#### Confirmed core slots
+
+| Slot | Proposed typed value | Domain/unit | Producer and evidence |
+|---:|---|---|---|
+| 1 | `normalized_profile_fraction` | rib-local 2D, fraction of chord | Profile input writes U/V (`src/main/06_airfoil_geometry.inc:37-41`); `.dat` handling may insert intake points (`src/procedures/profile_data.inc:54-58`, `163-166`). |
+| 2 | `normalized_profile_percent` | rib-local 2D, percent chord | Stage 6 multiplies slot 1 by 100 (`src/main/06_airfoil_geometry.inc:142-146`). This is the profile domain used by the color mapper (`src/main/15_colors.inc:20-24`). |
+| 3 | `scaled_profile_2d` | rib-local 2D, working length | U/V are multiplied by chord and V is temporarily displaced (`src/main/06_airfoil_geometry.inc:148-150`). This is also the source rib pattern used in stage 11 (`src/main/11_panel_lengths.inc:41-42`, `55-56`). |
+| 4 | `washin_rotated_profile_3d_components` | intermediate local 3D, working length | Wash-in and Z rotation write U/V/W (`src/main/06_airfoil_geometry.inc:152-166`). |
+| 5 | `rib_frame_components_3d` | intermediate local 3D, working length | The next rotation writes U/V/W before absolute placement (`src/main/06_airfoil_geometry.inc:168-183`). |
+| 6 | `singular_profile_points` | rib-local 2D, working length | Indices 1:6 are anchors and 7:8 are intake boundaries (`src/main/09_singular_rib_points.inc:12-43`, `96-125`). It is not a full contour. |
+| 7 | `left_shaping_law` | panel-side workspace, working length | U accumulates distance along the neutral left edge while V stores the local overwidth (`src/main/08_skin_tension.inc:117-146`). |
+| 8 | `right_shaping_law` | panel-side workspace, working length | Right-edge equivalent (`src/main/08_skin_tension.inc:259-300`). Slots 7/8 are not planar point coordinates even though they use U/V. |
+| 9 | `production_left_sewing_edge` | developed panel 2D, working length | Shaping offsets neutral `pl*` geometry into the left edge (`src/main/08_skin_tension.inc:188-223`). It is the lower-rib-index side for panel `i`. |
+| 10 | `production_right_sewing_edge` | developed panel 2D, working length | Right-side equivalent from `pr*` geometry (`src/main/08_skin_tension.inc:333-365`). |
+| 11 | `production_left_cut_edge` | developed panel 2D, working length | Offset from slot 9 by the configured seam allowance (`src/main/08_skin_tension.inc:219-223`). The legacy declaration calls this a sewing border; manufacturing terminology should be confirmed. |
+| 12 | `production_right_cut_edge` | developed panel 2D, working length | Offset from slot 10 (`src/main/08_skin_tension.inc:361-365`). |
+| 14:15 | `end_extension_construction_left/right` | developed 2D, working length | Calculated for leading/trailing ends; panel-edge procedures document the role (`src/procedures/panel_edges.inc:1-13`). |
+| 16 | `rib_external_cut_contour` | rib-local 2D, working length | Stage 6 offsets slot 3 by the rib sewing allowance (`src/main/06_airfoil_geometry.inc:316-377`). |
+| 17:20 | transformed suspension/brake singular points | mixed local then spatial 3D, working length | Stage 12 rotates slot-6 points through 17/18, places them in 19, and saves/restores 20 (`src/main/12_lines.inc:157-220`, `329-361`). These belong to line geometry, not profile storage. |
+| 29,30,32,33,35 | panel-reformat scratch copies | developed 2D, working length | Stage 8 copies and rewrites edge coordinates during length matching (`src/main/08_skin_tension.inc:542-561`, `832-884`, `915-965`, `2201-2352`). They should be local work arrays. |
+| 43 | `reformatted_rib_contour` | rib-local/developed comparison 2D, working length | Initialized from an averaged, scaled normalized profile (`src/main/09_singular_rib_points.inc:430`) and then length-adjusted in place (`src/main/09_singular_rib_points.inc:525-588`). |
+| 44 | `panel_midline_contour` | developed 2D, working length | Average of panel slots 9 and 10 (`src/main/09_singular_rib_points.inc:438`). |
+| 45 | `rib_reformat_candidate` | local scratch 2D | Temporary point written and copied back into slot 43 (`src/main/09_singular_rib_points.inc:525-533`, `581-588`). |
+| 46 | `reformatted_rib_cut_contour` | rib pattern 2D, working length | Offset from slot 43 by rib allowance (`src/main/09_singular_rib_points.inc:635-706`). |
+| 47 | `spatial_skin` | global 3D, working length | Copies `x/y/z` before 3D shaping (`src/main/08_skin_tension.inc:2653-2664`). |
+| 48 | `spatial_panel_mid_surface` | global 3D, working length | Mean of adjacent slot-47 ribs (`src/procedures/geometry_3d.inc:41-47`). |
+| 49 | `spatial_ballooned_mid_surface` | global 3D, working length | Offset from slot 48 using the solved ballooning height (`src/procedures/geometry_3d.inc:144-188`). |
+| 53 | `panel_mid_surface_local` | panel-local 3D, working length | Slot 48 transformed into a local frame (`src/procedures/geometry_3d.inc:600-627`). |
+| 54 | `ballooned_mid_surface_local` | panel-local 3D, working length | Slot 49 transformed into the same frame (`src/procedures/geometry_3d.inc:629-634`). |
+| 55 | `spatial_panel_normal_reference` | global 3D, working length | A point 10 working units normal to the median-profile plane (`src/procedures/geometry_3d.inc:132-141`). |
+| 69:70 | `assembled_developed_left/right` | developed panel 2D, working length | Stage 8 reconstructs full-contour edges from extrados, intake, and intrados family arrays (`src/main/08_skin_tension.inc:2667-2697`). |
+| 71:72 | rib-boundary work contours | rib-local 2D, working length | Stage 8 repeatedly copies slot 3 and creates an allowance offset for minirib/cut work (`src/main/08_skin_tension.inc:2797-2812`). Exact feature ownership must be confirmed before naming more narrowly. |
+
+Slots 50/51 save shaping-law values, but an in-code comment already questions
+their meaning (`src/main/08_skin_tension.inc:425-426`). They remain explicitly
+unresolved. Slots not listed above must not become anonymous members of a new
+type. They stay in the compatibility store until their owning feature is
+migrated and tested.
+
+### `x/y/z`, `xx/yy/zz`, and axis meaning
+
+`x/y/z(0:100,500)` is declared at `src/main/declarations.inc:246`. Stage 6
+places each rotated profile using:
+
+```text
+x = rib(:,6) - w(:,:,5)
+y = rib(:,3) + u(:,:,5)
+z = rib(:,7) - v(:,:,5)
+```
+
+(`src/main/06_airfoil_geometry.inc:180-187`). These are the authoritative
+unshaped spatial skin coordinates consumed by neutral panel development. Stage
+7 reconstructs every flattened quadrilateral from distances between adjacent
+`x/y/z` profiles (`src/main/07_panel_development.inc:300-322`).
+
+`xx/yy/zz(1,500)` stores the mirrored central profile used for the special
+panel between rib 0 and rib 1 (`src/main/06_airfoil_geometry.inc:262-269` and
+`src/main/07_panel_development.inc:14-34`). It should not survive as a separate
+coordinate type: the target spatial-wing collection should contain the virtual
+rib explicitly, with metadata marking why it exists.
+
+Rib 0 is not unused padding. Its profile is copied/mirrored from rib 1 and its
+absolute X is negated (`src/main/06_airfoil_geometry.inc:222-260`). A second
+virtual rib at `nribss+1` is synthesized for feature calculations
+(`src/main/04_data_reading.inc:129-140`; `src/main/06_airfoil_geometry.inc:69-78`).
+The target model therefore needs `rib_role = physical | symmetry_virtual |
+tip_extrapolated`, rather than an invariant that all indices are physical or
+start at one.
+
+The exact aerodynamic labels for global X, Y, and Z are not inferred here. The
+target initially retains `spatial_x/y/z`; Pere should confirm whether these are
+spanwise, chordwise, and vertical in the intended sign convention.
+
+### Neutral panel development: `pl*/pr*`
+
+The eight arrays are declared at `src/main/declarations.inc:270-273` and form
+four 2D points per spatial quadrilateral:
+
+| Legacy pair | Proposed name | Meaning |
+|---|---|---|
+| `pl1x/pl1y` | `left_edge(point j)` | Lower-rib-index side at the start of contour segment `j`. |
+| `pl2x/pl2y` | `left_edge(point j+1)` | Same side at the end of the segment. |
+| `pr1x/pr1y` | `right_edge(point j)` | Higher-rib-index side at the start. |
+| `pr2x/pr2y` | `right_edge(point j+1)` | Same side at the end. |
+
+Stage 7 derives six distances from one spatial quadrilateral, reconstructs the
+four planar corners, then advances `pl2` to the next `pl1`
+(`src/main/07_panel_development.inc:300-355`). For normal panels, panel `i` lies
+between spatial ribs `i` and `i+1` (`src/main/07_panel_development.inc:300-322`).
+The target `neutral_panel_2d` should store two canonical polylines rather than
+duplicating every shared point in per-segment corner arrays. A compatibility
+adapter can expose the four legacy views until stage 16 is migrated.
+
+Index 499 is used as a hidden save location for the intake/intrados junction
+(`src/main/07_panel_development.inc:423-434`). That is scratch state and must
+become a named local endpoint, not a reserved point in a new polyline.
+
+Stage 7 accesses both ribs using one loop topology and `np(i,*)`
+(`src/main/07_panel_development.inc:300-322`, `368-388`). This proves the current
+algorithm assumes corresponding point indices across adjacent profiles. Whether
+all valid inputs guarantee identical topology is a question for Pere; until
+answered, the adapter must reject or explicitly remap mismatched topology rather
+than silently pairing different profile points.
+
+### Production panel families: `uf/vf`, `ufe/vfe`, and peers
+
+These arrays are declared at `src/main/declarations.inc:225-233`. They repeat
+the slot convention of the main `u/v` arrays, mostly slots 9:12 and 14:25, but
+their first two indices have been repacked for surface fragments and drawing
+operations.
+
+| Family | Confirmed role | Evidence/status |
+|---|---|---|
+| `uf/vf` | General-purpose assembled panel buffer passed to drawing, end-extension, arc, and mark procedures. | Populated from main slots 9:12 in several surface paths (`src/main/08_skin_tension.inc:1147-1154`, `1569-1576`, `2541-2548`). It is overwritten repeatedly and is not an authoritative model. |
+| `ufe/vfe` | Extrados production-panel fragment. | Saved beside `uf/vf` in the extrados path (`src/main/08_skin_tension.inc:1156-1163`). |
+| `ufv/vfv` | Intake/vent production-panel fragment. | Saved from the intake point range (`src/main/08_skin_tension.inc:1578-1585`). |
+| `ufi/vfi` | Intrados production-panel fragment. | Saved from the intrados path (`src/main/08_skin_tension.inc:2550-2557`). |
+| `ufa/vfa`, `ufb/vfb`, `ufc/vfc` | Translation/rotation and assembly scratch buffers. | A vent fragment is translated, rotated, translated again, and appended using these buffers (`src/main/08_skin_tension.inc:3510-3550`, `3791-3840`). Names `a/b/c` carry no domain meaning. |
+| `uft/vft` | Temporary endpoint/transition splice buffer. | It selects points from extrados or vent fragments before reassembly (`src/main/08_skin_tension.inc:4312-4328`). Exact feature terminology needs confirmation. |
+| `ufr/vfr` | Arc/reformatted drawing buffer. | Passed to mark and arc routines (`src/procedures/pattern_marks.inc:114-118`, `1070-1084`); ownership is feature-specific and should remain local. |
+| slots 9/10 | Sewing or nominal production edges. | Drawing code emits them as the two panel sides (`src/procedures/panel_edges.inc:182-206`). |
+| slots 11/12 | Allowance/cut edges. | Drawing code emits these with a different CAD color (`src/procedures/panel_edges.inc:200-206`). |
+| slots 14/15 and 24/25 | End-extension construction and intersections/corners. | Defined by `extpoints` (`src/procedures/panel_edges.inc:1-13`, `34-35`). |
+| slot 50 | metadata/count-like storage in a real coordinate array | Used by several assembly paths; must be audited before migration. It should not be a coordinate member. |
+
+The target model should have one owned `production_panel_2d` with named edges
+and optional vent/end features. Short-lived rotation and splice buffers should
+be allocatable local variables. Drawing procedures should accept a read-only
+panel plus a separate `layout_transform`, not a mutable full-size `uf/vf`
+workspace.
+
+### Procedure interfaces
+
+Legacy procedure signatures expose the storage layout instead of the domain:
+
+- `datair(i,rib,np,u,v)` receives the full rib matrix, count matrix, and all 99
+  profile slots merely to load one profile (`src/procedures/profile_data.inc:1-17`).
+- `xyzt(i,j,u,v,w,rib,np,u_aux,v_aux,w_aux)` receives full arrays although the
+  calculation uses one rib and point (`src/procedures/profile_data.inc:320-370`).
+- `panels3d` receives mutable full `rib/np/u/v/w` stores and documents several
+  slots in prose (`src/procedures/geometry_3d.inc:1-30`).
+- `tessella` likewise receives every slot and returns a four-dimensional array
+  (`src/procedures/geometry_utilities.inc:350-365`).
+- `dpanelc` and related procedures accept a mutable generic `uf/vf` store even
+  though they draw one panel (`src/procedures/panel_edges.inc:182-206`).
+- The color routine is an improvement because it has `implicit none` and
+  `intent`, but it still receives the full legacy `np/u/v` stores
+  (`src/procedures/color_construction.inc:26-44`).
+
+The newer free-form color geometry demonstrates the desired interface style:
+private module state, `real64`, assumed-shape arrays, `intent`, finite checks,
+and descriptive arguments (`src/leparagliding_color_geometry.f90:6-15`,
+`38-52`). The data-model migration should extend this pattern while replacing
+raw parallel arrays with domain objects.
+
+## Proposed target model
+
+The following types are conceptual names. Exact Fortran spelling may evolve,
+but their ownership boundaries and invariants should not.
+
+```fortran
+type :: point_2d
+  real(real64) :: u_cm, v_cm
+end type
+
+type :: point_3d
+  real(real64) :: x_cm, y_cm, z_cm
+end type
+
+type :: index_range
+  integer :: first, last
+end type
+
+type :: profile_topology
+  integer :: point_count
+  type(index_range) :: extrados
+  type(index_range) :: intake
+  type(index_range) :: intrados
+  integer :: leading_edge_index
+end type
+
+type :: normalized_profile_2d
+  integer :: source_rib_index
+  type(profile_topology) :: topology
+  real(real64), allocatable :: chord_fraction(:)
+  real(real64), allocatable :: height_fraction(:)
+end type
+
+type :: rib_definition
+  integer :: source_number
+  integer :: role
+  real(real64) :: planform_station_cm
+  real(real64) :: leading_edge_cm, trailing_edge_cm, chord_cm
+  real(real64) :: spatial_station_cm, spatial_height_cm
+  real(real64) :: washin_rad, rib_plane_angle_rad
+  real(real64) :: washin_pivot_fraction
+  real(real64) :: profile_rotation_z_rad, profile_rotation_pivot_fraction
+  real(real64) :: profile_vertical_displacement_cm
+  real(real64) :: intake_start_fraction, intake_end_fraction
+  logical :: cell_open
+  real(real64), allocatable :: anchor_fraction(:)
+end type
+
+type :: spatial_rib_3d
+  integer :: rib_index
+  integer :: role
+  type(point_3d), allocatable :: skin(:)
+end type
+
+type :: neutral_panel_2d
+  integer :: panel_index, lower_rib_index, higher_rib_index
+  integer :: surface
+  type(point_2d), allocatable :: lower_index_edge(:)
+  type(point_2d), allocatable :: higher_index_edge(:)
+end type
+
+type :: production_panel_2d
+  integer :: panel_index, lower_rib_index, higher_rib_index
+  integer :: surface
+  type(point_2d), allocatable :: sewing_edge_lower(:)
+  type(point_2d), allocatable :: sewing_edge_higher(:)
+  type(point_2d), allocatable :: cut_edge_lower(:)
+  type(point_2d), allocatable :: cut_edge_higher(:)
+  ! Named optional end, intake, and shaping features follow.
+end type
+
+type :: layout_transform_2d
+  type(point_2d) :: translation
+  real(real64) :: rotation_rad
+  logical :: mirror_v
+end type
+
+type :: color_division
+  integer :: boundary_id, panel_index, surface
+  real(real64) :: lower_rib_chord_fraction
+  real(real64) :: higher_rib_chord_fraction
+end type
+```
+
+Additional focused types should be introduced when their owning stage is
+migrated:
+
+- `skin_tension_law` and `side_shaping_result`
+- `seam_allowance` and `panel_end_extension`
+- `anchor_definition`, `anchor_on_profile`, and `anchor_on_panel`
+- `spatial_panel_surface` for the median/ballooned geometry
+- `panel_side_metrics` for lengths and ratios now in `rib(:,30:45,190:201)`
+- feature types for vents, miniribs, H/V ribs, rods, holes, and reinforcements
+- `wing_model` as an owning aggregate after the components are stable
+
+Use integer enums or small validated wrappers for `surface` and `rib_role`.
+Do not put sheet coordinates, DXF layer/color, or output-unit numbers into
+geometric types.
+
+## Required invariants
+
+These invariants should be executable validation procedures, not comments only.
+
+### Profile topology
+
+- Every coordinate is finite.
+- Both normalized coordinate arrays have `point_count` elements.
+- `point_count >= 2` and all ranges lie within `1:point_count`.
+- Extrados/intake and intake/intrados share exactly one endpoint.
+- `leading_edge_index` is in range and corresponds to the closest normalized
+  sample to `(0,0)`, matching current stage-6 behavior.
+- Chord fractions are finite and normally in `[0,1]`; signed height is allowed.
+- An algorithm that pairs adjacent ribs by point index must first prove their
+  topology is compatible or run an explicit remapping operation.
+
+### Rib and spatial wing
+
+- Physical chord is positive within a documented tolerance.
+- Angles have one internal unit: radians.
+- Input percentages are converted once to fractions.
+- Every physical rib has one profile and one spatial skin with matching
+  topology.
+- Virtual ribs are explicit, validated entities with a source/reference rib;
+  they are not inferred from array index alone.
+- Spatial coordinates contain no sheet translation or drawing scale.
+
+### Neutral development
+
+- Panel adjacency is explicit: a panel names both source ribs.
+- Both 2D edge polylines are finite and compatible with their source profiles.
+- Consecutive legacy corners satisfy `pl2(j) ~= pl1(j+1)` and
+  `pr2(j) ~= pr1(j+1)` when converted to canonical polylines.
+- Every reconstructed 2D quadrilateral preserves all available spatial edge
+  and diagonal distances within an agreed tolerance.
+- Extrados, intake, and intrados ranges retain their shared endpoints; no
+  reserved array element such as 499 is part of the object.
+
+### Production panels
+
+- Sewing and cut edge pairs are finite and have explicit surface ownership.
+- Shaping is applied to neutral geometry before seam allowances.
+- Allowance input is in millimetres at the external interface and converted to
+  centimetres once.
+- Cut-edge distance from its sewing edge equals the configured allowance within
+  tolerance, except at explicitly modeled corner treatments.
+- Panel zero is allowed when the wing topology calls for the central panel.
+- Geometry is layout-independent. Applying a `layout_transform_2d` must not
+  mutate the stored panel.
+
+### Color divisions and output
+
+- A division is an open boundary with one chord fraction at each adjacent rib.
+- Boundary identifiers are stable within a surface.
+- Mapping is performed against normalized profiles and production sewing edges,
+  never against sheet-translated coordinates.
+- Each successful division produces one seam, two allowance edges, and paired
+  marks with the configured inward offset.
+- Existing non-color layer and CAD-color semantics remain unchanged.
+
+## Migration strategy
+
+The strategy is a strangler migration: typed objects are introduced alongside
+the current arrays, consumers move to the types, producers dual-run and compare,
+and only then is the legacy storage removed. Every phase must leave the main
+program runnable.
+
+### Phase 0 — Protect the numerical baseline
+
+1. Freeze representative inputs and capture semantic output oracles for 3.28
+   compatibility, 3.29 features, Swoop2 colors, odd/even central cells,
+   open/closed cells, single-surface profiles, miniribs, and H/V/VH ribs.
+2. Compare DXF by entities, layer, CAD color, topology, and coordinates with a
+   tolerance; do not require byte order or handles to match.
+3. Capture `lep-out.txt` and `lines.txt` semantically.
+4. Run debug builds with bounds, undefined-value, floating-point, and backtrace
+   checks where the compiler supports them.
+
+Exit criterion: each following phase can demonstrate “no unapproved semantic
+change” automatically.
+
+### Phase 1 — Establish names and adapters without changing calculations
+
+1. Add the foundational point, range, topology, normalized-profile, spatial-rib,
+   neutral-panel, production-panel, and layout-transform types in free-form
+   modules using `real64` and `implicit none`.
+2. Add named constants only for confirmed legacy slots and columns.
+3. Implement checked copy adapters from legacy arrays to typed objects. Keep
+   adapters in one module and forbid new direct numeric-slot access elsewhere.
+4. Add validators for every invariant above, including panel zero and virtual
+   ribs.
+5. Add unit tests for adapters, invalid counts, non-finite coordinates, shared
+   surface endpoints, and mismatched adjacent topology.
+
+Exit criterion: typed snapshots of every profile, spatial rib, neutral panel,
+and production panel compare exactly with their legacy source arrays.
+
+### Phase 2 — Migrate read-only production consumers first
+
+1. Change color construction to accept a typed normalized-profile pair and
+   `production_panel_2d` rather than full `np/u/v` arrays.
+2. Change panel drawing and mark routines to accept read-only named edges plus a
+   `layout_transform_2d`.
+3. Move panel-side length measurement into pure functions returning
+   `panel_side_metrics`; stop using `rib(:,40:45)` as loop scratch.
+
+This phase exercises the model in useful production code while the proven
+legacy stages remain authoritative producers.
+
+Exit criterion: color entities, panel outlines, marks, and measured lengths
+match the phase-0 oracles; the migrated consumers contain no numeric `u/v` slot
+references.
+
+### Phase 3 — Own neutral 2D development
+
+1. Extract one pure `develop_panel_strip(spatial_left, spatial_right, topology)`
+   routine from stage 7.
+2. Return canonical left/right polylines in `neutral_panel_2d`.
+3. Dual-run it beside the legacy `pl*/pr*` calculation and compare every point
+   plus the six source distances for every quadrilateral.
+4. Initially write the typed result back through an adapter so stage 8 and
+   stage 16 continue unchanged.
+5. Replace the special `xx/yy/zz` path with an explicit symmetry-virtual spatial
+   rib.
+
+Exit criterion: typed neutral development is authoritative, legacy `pl*/pr*`
+is adapter output only, and no point-499 scratch convention remains in the new
+routine.
+
+### Phase 4 — Own production panel shaping
+
+1. Extract `skin_tension_law` parsing and evaluation from slots 7/8.
+2. Implement one side-shaping routine parameterized by side and surface instead
+   of separate copy/pasted extrados/intrados blocks.
+3. Produce sewing and cut edges directly in `production_panel_2d`.
+4. Model vents, end extensions, and special reformat paths as named optional
+   features; delete `ufa/ufb/ufc/uft` workspaces as each path migrates.
+5. Keep a write-back adapter for remaining internal-rib consumers.
+
+Exit criterion: stage 8 no longer writes slots 7:12 for migrated surfaces;
+allowance and shaping invariants pass for all fixtures; production drawings are
+semantically unchanged.
+
+### Phase 5 — Own spatial profile construction
+
+1. Parse section-1/2 values into `rib_definition` and
+   `normalized_profile_2d`, converting units at the boundary.
+2. Replace the chained numbered slots 3/4/5 and duplicated `xyzt` path with one
+   explicit transformation from a normalized profile and rib definition to
+   `spatial_rib_3d`.
+3. Generate symmetry and extrapolated virtual ribs through named constructors.
+4. Dual-run against `x/y/z` and compare each spatial point before stage 7.
+
+Exit criterion: the typed spatial wing is authoritative; `x/y/z`, slots 3:5,
+and `xx/yy/zz` are compatibility output only.
+
+### Phase 6 — Migrate 3D shaping, anchors, and structural features
+
+1. Replace slots 47:55 and 69:72 with `spatial_panel_surface` and local-frame
+   objects.
+2. Move anchors and intake singular points out of slot 6 and rib columns
+   66:70/110:135 into focused types.
+3. Migrate stage 16 one feature at a time: H/V/VH ribs, junctions, rods, holes,
+   reinforcements, and miniribs. Each feature owns its input definition,
+   calculated geometry, and output views.
+4. Migrate suspension and brake points from slots 17:20 to the line model.
+
+Exit criterion: no active calculation outside the compatibility module accepts
+the raw `rib/np/u/v/w/pl*/pr*/uf*` stores.
+
+### Phase 7 — Remove compatibility storage and includes
+
+1. Replace `declarations.inc` with an owning `wing_model` plus run/output
+   configuration.
+2. Turn each numbered include into a module procedure with explicit typed input
+   and output.
+3. Remove unused columns, slots, magic point indices, and fixed maximum shapes.
+4. Drop `-fallow-argument-mismatch` once all interfaces are explicit; make the
+   warning build mandatory in CI.
+
+Exit criterion: the legacy matrices are gone, no executable `.inc` file shares
+mutable program scope, and the full regression matrix passes.
+
+## Questions requiring Pere's confirmation
+
+These are not blockers for adapters, but they are blockers for final public
+names and for deleting the corresponding legacy representations.
+
+1. What are the physical names and positive directions of `rib(:,2)`,
+   `rib(:,3:4)`, `rib(:,6)`, `rib(:,7)` and final `x/y/z`? In particular, what
+   does legacy `x'` mean geometrically?
+2. Are centimetres the canonical internal length unit for every wing and panel
+   coordinate? What exact promises do `xwf` and `xkf` make, and are any values
+   deliberately scaled twice?
+3. Is `rib(:,50)` a manufacturing displacement, an unloaded-profile descent,
+   or another aerodynamic correction? What should columns 55 and 56 be called?
+4. Does “left/right panel edge” mean lower/higher rib index, port/starboard, or
+   the operator's view on the flattened sheet? May internal names use
+   `lower_index_edge/higher_index_edge` until this is settled?
+5. Must all neighboring profile files have identical point counts and matching
+   extrados/intake/intrados indices? If not, what is the intended remapping rule
+   before panel development?
+6. For even and odd cell counts, which of rib 0, panel 0, and rib 1 are physical,
+   mirrored, or only computational? Should the central panel be exposed in
+   manufacturing output?
+7. In manufacturing terminology, are slots 9/10 the sewing lines and slots
+   11/12 the cut edges, or should they be named nominal edge/sewing allowance
+   edge?
+8. Does “fully flattened 2D wing” refer to the planform artwork reference, the
+   neutral distance-preserving development, or the tensioned production panels?
+   Current colors are authored in normalized chord space and mapped to slots
+   9/10 after skin tension (`src/main/15_colors.inc:20-25`).
+9. Which later `rib` columns are durable design properties and which are merely
+   cached report values? Column 165 and the slot-71/72 feature are the highest
+   priority unknowns because they cross multiple stages.
+10. May the output ordering of DXF entities change when semantic content is
+    equivalent, or do downstream CAD scripts depend on order as well as layers
+    and colors?
+
+## Definition of done
+
+The broader data-model refactor is complete only when all of the following are
+true:
+
+- Domain types distinguish normalized profiles, spatial ribs, neutral
+  developments, production panels, sheet layout, and structural features.
+- Every public field and argument has a domain name, unit, coordinate frame,
+  ownership rule, and validation invariant.
+- Percentages and degrees are converted once at input; internal geometry uses
+  `real64`, centimetres, fractions, and radians consistently.
+- Virtual ribs and the central panel are explicit model entities.
+- No production calculation directly indexes a numeric `rib` column, `np`
+  column, or `u/v/w` slot. Numeric references exist only in a quarantined
+  compatibility adapter, then disappear when that adapter is removed.
+- No routine receives a full global array when it operates on one rib, panel,
+  profile, or polyline. All module procedures use `implicit none`, explicit
+  `intent`, and assumed-shape or domain-type arguments.
+- Stage-local accumulators and transform buffers are local variables, not hidden
+  columns or reserved point indices.
+- Spatial and developed geometry never contains sheet placement offsets.
+- Duplicate extrados/intrados and left/right algorithms have one parameterized
+  implementation wherever their mathematics is the same.
+- The regression suite covers 3.28 compatibility, all supported 3.29 features,
+  Swoop2 colors, odd/even wings, profile-format variants, and structural options.
+- Semantic DXF comparison proves layers, CAD colors, entity topology, and
+  coordinates within an agreed tolerance; report and line outputs also have
+  semantic oracles.
+- Normal, warning, runtime-check, and bounds-check builds pass without NaN,
+  infinity, out-of-bounds access, uninitialized state, or argument mismatch.
+- Pere has approved the domain vocabulary and the answers to the questions
+  above, and those answers are recorded next to the relevant types.
+
+## First implementation slice
+
+The first shippable slice should be phases 0 and 1 plus the color portion of
+phase 2. It has a deliberately narrow numerical surface:
+
+1. Introduce validated `profile_topology`, `normalized_profile_2d`,
+   `spatial_rib_3d`, and `production_panel_2d` snapshots.
+2. Support physical and virtual rib roles and allow panel index zero.
+3. Copy normalized slot 2, spatial `x/y/z`, and production slots 9:12 through
+   checked adapters.
+4. Pass typed profiles and production edges into the already robust color
+   interpolation and construction code.
+5. Add adapter and semantic-DXF tests before changing stage-6/7/8 producers.
+
+That slice produces immediate naming and interface improvements in a real
+manufacturing workflow while keeping the existing geometry calculations as the
+comparison oracle for the deeper stages.

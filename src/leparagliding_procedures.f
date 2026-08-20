@@ -11,6 +11,7 @@ c***********************************************************************
 !! `implicit none` and explicit argument intents whenever practical.
        module leparagliding_procedures
        use leparagliding_geometry
+       use leparagliding_domain_model
        use leparagliding_color_geometry
        use leparagliding_mark_types
 

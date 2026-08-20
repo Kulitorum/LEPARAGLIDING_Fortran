@@ -1,7 +1,9 @@
 !> Map one surface's classic rib records onto every developed skin panel.
 !!
 !! Equal boundary identifiers on consecutive ribs are paired independently of
-!! record order.  On-rib boundaries are located on slots 9/10 and delegated to
+!! record order.  Each panel is first copied through a checked legacy-slot
+!! adapter into a `production_panel_2d`; all subsequent names identify their
+!! coordinate domain explicitly.  On-rib boundaries are then delegated to
 !! `draw_color_panel_construction`.  The `surface_direction` flag selects the
 !! profile traversal only: 1 walks the extrados toward the leading edge and
 !! -1 walks the intrados in reverse.  Keeping this topology in one subroutine
@@ -49,12 +51,25 @@
        integer :: left_first_point,left_last_point
        integer :: right_first_point,right_last_point,point_step
        real*8 :: left_u,left_v,right_u,right_v,panel_offset_x
-       logical :: left_found,right_found
+       logical :: left_found,right_found,panel_valid
+       character(len=160) :: panel_message
+       type(production_panel_2d) :: production_panel
 
        if (record_count.lt.1) return
        if (surface_direction.ne.1.and.surface_direction.ne.-1) return
 
        do panel_index=1,semiwing_rib_count-1
+       call copy_legacy_production_panel(developed_u,developed_v,
+     + panel_index,profile_counts(panel_index,1),
+     + profile_counts(panel_index+1,1),profile_counts(panel_index,1),
+     + profile_counts(panel_index,1),production_panel,panel_valid,
+     + panel_message)
+       if (.not.panel_valid) then
+       write (*,'(A,I0,2A)') 'Warning: skipped color panel ',panel_index,
+     + ': ',trim(panel_message)
+       cycle
+       end if
+
        do left_record=1,record_count
        if (record_rib(left_record).eq.panel_index) then
 
@@ -103,18 +118,17 @@
        end if
 
        call locate_color_boundary_on_edge(
-     + developed_u(panel_index,1:profile_counts(panel_index,1),2),
-     + developed_u(panel_index,1:profile_counts(panel_index,1),9),
-     + developed_v(panel_index,1:profile_counts(panel_index,1),9),
+     + production_panel%lower_profile%chord_percent,
+     + production_panel%edges%lower_sewing_u,
+     + production_panel%edges%lower_sewing_v,
      + left_first_point,left_last_point,point_step,
      + boundary_percent(left_record,left_boundary),left_found,
      + left_u,left_v)
 
        call locate_color_boundary_on_edge(
-     + developed_u(panel_index+1,
-     + 1:profile_counts(panel_index+1,1),2),
-     + developed_u(panel_index,1:profile_counts(panel_index,1),10),
-     + developed_v(panel_index,1:profile_counts(panel_index,1),10),
+     + production_panel%higher_profile%chord_percent,
+     + production_panel%edges%higher_sewing_u,
+     + production_panel%edges%higher_sewing_v,
      + right_first_point,right_last_point,point_step,
      + boundary_percent(right_record,right_boundary),right_found,
      + right_u,right_v)

@@ -79,6 +79,8 @@ The maintained structure now:
 - owns vector, plane, and rotation concepts in `leparagliding_geometry`;
 - owns robust color-edge interpolation and seam offsets in
   `leparagliding_color_geometry`;
+- separates normalized profiles, spatial ribs, and flattened production panels
+  in `leparagliding_domain_model`, with checked legacy-array adapters;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -109,8 +111,8 @@ Requirements:
 - CMake 3.20 or newer
 - a build tool supported by CMake
 
-Python 3 is optional. When available, CMake enables the DXF color-import
-regression in addition to the Fortran tests.
+Python 3 is optional. When available, CMake enables the DXF color-import and
+semantic-DXF regression tests in addition to the Fortran tests.
 
 GNU/Linux:
 
@@ -138,17 +140,21 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Five isolated tests are registered:
+Seven isolated tests are registered:
 
-1. `color_geometry` checks robust color-edge interpolation, repeated profile
+1. `domain_model` checks typed profile, spatial-rib, production-panel, panel-0,
+   and transactional legacy-adapter invariants.
+2. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-2. `color_division_import` compares DXF import with a Swoop2-derived section-16
+3. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+   comparator (registered when Python 3 is available).
+4. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-3. `plan_b_regression` compares all five principal outputs with the reviewed
+5. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline, after normalizing line endings.
-4. `profile_capacity_guard` verifies that an oversized 501-point profile is
+6. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-5. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+7. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -174,6 +180,7 @@ cmake/
 src/
   leparagliding.f                   main program and ordered section includes
   leparagliding_color_geometry.f90  color-edge interpolation and seam offsets
+  leparagliding_domain_model.f90    typed wing domains and legacy adapters
   leparagliding_hvr_config.f90      typed sections 38/39 parser and lookup
   leparagliding_procedures.f        explicit interface facade
   leparagliding_geometry.f90        vector, plane, rotation, transforms
@@ -184,6 +191,7 @@ tests/
   fixtures/                         minimal reference geometry
   expected/                         reviewed focused-test output
 tools/
+  dxf_semantic_diff.py              tolerant semantic DXF comparison
   import_color_divisions.py         open DXF division -> section 15/16
 Plan B Parakite/                    regression input supplied by the designer
 ```
@@ -226,6 +234,9 @@ focused module or derived type rather than extending `declarations.inc`.
 
 The coordinate domains and input/output contract of every ordered main include
 are summarized in [`docs/geometry-pipeline.md`](docs/geometry-pipeline.md).
+The complete schema inventory, staged migration, open terminology questions,
+and exit criteria are in
+[`docs/data-model-refactor.md`](docs/data-model-refactor.md).
 
 ## Further color work
 

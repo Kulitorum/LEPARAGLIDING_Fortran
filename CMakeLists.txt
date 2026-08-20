@@ -54,6 +54,7 @@ add_executable(leparagliding
     src/leparagliding_hvr_config.f90
     src/leparagliding_mark_types.f90
     src/leparagliding_geometry.f90
+    src/leparagliding_domain_model.f90
     src/leparagliding_color_geometry.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
@@ -84,18 +85,39 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+  add_executable(test_domain_model
+      tests/test_domain_model.f90
+      src/leparagliding_domain_model.f90)
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_domain_model PRIVATE -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_domain_model PRIVATE -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME domain_model COMMAND test_domain_model)
+
   add_executable(test_color_geometry
       tests/test_color_geometry.f90
       src/leparagliding_color_geometry.f90)
 
   if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(test_color_geometry PRIVATE -Wall -Wextra)
+    target_compile_options(test_color_geometry PRIVATE -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_color_geometry PRIVATE -fcheck=all -fbacktrace)
+    endif()
   endif()
 
   add_test(NAME color_geometry COMMAND test_color_geometry)
 
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME dxf_semantic_diff
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_dxf_semantic_diff.py")
+
     add_test(
         NAME color_division_import
         COMMAND "${CMAKE_COMMAND}"
