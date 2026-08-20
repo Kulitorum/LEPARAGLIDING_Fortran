@@ -1,0 +1,12 @@
+*************************************************************
+*	16. Intrados colors | swoop2-color-overlay-sample.dxf
+* DXF division: layer='0' ACI=6 LWPOLYLINE; ribs: layer='default' ACI=5; source unchanged
+4
+1	1
+1	48.0000	0.0
+2	1
+1	54.4600	0.0
+3	1
+1	61.0000	0.0
+4	1
+1	61.0000	0.0

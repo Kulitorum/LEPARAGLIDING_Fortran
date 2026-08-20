@@ -1,3 +1,8 @@
+!> Build the suspension-line topology, spatial endpoints, and drawing tree.
+!!
+!! Expands section-9 ramification paths into `corda` records, resolves line
+!! endpoints from singular rib points and risers, calculates lengths/angles,
+!! and draws line plans using the configured construction colors.
 c      12. LINES
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

@@ -1,3 +1,7 @@
+!> Close output streams, normalize generated files, and report deliverables.
+!!
+!! Terminates DXF documents, closes fixed units, performs compatibility cleanup,
+!! and prints the final file list.  No calculation stage may follow this include.
 c      23. END OF MAIN PROGRAM
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc   
 

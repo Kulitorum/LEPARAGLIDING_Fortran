@@ -1,330 +1,172 @@
-# Automatic color-piece division — design research
+# Color divisions from a flattened 2D wing
 
-This document records the proposed workflow for importing artwork and dividing
-paraglider panels into pieces of different colors. It is a design note, not an
-implemented feature. The workflow should be reviewed with Pere Casellas and
-other designers before its data format or geometry rules are finalized.
+LEparagliding now has a first production-oriented color workflow for the way
+Pere Casellas actually designs artwork: a fully flattened 2D wing with simple
+open division lines, usually running from the left rib of a panel to the right.
 
-## Repository checkpoint
+The implementation deliberately builds on sections 15 and 16 instead of
+introducing a second panel model. It has two stages:
 
-Last reviewed on 2026-08-20 after the maintained codebase was updated to
-LEparagliding 3.29. Version 3.29 adds HVR holes and positioning, nylon-rod
-types 4 and 5, special codes 2005/2006/3002, and improved DXF R12 output. None
-of those additions implements the automatic color-piece workflow proposed
-here; this document remains future design research.
+1. `tools/import_color_divisions.py` samples an authored DXF division line at
+   the flattened rib references and writes paste-ready section 15 or 16 data.
+2. `src/main/15_colors.inc` maps matching boundary IDs onto the developed
+   upper or lower panels and adds the internal sewing line, both allowances,
+   and inset matching marks.
 
-The current normal and runtime-check test suites cover the 3.29 baseline,
-profile-capacity rejection, and the new 3.29 feature paths. A future color
-implementation should extend those tests rather than replace their baselines.
+The reference case is the author's Swoop2 project:
+[20260820 Swoop2.zip](https://laboratoridenvol.com/projects/Swoop2/data/20260820%20Swoop2.zip).
 
-## Goal
+## Confirmed design rules
 
-Allow a designer to place vector artwork on a wing using a familiar CAD
-workflow, then let LEparagliding automatically:
+The August 20, 2026 review established these rules for the first iteration:
 
-1. project the artwork onto the selected upper or lower surface;
-2. transfer every color boundary to the developed fabric panels;
-3. split the affected panels into manufacturable colored pieces;
-4. add seam allowances, matching marks, labels, and material information; and
-5. generate cutting DXFs and a colored inflated-wing preview.
+- Artwork is normally designed on the fully flattened 2D wing. An inflated or
+  arched reference is not required for the normal workflow.
+- Artwork uses open division lines, not closed colored polygons.
+- Designs are usually simple straight cuts across one panel from rib to rib.
+- Existing layers and AutoCAD colors have construction meaning and must remain
+  unchanged.
+- Both pieces adjacent to an internal color boundary receive a seam allowance.
+- Matching marks are required on the adjacent construction and should be moved
+  about 1.0--1.2 mm inward where possible so they remain hidden in the wing.
+- Compensation for the final arched flight shape is a possible later feature,
+  not part of this simple 2D-first workflow.
 
-The first version should work with AutoCAD 2002 and should not require a new
-interactive LEparagliding GUI.
+The maintained default matching-mark inset is 1.1 mm.
 
-## What the current program supports
+## DXF import
 
-The present implementation is a useful starting point but does not perform
-automatic artwork division:
+The importer is a dependency-free ASCII DXF reader. It currently accepts open
+`LWPOLYLINE` entities and connected `LINE` entities. The longest matching path
+on the selected semi-wing is intersected with the selected rib-reference
+lines. Each intersection is projected along that chord reference and converted
+to LEP's section-15/16 percentage convention.
 
-- `src/main/04_data_reading.inc` reads manually specified extrados and
-  intrados color data from sections 15 and 16.
-- The classic representation records color positions on selected ribs.
-- The newer `-2` representation records straight panel cuts using positions on
-  the two ribs bordering a panel.
-- `src/main/05_graphic_design.inc` displays these marks or straight cuts on the
-  planform.
-- `src/main/15_colors.inc` converts classic rib positions into cross marks on
-  developed panels.
-- `src/procedures/dxf_output.inc` writes R12-compatible ASCII DXF primitives,
-  legacy polylines, AutoCAD Color Index values, and UTF-8 text escapes.
+Example using the Swoop2 intrados artwork line:
 
-There is currently no DXF reader, general polygon representation, region
-topology, automatic panel splitting, or windowed user interface. Arbitrary
-curved artwork should not be forced into the existing fixed-size
-`npc*`/`xpac*` arrays.
+```powershell
+python tools/import_color_divisions.py `
+  "20260818 Swoop2 2D.dxf" `
+  --surface intrados `
+  --division-layer 0 `
+  --division-color 6 `
+  --rib-layer default `
+  --rib-color 5 `
+  --output swoop2-section16.txt
+```
 
-## Proposed designer workflow
+On the supplied Swoop2 DXF this recovers all 26 records: 48.00% at the center,
+54.46% at rib 2, and 61.00% over the remaining ribs. Percentages are snapped to
+0.01% by default to remove insignificant noise from four-decimal CAD geometry;
+use `--snap-percent 0` to disable this.
 
-LEparagliding generates a dedicated `artwork-template.dxf`. The designer then:
+The tool does not rewrite the DXF. Its output comments record the original
+division layer, entity ACI color, rib layer, and rib ACI color. Hatches, images,
+piece colors, and every construction entity stay in the designer's source file.
+This is important because colors and layers already carry manufacturing meaning.
 
-1. opens the template in AutoCAD;
-2. draws or imports artwork over the registered wing reference;
-3. moves, scales, rotates, and mirrors the artwork as required;
-4. places each fabric color on a separate named layer;
-5. saves an ASCII DXF; and
-6. asks LEparagliding to generate the colored pieces.
+The importer defaults to the positive semi-wing because sections 15 and 16
+describe one semi-wing. Use `--side negative` for artwork drawn only on the
+opposite half, and verify the generated rib order before pasting the block into
+`leparagliding.txt`.
 
-This uses AutoCAD as the placement interface. A dedicated GUI can be added
-later without changing the projection and division engine.
+## Section 15/16 semantics
 
-## Reference geometry: a flat-span inflated wing
+Classic section records are rib based:
 
-The recommended reference is neither a completely flat fabric outline nor the
-fully arched flight shape. It is a virtual **flat-span inflated wing**:
+```text
+number_of_ribs_with_boundaries
+rib_number  boundaries_on_this_rib
+boundary_id  chord_percent  off_rib_offset
+```
 
-- rib stations are arranged across the flat span with no spanwise arch;
-- every rib retains its inflated airfoil section;
-- upper and lower skins retain their chordwise curvature and cell shaping; and
-- extrados and intrados are treated as separate projection targets.
+For example:
 
-This creates three distinct geometry domains:
+```text
+4
+1  1
+1  48.00  0.0
+2  1
+1  54.46  0.0
+3  1
+1  61.00  0.0
+4  1
+1  61.00  0.0
+```
 
-| Domain | Purpose |
+The first value on each boundary row is its stable boundary ID. Equal IDs on
+ribs `i` and `i+1` define one open division across developed panel `i`. This
+supports more than one straight division per panel without relying on row order.
+The current production construction accepts on-rib records (`off_rib_offset =
+0`). The historical `-2` panel-input mode is still drawn in the planform but is
+not silently reinterpreted as the new manufacturing construction.
+
+## Developed-panel output
+
+Stage 8 first creates the complete outer panel geometry. Stage 15 then adds only
+the missing internal color construction:
+
+| DXF layer | Contents |
 |---|---|
-| Artwork plane | Where the designer positions the 2D DXF artwork. |
-| Flat-span inflated surface | Where artwork is projected and associated with cells, ribs, and surface coordinates. |
-| Developed fabric panels | Where color boundaries become cutting geometry, seams, and marks. |
+| `color_seams` | Finished internal sewing line shared by both pieces |
+| `color_allowance` | Two parallel cut edges, one allowance on each side |
+| `color_marks` | Paired registration crosses inset inside both adjacent cut edges |
 
-The mapping is therefore:
+Upper construction retains ACI 4 and lower construction retains ACI 30, matching
+the existing section-15/16 design-view convention. No entity on `default`,
+`vents`, `triangles`, `mcircles`, or an author-defined layer is moved,
+recolored, or deleted.
 
-```text
-2D artwork
-    -> orthogonal projection onto the flat-span inflated surface
-    -> cell/panel surface coordinates
-    -> developed fabric-panel coordinates
-    -> separate colored cutting pieces
-```
+The allowance width comes from the normal upper/lower sewing allowance in
+section 6. Input sewing widths are millimetres; the drawing engine converts them
+to LEP's centimetre model coordinates. In the Swoop2 verification run, the
+configured 10 mm produces two lines exactly 1.0 model unit from each sewing
+line.
 
-For the upper surface, projection travels from above toward the extrados. For
-the lower surface, it travels from below toward the intrados. Top and bottom
-must have separate registered design views and layer namespaces.
+## NaN repair
 
-This reference accounts for chordwise inflation without making the designer
-compensate for the final spanwise arch. Artwork designed this way may still look
-slightly different on the fully arched flight shape, so the final output should
-include a 3D preview.
+The original color-mark routine calculated slopes twice: once on the normalized
+profile and once on the developed edge. Repeated X coordinates could therefore
+produce `0/0`, which is why the Swoop2 input warned that sections 15/16 caused a
+NaN problem.
 
-Possible future projection modes are:
+`leparagliding_color_geometry` now finds the containing profile segment and
+applies its interpolation fraction directly to the developed edge. It handles
+either traversal direction, repeated coordinates, exact vertices, invalid
+ranges, and non-finite inputs without emitting geometry. The supplied Swoop2
+project changes from 12 NaN coordinates in `leparagliding.dxf` to zero.
 
-- flat fabric or span/chord mapping;
-- flat-span inflated projection (recommended default); and
-- fully inflated 3D projection from a selected viewing direction.
+## Validation
 
-## `artwork-template.dxf`
+Two focused tests accompany the existing end-to-end suite:
 
-The template should be a clean production input, not the existing pattern DXF
-with all construction output mixed together. It should contain:
+- `color_geometry` checks interpolation, repeated profile coordinates, seam
+  offsets, and the 1.1 mm inward mark calculation.
+- `color_division_import` checks the importer against a small coordinate-only
+  fixture derived from Swoop2 and its known section-16 values.
 
-- upper and lower flat-span inflated references;
-- leading and trailing edges;
-- rib, cell, and relevant panel boundaries;
-- wing centerline and orientation labels;
-- three non-collinear registration markers with stable identifiers;
-- an explicit calibration bar and declared working units; and
-- instructions and example artwork layers.
+The complete author-supplied Swoop2 DXF was also used locally as the end-to-end
+acceptance case. It imports 26 rib crossings and the full calculation produces
+50 internal seam lines, 100 allowance edges, 200 mark strokes, and no NaNs.
+The 25 MB reference archive is intentionally not copied into this repository.
 
-Suggested reference layers:
+## Current boundary and next work
 
-```text
-LEP_REFERENCE_TOP
-LEP_REFERENCE_BOTTOM
-LEP_REFERENCE_RIBS
-LEP_REFERENCE_PANELS
-LEP_REGISTRATION
-LEP_NOTES
-```
+This iteration automates straight open divisions and produces manufacturing
+construction on the existing developed panels. It does not yet extract and
+nested-layout each adjacent color region as an independent closed CAD object,
+nor does it assign a fabric/material record to each side of a boundary.
 
-Reference layers are ignored as artwork during import. They should be locked by
-default where the DXF format and CAD application allow it.
+The next useful steps are:
 
-Three registration markers allow the importer to detect translation, rotation,
-uniform scaling, and mirroring. They also prevent old, effectively unitless DXF
-workflows from silently manufacturing a wrongly scaled wing. A mismatched wing
-identity or non-uniformly transformed reference should be rejected with a clear
-diagnostic.
+1. agree on a small side-assignment record that maps every boundary ID to the
+   two piece colors/materials while retaining source DXF layer and ACI metadata;
+2. split the existing outer panel path at the internal construction and emit
+   independently selectable closed piece paths;
+3. add labels containing panel, surface, boundary, side, color, and material;
+4. support several connected straight divisions and validate junction order;
+5. compare the generated pieces with Pere's finished Swoop2 cutting layout;
+6. only then investigate curved divisions and optional arch compensation.
 
-## DXF compatibility
-
-The initial importer should accept ASCII DXF saved in AutoCAD R12 or AutoCAD
-2000 format, both suitable for an AutoCAD 2002 workflow. Direct DWG import is
-out of scope.
-
-Recommended first entity subset:
-
-- `LINE`;
-- legacy `POLYLINE`/`VERTEX`;
-- `LWPOLYLINE`;
-- `ARC`;
-- `CIRCLE`; and
-- closed polylines defining colored regions.
-
-Arcs and circles can be tessellated to an accuracy specified in physical units.
-Blocks, inserts, splines, hatches, text outlines, dimensions, and raster images
-can be considered later. Unsupported entities must be reported rather than
-silently discarded.
-
-Closed regions are preferable because they identify both the boundary and the
-area belonging to a color. Open division lines do not state which color lies on
-each side; supporting them would require region seed points or another explicit
-side-assignment rule.
-
-## Color and material identification
-
-The importer can read AutoCAD Color Index values, including entity colors and
-colors inherited from layers. However, CAD display color alone should not be
-the authoritative manufacturing identity.
-
-The recommended convention is one named layer per fabric color or material:
-
-```text
-TOP_RED
-TOP_WHITE
-TOP_BLUE
-BOTTOM_RED
-BOTTOM_WHITE
-LOGO_BLACK
-```
-
-Layer names provide stable semantic identifiers. AutoCAD colors provide useful
-preview defaults. A later GUI or configuration section can map imported layers
-to actual cloth names, supplier codes, weights, and display colors.
-
-The importer will also need explicit rules for:
-
-- the base color outside all artwork regions;
-- overlapping regions and drawing priority;
-- nested regions and holes;
-- coincident or nearly coincident boundaries;
-- minimum manufacturable piece size; and
-- whether identical colors separated only by construction geometry are merged.
-
-## Projection and division algorithm
-
-A robust implementation should proceed as follows:
-
-1. Parse the supported DXF entities without modifying wing geometry.
-2. Resolve layers, colors, closed regions, and curve tessellation.
-3. Verify the three registration markers, wing identity, units, orientation,
-   scale, and top/bottom assignment.
-4. Build triangulated upper and lower flat-span inflated reference surfaces.
-5. Project artwork curves onto the selected surface.
-6. Locate each projected point in a surface triangle and retain its cell,
-   panel, and barycentric or equivalent surface coordinates.
-7. Clip every colored region against the applicable cell and panel domains.
-8. Map clipped boundaries through the existing panel-development geometry.
-9. Construct planar region topology for each developed panel.
-10. Split the original panel into separate colored pieces.
-11. Offset internal color boundaries according to the selected seam rule.
-12. Add matching marks, piece labels, orientation, side, color, and material.
-13. Export manufacturing DXFs and a colored 3D preview.
-
-Projection and panel development should use an explicit surface mapping. A
-single global flat projection is not sufficient because an inflated skin is not
-globally developable without distortion.
-
-## Seam and manufacturing rules
-
-Automatic geometric division is only useful if the generated pieces express
-the intended assembly method. Before implementation, the author should confirm:
-
-- whether a color boundary is the finished seam centerline or one piece edge;
-- whether both neighboring pieces receive an allowance;
-- the default and per-material allowance widths;
-- allowance behavior at panel edges and multi-color junctions;
-- matching-mark type, spacing, and numbering;
-- minimum corner radius and minimum strip width;
-- preferred labels and layer names in the cutting DXF; and
-- whether pieces of the same color should be grouped for nesting.
-
-These rules should be data, not hard-coded drawing calls.
-
-## Software architecture
-
-The geometry feature should be implemented as a deterministic, headless engine
-first. AutoCAD remains the initial placement interface.
-
-New code should use focused free-form Fortran modules and derived types for:
-
-- DXF artwork entities;
-- named colors and materials;
-- polygon rings and region topology;
-- reference-surface triangles and mappings;
-- projected artwork curves;
-- divided panel pieces; and
-- seam and marking policies.
-
-The feature should not add more unrelated arrays to
-`src/main/declarations.inc`. File parsing, geometric projection, region
-operations, panel mapping, manufacturing policy, and DXF output should remain
-separate stages.
-
-If an interactive application is added later, it should be a separate frontend
-over this engine. Artwork movement can then be rendered immediately without
-rerunning Fortran for every mouse movement; the calculation engine runs when
-the user requests validation, division, or a rebuilt 3D preview.
-
-## Proposed outputs
-
-The feature may produce:
-
-- `artwork-template.dxf` — registered CAD placement template;
-- `colored-panels.dxf` — complete divided cutting layout;
-- optional per-color or per-material DXFs;
-- a division report listing pieces, colors, areas, and warnings; and
-- a colored 3D preview in a suitable mesh or CAD format.
-
-Output should remain compatible with the author's existing AutoCAD 2002
-workflow unless a newer format is explicitly selected.
-
-## Validation and tests
-
-The implementation needs focused tests in addition to the existing Plan B and
-3.29 feature regressions:
-
-- DXF registration with unchanged, translated, rotated, scaled, and mirrored
-  templates;
-- rejection of non-uniform scaling and mismatched wing templates;
-- top-only, bottom-only, and combined artwork;
-- one straight boundary across several cells;
-- curved, nested, and holed regions;
-- a boundary passing exactly through a rib or panel vertex;
-- multi-color junctions and extremely small pieces;
-- correct seam allowance on both adjacent pieces;
-- round-trip stability of generated templates; and
-- preservation of all non-color Plan B outputs.
-
-A real artwork DXF supplied by Pere should become the primary end-to-end color
-regression case.
-
-## Questions for Pere and other designers
-
-The following decisions should be confirmed before coding:
-
-1. Does the flat-span inflated reference match the way artwork is normally
-   designed?
-2. Are designs normally expressed as closed colored shapes or open division
-   lines?
-3. Should manufacturing identity come from layer names, AutoCAD colors, or
-   both?
-4. What are the exact seam-allowance and matching-mark rules at internal color
-   boundaries?
-5. How should overlaps, holes, tiny pieces, and multi-color junctions be
-   handled?
-6. Should artwork be authoritative on the flat-span reference, or should a
-   future option compensate for appearance on the fully arched wing?
-7. Can one or more existing color-design DXFs and their finished cutting files
-   be provided as reference cases?
-
-## Suggested implementation sequence
-
-After the workflow is approved:
-
-1. obtain representative artwork and manufacturing examples;
-2. specify the template, layer, registration, unit, and seam conventions;
-3. generate the flat-span inflated reference mesh and template DXF;
-4. implement and test the restricted ASCII DXF importer;
-5. implement projection and panel-coordinate mapping;
-6. implement polygon clipping, region topology, and panel splitting;
-7. implement allowances, marks, labels, reports, and cutting output;
-8. add the colored inflated-wing preview; and
-9. evaluate whether a dedicated interactive frontend is still needed.
+The simple 2D workflow should remain the default even if those advanced modes
+are added.

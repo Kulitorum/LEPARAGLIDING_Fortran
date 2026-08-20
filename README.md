@@ -42,7 +42,28 @@ The integration also repairs defects found in the upstream 3.29 paths:
 - profile-derived tip geometry is created only after every source profile is
   loaded; and
 - optional STL/XFLR5 directories are created correctly on Windows and POSIX
-  systems.
+systems.
+
+## Flattened-wing color divisions
+
+The first automated color-construction workflow is now implemented for simple
+open division lines drawn on a fully flattened 2D wing:
+
+- [`tools/import_color_divisions.py`](tools/import_color_divisions.py) reads
+  ASCII DXF `LINE`/`LWPOLYLINE` artwork without external packages and produces
+  section 15 (extrados) or 16 (intrados) rib records;
+- matching boundary IDs on consecutive ribs become straight internal sewing
+  lines on the developed panel;
+- both adjacent pieces receive the configured upper/lower seam allowance;
+- paired matching marks are inset 1.1 mm from both internal cut edges; and
+- new construction is isolated on `color_seams`, `color_allowance`, and
+  `color_marks`, preserving all existing layers and CAD colors.
+
+This also fixes the section-15/16 slope interpolation that produced NaNs in the
+author's Swoop2 project. The complete reference changes from 12 NaN DXF
+coordinates to zero and its ACI-6 artwork polyline imports all 26 known rib
+values exactly. See [`COLORS.md`](COLORS.md) for the workflow, command example,
+format contract, limitations, and next steps.
 
 ## Refactored foundation
 
@@ -56,6 +77,8 @@ The maintained structure now:
   explicit compiler-checked interfaces;
 - replaces the repeated `/markstypes/` COMMON block with a typed module;
 - owns vector, plane, and rotation concepts in `leparagliding_geometry`;
+- owns robust color-edge interpolation and seam offsets in
+  `leparagliding_color_geometry`;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -86,6 +109,9 @@ Requirements:
 - CMake 3.20 or newer
 - a build tool supported by CMake
 
+Python 3 is optional. When available, CMake enables the DXF color-import
+regression in addition to the Fortran tests.
+
 GNU/Linux:
 
 ```sh
@@ -112,13 +138,17 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Three isolated end-to-end tests are registered:
+Five isolated tests are registered:
 
-1. `plan_b_regression` compares all five principal outputs with the reviewed
+1. `color_geometry` checks robust color-edge interpolation, repeated profile
+   coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
+2. `color_division_import` compares DXF import with a Swoop2-derived section-16
+   oracle (registered when Python 3 is available).
+3. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline, after normalizing line endings.
-2. `profile_capacity_guard` verifies that an oversized 501-point profile is
+4. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-3. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+5. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -137,17 +167,24 @@ working directory because output files there are overwritten.
 ```text
 CMakeLists.txt
 cmake/
+  run_color_import_test.cmake      Swoop2-derived DXF import oracle
   run_plan_b_regression.cmake       complete-output regression
   run_profile_capacity_check.cmake oversized-profile rejection
   run_329_features.cmake           focused 3.29 feature coverage
 src/
   leparagliding.f                   main program and ordered section includes
+  leparagliding_color_geometry.f90  color-edge interpolation and seam offsets
   leparagliding_hvr_config.f90      typed sections 38/39 parser and lookup
   leparagliding_procedures.f        explicit interface facade
   leparagliding_geometry.f90        vector, plane, rotation, transforms
   leparagliding_mark_types.f90      shared mark drawing configuration
   main/                             numbered main-program calculation stages
   procedures/                       procedures grouped by responsibility
+tests/
+  fixtures/                         minimal reference geometry
+  expected/                         reviewed focused-test output
+tools/
+  import_color_divisions.py         open DXF division -> section 15/16
 Plan B Parakite/                    regression input supplied by the designer
 ```
 
@@ -156,6 +193,7 @@ Important procedure groups:
 | File | Responsibility |
 |---|---|
 | `dxf_output.inc` | DXF primitives, ellipses, UTF-8 text, start/end records |
+| `color_construction.inc` | internal color seams, allowances, and inset marks |
 | `geometry_2d.inc` | redistribution, intersections, flattening, HVR holes |
 | `panel_edges.inc` | panel boundaries, arcs, vents, panel variants |
 | `junctions.inc` | junction and longitudinal nylon-rod geometry |
@@ -186,8 +224,12 @@ original scope and calculation order without introducing a huge argument list
 or a new untested global-data object. New independent state should live in a
 focused module or derived type rather than extending `declarations.inc`.
 
-## Future design work
+The coordinate domains and input/output contract of every ordered main include
+are summarized in [`docs/geometry-pipeline.md`](docs/geometry-pipeline.md).
 
-The proposed AutoCAD-based workflow for automatic color-piece division is
-recorded in [`COLORS.md`](COLORS.md). It is research for a future feature, not
-part of the implemented 3.29 update.
+## Further color work
+
+Straight open divisions and their manufacturing construction are implemented.
+Independent closed piece extraction, material assignment, multi-boundary
+junctions, curved artwork, and optional arch compensation remain future work;
+their deliberately 2D-first sequence is recorded in [`COLORS.md`](COLORS.md).

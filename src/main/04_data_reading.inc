@@ -1,3 +1,9 @@
+!> Parse input sections 1--39 and derive run-wide geometry/output settings.
+!!
+!! Reads `leparagliding.txt` on unit 22, profile metadata on unit 24, validates
+!! typed HVR and mark configuration, scales the semi-wing geometry, and sets
+!! panel/rib placement offsets.  This stage must finish before any drawing or
+!! airfoil calculation because all numbered main includes consume its state.
 c      4. DATA READING
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

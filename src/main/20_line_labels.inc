@@ -1,3 +1,7 @@
+!> Add final labels to the already constructed 2D suspension-line drawing.
+!!
+!! Traverses finalized suspension and brake records, placing stable identifiers
+!! beside the corresponding tree segments without changing line geometry.
 c     20. Draw labels in 2D (in tree of lines)
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

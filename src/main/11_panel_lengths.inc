@@ -1,3 +1,9 @@
+!> Measure developed panel/rib sides and place equidistant assembly marks.
+!!
+!! Accumulates extrados/intrados side lengths in documented `rib` slots, maps
+!! corresponding distances between neighboring panel edges, and emits regular,
+!! anchor, and Romano marks.  It consumes the tensioned slots produced by
+!! stage 8 and must precede the color overlay and final reporting stages.
 c     11. CALCULA LONGITUDS EXTRA INTRA EN PANELLS I PERFILS. MARKS
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

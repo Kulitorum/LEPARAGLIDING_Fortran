@@ -1,3 +1,7 @@
+!> Write the spreadsheet-friendly suspension and brake schedule to `lines.txt`.
+!!
+!! Uses the finalized `corda` topology, labels, and computed lengths.  The file
+!! is intended for direct human use or import into ODS/XLS-compatible tools.
 c      19. lines.txt List of lines - labels in human readable format
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

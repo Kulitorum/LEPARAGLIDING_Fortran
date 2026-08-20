@@ -1,3 +1,9 @@
+!> Draw the 2D design references before manufacturing geometry is developed.
+!!
+!! Emits the planform, rib stations, leading/trailing edges, anchors, vents,
+!! manual section-15/16 color references, vault view, and drawing boxes.  The
+!! geometry uses scaled `rib(:,*)` planform coordinates; it is a design view,
+!! not the developed skin-panel coordinate system produced in stages 7--8.
 c      5. GRAPHIC DESIGN
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

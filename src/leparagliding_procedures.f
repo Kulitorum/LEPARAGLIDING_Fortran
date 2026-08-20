@@ -11,6 +11,7 @@ c***********************************************************************
 !! `implicit none` and explicit argument intents whenever practical.
        module leparagliding_procedures
        use leparagliding_geometry
+       use leparagliding_color_geometry
        use leparagliding_mark_types
 
        private :: typm1, typm2, typm3, typm4, typm5, typm6
@@ -24,6 +25,7 @@ c***********************************************************************
        contains
 
        include 'procedures/dxf_output.inc'
+       include 'procedures/color_construction.inc'
        include 'procedures/geometry_2d.inc'
        include 'procedures/panel_edges.inc'
        include 'procedures/junctions.inc'

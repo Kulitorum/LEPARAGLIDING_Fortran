@@ -288,6 +288,29 @@ c      line P1-P2
        return
        end
 
+!> Write a 2D line segment to an explicit DXF layer on unit 20.
+!!
+!! This is the layer-preserving counterpart to the legacy `line` routine.
+!! Callers can add optional construction overlays without moving or recoloring
+!! existing entities on `default`, `vents`, `triangles`, or other layers.
+!! @param[in] p1x,p1y First endpoint in LEP drawing coordinates.
+!! @param[in] p2x,p2y Second endpoint in LEP drawing coordinates.
+!! @param[in] layer_name Destination DXF layer name.
+!! @param[in] linecolor AutoCAD color index.
+       subroutine line_layer(p1x,p1y,p2x,p2y,layer_name,linecolor)
+       implicit none
+       real*8, intent(in) :: p1x,p1y,p2x,p2y
+       character(len=*), intent(in) :: layer_name
+       integer, intent(in) :: linecolor
+
+       write(20,'(A,/,I1,/,A)') 'LINE',8,trim(layer_name)
+       write(20,'(I1,/,A)') 6,'CONTINUOUS'
+       write(20,'(I2,/,F14.4,/,I2,/,F14.4)') 10,p1x,20,-p1y
+       write(20,'(I2,/,F14.4,/,I2,/,F14.4)') 11,p2x,21,-p2y
+       write(20,'(I2,/,I2,/,I2,/,I3,/,I2)') 39,0,62,linecolor,0
+       return
+       end
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc        
 c     SUBROUTINE LINE 3D
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

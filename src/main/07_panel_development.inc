@@ -1,3 +1,9 @@
+!> Flatten upper, lower, and vent skin strips into per-panel 2D coordinates.
+!!
+!! Each 3D quadrilateral between consecutive profile samples is reconstructed
+!! from its six edge/diagonal distances, then chained into `pl*/pr*` developed
+!! coordinates.  Stage 8 turns these neutral developed strips into tensioned
+!! panel edges, sewing borders, cutting variants, and production layouts.
 c      7. PANEL DEVELOPMENT
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

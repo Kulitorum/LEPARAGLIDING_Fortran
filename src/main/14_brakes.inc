@@ -1,3 +1,8 @@
+!> Construct brake ramifications, distribution, lengths, and drawing geometry.
+!!
+!! Mirrors the suspension-line pipeline for section-10 brake paths, including
+!! fractional rib anchors and the configured spanwise brake distribution.  Its
+!! results feed line schedules, labels, balance output, and 3D drawings.
 c      14. BRAKE CALCULUS
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

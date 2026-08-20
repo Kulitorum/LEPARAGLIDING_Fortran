@@ -1,3 +1,8 @@
+!> Optionally solve the section-35 wing/pilot equilibrium and revised calage.
+!!
+!! Iterates the force/moment balance only when enabled, updates equilibrium
+!! angles and reference points, and emits the diagnostic construction drawing
+!! used by the text and note stages.
 c     17. CALAGE CALCULUS (SOLVE EQUILIBRIUM)
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

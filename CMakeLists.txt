@@ -32,6 +32,7 @@ set(LEPARAGLIDING_MAIN_FRAGMENTS
 
 set(LEPARAGLIDING_PROCEDURE_FRAGMENTS
     src/procedures/dxf_output.inc
+    src/procedures/color_construction.inc
     src/procedures/geometry_2d.inc
     src/procedures/panel_edges.inc
     src/procedures/junctions.inc
@@ -53,6 +54,7 @@ add_executable(leparagliding
     src/leparagliding_hvr_config.f90
     src/leparagliding_mark_types.f90
     src/leparagliding_geometry.f90
+    src/leparagliding_color_geometry.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
     ${LEPARAGLIDING_MAIN_FRAGMENTS}
@@ -82,6 +84,29 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+  add_executable(test_color_geometry
+      tests/test_color_geometry.f90
+      src/leparagliding_color_geometry.f90)
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_color_geometry PRIVATE -Wall -Wextra)
+  endif()
+
+  add_test(NAME color_geometry COMMAND test_color_geometry)
+
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME color_division_import
+        COMMAND "${CMAKE_COMMAND}"
+            "-DPYTHON=${Python3_EXECUTABLE}"
+            "-DIMPORTER=${CMAKE_CURRENT_SOURCE_DIR}/tools/import_color_divisions.py"
+            "-DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/swoop2-color-overlay-sample.dxf"
+            "-DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/tests/expected/swoop2-section16-sample.txt"
+            "-DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/tests/swoop2-section16-sample.txt"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_color_import_test.cmake")
+  endif()
+
   add_test(
       NAME plan_b_regression
       COMMAND "${CMAKE_COMMAND}"

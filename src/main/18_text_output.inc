@@ -1,3 +1,9 @@
+!> Write the detailed human-readable design report to `lep-out.txt`.
+!!
+!! Serializes geometry, area, aspect ratio, profiles, suspension data, panel
+!! lengths, HVR definitions, rods, and enabled option summaries after all
+!! calculations are complete.  This stage reports state but does not mutate
+!! the production geometry.
 c     18. TXT OUTPUT lep-out.txt
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

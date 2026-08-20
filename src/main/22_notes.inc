@@ -1,3 +1,7 @@
+!> Draw title blocks, legends, parameters, and production notes in the 2D DXF.
+!!
+!! Formats design metadata and calculated values only after every geometry
+!! stage has finished, including version-3.29 rod and HVR annotations.
 c      22. TEXT NOTES
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

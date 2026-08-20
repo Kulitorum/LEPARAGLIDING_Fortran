@@ -1,3 +1,8 @@
+!> Calculate calage, attitude, pressure-center, and pilot reference geometry.
+!!
+!! Uses the completed wing and suspension reference data to establish the
+!! aerodynamic angles and balance diagram inputs consumed by line geometry,
+!! equilibrium solving, report output, and drawing notes.
 c      10. CALAGE
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       

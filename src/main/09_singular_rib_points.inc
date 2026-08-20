@@ -1,3 +1,8 @@
+!> Resolve named/singular rib locations used by lines and reinforcements.
+!!
+!! Interpolates anchors, intake limits, trailing-edge points, and related
+!! construction locations on the prepared profiles.  The resulting absolute
+!! and developed coordinates feed suspension, rib marks, and later reports.
 c      9. SINGULAR RIB POINTS
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

@@ -4,6 +4,8 @@
 *.o
 *.obj
 *.exe
+__pycache__/
+*.py[cod]
 
 /lep-3d.dxf
 /lep-out.txt

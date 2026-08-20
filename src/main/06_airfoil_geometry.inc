@@ -1,3 +1,8 @@
+!> Load airfoils and construct the wing's profile and spatial coordinates.
+!!
+!! Populates normalized/scaled `u/v` slots and absolute `x/y/z` skin points,
+!! applies wash-in and rib rotations, and prepares junction, rod, and internal
+!! geometry consumed by panel development, suspension, and 3D output stages.
 c      6. AIRFOILS coordinates calculus
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

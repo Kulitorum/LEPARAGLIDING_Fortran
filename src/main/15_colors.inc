@@ -1,242 +1,53 @@
-c      15. Marques de colors
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c***********************************************************************
+c     15. INTERNAL COLOR DIVISIONS ON DEVELOPED PANELS
+c***********************************************************************
+c
+c     Purpose
+c     -------
+c     Sections 15 (extrados) and 16 (intrados) describe open artwork
+c     division lines by their chord percentage at each rib.  Matching
+c     boundary identifiers on consecutive ribs define a straight cut across
+c     the intervening developed panel.  This include converts those records
+c     into:
+c
+c       color_seams      the sewing line shared by both color pieces,
+c       color_allowance  one parallel cut edge for each adjacent piece,
+c       color_marks      paired marks inset 1.1 mm from both cut edges.
+c
+c     Existing panel entities, layer names, and CAD colors are not changed.
+c     Extrados overlay entities retain ACI 4; intrados entities retain ACI 30.
+c
+c     Coordinate flow
+c     ---------------
+c       u/v(rib,:,2)    normalized profile used to locate a chord percentage
+c       u/v(panel,:,9)  developed left panel edge (rib panel)
+c       u/v(panel,:,10) developed right panel edge (rib panel+1)
+c       seppix(panel)   horizontal placement of the developed panel
+c       xyshift         extrados row; xyshift+890.95 is the intrados row
+c
+c     Only classic on-rib records (npce/npci >= 1 and xpc2*=0) create panel
+c     construction.  The historical -2 panel-input mode remains visible in
+c     the planform view but is not silently reinterpreted here.
+c
+c     Both surfaces call the same documented topology routine.  Its typed
+c     interpolation handles repeated/vertical coordinates without dividing
+c     slopes, fixing the Swoop2 section-15/16 NaN failure.
+c***********************************************************************
 
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      15.1 Extrados marks
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      Marques colors extrados panell i
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-       do k=1,npce ! ribs number with color marks
-
-c      l=mark number in k rib
-       do l=1,npc2e(k) ! marks in rib k
-
-c      Detect if mark is exactly in the rib
-
-       if (xpc2e(k,l).eq.0) then
-
-       i=npc1e(k) ! rib number corresponding to k order
-
-c      Detect segment (j,j+1) where color changes
-       jcontrol=1
-       do j=1,np(i,2)-1
-
-       if ((100.-(u(i,j,2)).le.xpc1e(k,l).and.
-     + (100.-u(i,j+1,2)).gt.xpc1e(k,l))) then
-
-       jcontrol=j        
-
+c     Extrados: profile points run from trailing edge toward leading edge.
+       if (npce.ge.1) then
+       call draw_classic_color_surface(npce,npc1e,npc2e,npc3e,xpc1e,
+     + xpc2e,nribss,np,u,v,seppix,1970.0d0*xkf,xyshift*xkf,xupp,
+     + color_mark_inset_mm,4,1)
        end if
 
-       end do
-
-c      Calcula longitud extrados fins punt j
-
-       xle(k,l)=0.
-       xleinc(k,l)=0.
-
-       do j=1,jcontrol-1
-       xle(k,l)=xle(k,l)+sqrt(((v(i,j+1,2)-v(i,j,2))**2)+
-     + ((u(i,j+1,2)-u(i,j,2))**2))
-       end do
-
-c      Interpolacio punt color
-
-       xmc=(v(i,j+1,2)-v(i,j,2))/(u(i,j+1,2)-u(i,j,2))
-       xbc=v(i,j,2)-xmc*u(i,j,2)
-       
-       xpc3e(k,l)=100.-xpc1e(k,l)
-       ypc3e(k,l)=xmc*xpc3e(k,l)+xbc
-
-       xleinc(k,l)=dsqrt(((ypc3e(k,l)-v(i,j,2))**2)+
-     + ((xpc3e(k,l)-u(i,j,2))**2))
-
-       xle(k,l)=xle(k,l)+xleinc(k,l)
-       
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      Dibuixa marques color esquerra panell i
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-c      Localitza punts 
-       psep=1970.*xkf+seppix(i)*1.0d0
-       psey=xyshift*xkf
-
-       j=jcontrol
-
-       xu=u(i,j,9)
-       xv=v(i,j,9)
-
-c      Calcula punt de color
-       alp=abs(datan((v(i,j+1,9)-v(i,j,9))/(u(i,j+1,9)-u(i,j,9))))
-       xu=xu+(xleinc(k,l)*(rib(i,5)/100.))*dcos(alp)
-       xv=xv+(xleinc(k,l)*(rib(i,5)/100.))*dsin(alp)
-
-c      Dibuixa creu
-       call line(psep+xu-3.,-(xv)+psey,psep+xu+3.,
-     + -(xv)+psey,7)
-       call line(psep+xu,-(xv-3.)+psey,psep+xu,
-     + -(xv+3.)+psey,7)
-
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      Dibuixa marques color dreta panell i-1
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-c       if (i.eq.nribss) then
-
-
-       i=i-1
-
-c      Localitza punts 
-       psep=1970.*xkf+seppix(i)*1.0d0
-       psey=xyshift*xkf
-
-       j=jcontrol
-
-       xu=u(i,j,10)
-       xv=v(i,j,10)
-
-c      Calcula punt de color
-       alp=abs(datan((v(i,j+1,10)-v(i,j,10))/(u(i,j+1,10)-u(i,j,10))))
-       xu=xu+(xleinc(k,l)*(rib(i,5)/100.))*dcos(alp)
-       xv=xv+(xleinc(k,l)*(rib(i,5)/100.))*dsin(alp)
-
-c      Dibuixa creu
-       call line(psep+xu-3.,-(xv)+psey,psep+xu+3.,
-     + -(xv)+psey,7)
-       call line(psep+xu,-(xv-3.)+psey,psep+xu,
-     + -(xv+3.)+psey,7)
-
-c       i=i+1
-
-
+c     Intrados: skip single-surface `ss` profiles and traverse in reverse.
+       if (atp.ne.'ss'.and.npci.ge.1) then
+       call draw_classic_color_surface(npci,npc1i,npc2i,npc3i,xpc1i,
+     + xpc2i,nribss,np,u,v,seppix,1970.0d0*xkf,
+     + (890.95d0+xyshift)*xkf,xlow,color_mark_inset_mm,30,-1)
        end if
 
-       end do
-
-       end do ! rib c colors
- 
-
-
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      15.2 Intrados marks
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-c      Control if type is not "ss"
-       if (atp.ne."ss") then
-       
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      Marques colors intrados panell i
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-       do k=1,npci ! ribs number with color marks
-
-c      l=mark number in k rib
-       do l=1,npc2i(k) ! marks in rib k
-
-c      Detect if mark is exactly in the rib
-
-       if (xpc2i(k,l).eq.0) then
-
-       i=npc1i(k) ! rib number corresponding to k order
-
-c      Detect segment (j,j-1) where color changes
-
-       jcontrol=np(i,1)
-       do j=np(i,1),np(i,2)+1,-1
-
-       if ((100.-(u(i,j,2)).le.xpc1i(k,l).and.
-     + (100.-u(i,j-1,2)).gt.xpc1i(k,l))) then
-
-       jcontrol=j        
-
-       end if
-
-       end do  ! in j
-
-c      Calcula longitud extrados fins punt j
-
-       xli(k,l)=0.
-       xliinc(k,l)=0.
-
-       do j=np(i,1),jcontrol+1,-1
-       xli(k,l)=xli(k,l)+sqrt(((v(i,j-1,2)-v(i,j,2))**2)+
-     + ((u(i,j-1,2)-u(i,j,2))**2))
-       end do
-
-c      Interpolacio punt color
-
-       xmc=(v(i,j,2)-v(i,j-1,2))/(u(i,j,2)-u(i,j-1,2))
-       xbc=v(i,j-1,2)-xmc*u(i,j-1,2)
-       
-       xpc3i(k,l)=100.-xpc1i(k,l)
-       ypc3i(k,l)=xmc*xpc3i(k,l)+xbc
-
-       xliinc(k,l)=dsqrt(((ypc3i(k,l)-v(i,j,2))**2)+
-     + ((xpc3i(k,l)-u(i,j,2))**2))
-
-       xli(k,l)=xli(k,l)+xliinc(k,l)
-       
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      Dibuixa marques color esquerra panell i
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-c      Localitza punts 
-       psep=1970.*xkf+seppix(i)*1.0d0
-       psey=(890.95+xyshift)*xkf
-
-       j=jcontrol
-
-       xu=u(i,j,9)
-       xv=v(i,j,9)
-
-c      Calcula punt de color
-       alp=abs(datan((v(i,j,9)-v(i,j-1,9))/(u(i,j,9)-u(i,j-1,9))))
-       xu=xu-(xliinc(k,l)*(rib(i,5)/100.))*dcos(alp)
-       xv=xv-(xliinc(k,l)*(rib(i,5)/100.))*dsin(alp)
-
-c      Dibuixa creu
-       call line(psep+xu-3.,-(xv)+psey,psep+xu+3.,
-     + -(xv)+psey,7)
-       call line(psep+xu,-(xv-3.)+psey,psep+xu,
-     + -(xv+3.)+psey,7)
-
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c      Dibuixa marques color dreta panell i-1
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-       i=i-1
-
-c      Localitza punts 
-       psep=1970.*xkf+seppix(i)*1.0d0
-       psey=(890.95+xyshift)*xkf
-
-       j=jcontrol
-
-       xu=u(i,j,10)
-       xv=v(i,j,10)
-
-c      Calcula punt de color
-       alp=abs(datan((v(i,j,10)-v(i,j-1,10))/(u(i,j,10)-u(i,j-1,10))))
-       xu=xu-(xliinc(k,l)*(rib(i,5)/100.))*dcos(alp)
-       xv=xv-(xliinc(k,l)*(rib(i,5)/100.))*dsin(alp)
-
-c      Dibuixa creu
-       call line(psep+xu-3.,-(xv)+psey,psep+xu+3.,
-     + -(xv)+psey,7)
-       call line(psep+xu,-(xv-3.)+psey,psep+xu,
-     + -(xv+3.)+psey,7)
-
-       i=1+1
-
-       end if
-
-       end do
-
-       end do ! rib c colors intra
-
-       end if ! not "ss"
-
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c***********************************************************************
+c     End section 15/16 color construction
+c***********************************************************************

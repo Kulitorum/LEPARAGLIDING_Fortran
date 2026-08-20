@@ -1,3 +1,9 @@
+!> Declare the shared state used by the ordered legacy calculation stages.
+!!
+!! This include is the schema for the fixed-form main pipeline.  Array slot
+!! meanings are documented next to their declarations; new independent state
+!! belongs in typed modules rather than new anonymous columns.  Later includes
+!! depend on this file being included before the first executable statement.
 c      1. VARIABLE NAMES
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -317,6 +323,15 @@ c      Coordenades airfoil en gir Z
        integer jcon9(0:200,10,500),jcon11(0:200,10,500)
 
 c      Sections 15 and 16 (colors)
+!
+!      Classic records are rib based:
+!        npc1* = rib number, npc2* = boundaries on that rib,
+!        npc3* = boundary identifier, xpc1* = chord percentage, and
+!        xpc2* = nonzero only for historical off-rib marks.
+!      The same boundary identifier on ribs i and i+1 defines one straight
+!      open division across developed panel i.  `e` selects extrados and `i`
+!      selects intrados.  Panel construction is emitted after skin tension has
+!      populated developed-edge coordinate slots u/v(:,:,9:10).
        integer npce, npc1e(100), npc2e(100), npc3e(100,100)
        integer npci, npc1i(100), npc2i(100), npc3i(100,100)
        real*8 xpc1e(100,100), xpc2e(100,100) 
@@ -329,10 +344,9 @@ c      Sections 15 and 16 (colors)
        real*8 xpac3e(100,100), xpac4e(100,100) 
        real*8 xpac3i(100,100), xpac4i(100,100)
 
-       real*8 xle(100,100), xleinc(100,100)
-       real*8 xpc3e(100,100), ypc3e(100,100)
-       real*8 xli(100,100), xliinc(100,100)
-       real*8 xpc3i(100,100), ypc3i(100,100)
+!      Matching marks on both color pieces are moved this distance inward from
+!      their allowance cut edges.  Millimetres match the section-6 input unit.
+       real*8, parameter :: color_mark_inset_mm=1.1d0
 
        real*8 xarp(10), yarp(10)
 

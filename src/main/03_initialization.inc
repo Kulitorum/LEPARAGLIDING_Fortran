@@ -1,3 +1,8 @@
+!> Initialize one LEparagliding run and open its fixed input/output streams.
+!!
+!! Establishes mathematical constants, zero/default state, run counters, and
+!! DXF/text units consumed by every later stage.  No wing geometry is computed
+!! here; `04_data_reading.inc` is the first stage to populate design data.
        pi=4.0d0*datan(1.0d0)
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

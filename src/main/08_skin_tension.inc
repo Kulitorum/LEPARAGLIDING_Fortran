@@ -1,3 +1,9 @@
+!> Apply skin-tension shaping and generate production panel geometry.
+!!
+!! Converts the neutral development from stage 7 into left/right panel edges
+!! (`u/v` slots 9/10), sewing borders (11/12), end extensions, vents, shaping
+!! cuts, printed/laser variants, and their marks.  Stage 15 relies on slots
+!! 9/10 being complete before adding internal color divisions.
 c     8. SKIN TENSION
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

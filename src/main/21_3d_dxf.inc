@@ -1,3 +1,9 @@
+!> Emit the calculated wing, internals, lines, and controls to the 3D DXFs.
+!!
+!! Writes `lep-3d.dxf` and the optional surface stream using absolute `x/y/z`
+!! coordinates prepared in stage 6 and later shaping stages.  Surface colors
+!! and element visibility follow section-25 settings; no 2D panel coordinates
+!! are reused as spatial geometry.
 c      21. 3D model DXF drawing
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
