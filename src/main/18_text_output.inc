@@ -138,8 +138,8 @@ c      Rib properties
 
        write (23,*) "3. RIB PROPERTIES:"
        write (23,*) "-------------------------------------------------"
-       write (23,*) "Ribs number  = ", nribss*2
-       write (23,*) "Cells number = ", nribss*2-1
+       write (23,*) "Ribs number  = ", ncells+1
+       write (23,*) "Cells number = ", ncells
        if (rib(1,2).lt.0.01) then
        write (23,*) "Zero-thickness central cell"
        end if

@@ -114,8 +114,9 @@ module leparagliding_domain_model
   !> One rib/profile after placement in the fully spatial wing domain.
   !!
   !! Coordinates use LEP model units.  Invariants: `rib_index >= 0`; all
-  !! coordinate arrays are allocated with the same extent of at least two
-  !! points; and every coordinate is finite.
+  !! coordinate arrays are one-based, allocated with the same extent of at
+  !! least two points; and every coordinate is finite.  One-based storage keeps
+  !! profile topology indices identical to their source contour indices.
   type, public :: spatial_rib_geometry_3d
     integer :: rib_index = -1
     real(real64), allocatable :: x(:)
@@ -233,6 +234,7 @@ module leparagliding_domain_model
   public :: copy_legacy_production_panel
   public :: infer_legacy_rib_identities
   public :: topologies_are_index_compatible
+  public :: extrados_topologies_are_index_compatible
   public :: copy_legacy_neutral_panel
   public :: copy_legacy_neutral_panel_from_counts
   public :: polyline_length_2d
@@ -390,6 +392,9 @@ contains
     if (.not. allocated(geometry%y)) return
     if (.not. allocated(geometry%z)) return
     if (size(geometry%x) < 2) return
+    if (lbound(geometry%x, 1) /= 1) return
+    if (lbound(geometry%y, 1) /= 1) return
+    if (lbound(geometry%z, 1) /= 1) return
     if (size(geometry%y) /= size(geometry%x)) return
     if (size(geometry%z) /= size(geometry%x)) return
     if (.not. all(ieee_is_finite(geometry%x))) return
@@ -652,6 +657,20 @@ contains
         first%intrados%first == second%intrados%first .and. &
         first%intrados%last == second%intrados%last
   end function topologies_are_index_compatible
+
+  !> Return true when two valid profiles can pair extrados samples by index.
+  !!
+  !! Stage 7 permits adjacent profiles to have different intake/intrados point
+  !! counts.  Extrados development therefore requires only the extrados range
+  !! itself to match; full-topology compatibility is intentionally stronger.
+  pure logical function extrados_topologies_are_index_compatible(first, &
+      second) result(compatible)
+    type(profile_topology), intent(in) :: first, second
+
+    compatible = first%is_valid() .and. second%is_valid() .and. &
+        first%extrados%first == second%extrados%first .and. &
+        first%extrados%last == second%extrados%last
+  end function extrados_topologies_are_index_compatible
 
   !> Infer explicit roles for authored and generated legacy rib rows.
   !!
@@ -1067,7 +1086,7 @@ contains
     character(len=*), intent(out) :: message
 
     type(neutral_panel_2d) :: candidate
-    type(index_range) :: contour_range
+    type(index_range) :: contour_range, higher_contour_range
     integer :: segment_index, source_index, local_index, point_count
     real(real64) :: lower_start_u, lower_start_v
     real(real64) :: higher_start_u, higher_start_v
@@ -1084,18 +1103,21 @@ contains
       message = 'panel index is outside the legacy neutral-panel arrays'
       return
     end if
-    if (.not. topologies_are_index_compatible(lower_topology, &
-        higher_topology)) then
-      message = 'adjacent profile topologies cannot share neutral segments'
+    if (.not. lower_topology%is_valid() .or. &
+        .not. higher_topology%is_valid()) then
+      message = 'neutral panel received invalid profile topology'
       return
     end if
     select case (surface)
     case (surface_extrados)
       contour_range = lower_topology%extrados
+      higher_contour_range = higher_topology%extrados
     case (surface_intake)
       contour_range = lower_topology%intake
+      higher_contour_range = higher_topology%intake
     case (surface_intrados)
       contour_range = lower_topology%intrados
+      higher_contour_range = higher_topology%intrados
       if (size(legacy_pl1_u, 2) < legacy_neutral_scratch_index) then
         message = 'legacy neutral-panel array has no intrados scratch segment'
         return
@@ -1104,6 +1126,11 @@ contains
       message = 'unknown neutral-panel surface'
       return
     end select
+    if (contour_range%first /= higher_contour_range%first .or. &
+        contour_range%last /= higher_contour_range%last) then
+      message = 'adjacent profiles have incompatible surface indices'
+      return
+    end if
     if (contour_range%last > size(legacy_pl1_u, 2)) then
       message = 'surface contour exceeds neutral-panel point capacity'
       return
@@ -1298,14 +1325,14 @@ contains
     local_index = contour_index - panel%contour_first_index + 1
     if (local_index < size(panel%lower_start_biased_u)) then
       gap = sqrt((panel%higher_segment_start_u(local_index) - &
-          panel%lower_segment_start_u(local_index))**2 + &
+          panel%lower_segment_start_u(local_index))**2.0 + &
           (panel%higher_segment_start_v(local_index) - &
-          panel%lower_segment_start_v(local_index))**2)
+          panel%lower_segment_start_v(local_index))**2.0)
     else
       gap = sqrt((panel%higher_segment_end_u(local_index - 1) - &
-          panel%lower_segment_end_u(local_index - 1))**2 + &
+          panel%lower_segment_end_u(local_index - 1))**2.0 + &
           (panel%higher_segment_end_v(local_index - 1) - &
-          panel%lower_segment_end_v(local_index - 1))**2)
+          panel%lower_segment_end_v(local_index - 1))**2.0)
     end if
     valid = .true.
   end function neutral_panel_edge_gap

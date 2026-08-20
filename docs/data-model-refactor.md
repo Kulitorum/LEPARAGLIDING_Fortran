@@ -1,8 +1,8 @@
 # Data-model refactor: inventory and migration design
 
-Status: implementation in progress; phases 0--1 and read-only phase-2 migration
+Status: implementation in progress; phases 0--1 and staged phase-2/3 migration
 
-Evidence baseline: commit `a5a04ca` (typed adapter/color checkpoint)
+Evidence baseline: typed adapter/color and topology/neutral-panel checkpoints
 
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
@@ -61,9 +61,9 @@ The next migration boundary is now implemented and dual-running:
 - `neutral_panel_2d` owns exact lower/higher segment starts and ends for one
   surface, hides the point-499 intake/intrados scratch convention, and exposes
   the intake-only support segment explicitly.
-- Stage 8 dual-runs extrados lengths and widths through the neutral-panel model
-  and stops on disagreement while retaining the legacy assignments as the
-  numerical authority.
+- Stage 8 initially dual-ran extrados lengths and widths through the
+  neutral-panel model and stopped on disagreement while retaining the legacy
+  assignments as the numerical authority.
 
 The dual-run revealed that the higher developed edge is only approximately
 chained: repeated triangulation can leave small gaps between one segment end
@@ -72,10 +72,32 @@ endpoints and reports maximum join gaps instead of silently merging points into
 a mathematically continuous polyline. This distinction is essential for
 bit-for-bit legacy length comparisons.
 
-Stages 6--8 still produce the authoritative legacy coordinate arrays. The next
-safe work is to add an even-cell end-to-end fixture, make extrados metrics
-typed-authoritative across a broader design corpus, and then dual-run the
-stage-7 neutral-development producer itself.
+### Third checkpoint: pure extrados development and typed metrics
+
+The extrados migration now crosses its first producer boundary:
+
+- A maintained even-cell Swoop2 fixture runs the complete 50-cell design,
+  asserts its collapsed center, and freezes all five principal outputs.
+- Stage 6 snapshots generated center row 0 and physical rows 1 through `nribss`
+  into `spatial_rib_geometry_3d`; the extrapolated tip-support row remains an
+  explicit legacy-only role.
+- `develop_extrados_panel` is a pure, transactional stage-7 developer. It
+  returns exact lower/higher segment chains plus named `pa`--`pf` source
+  distances while preserving the historical expression order and one-argument
+  arctangent. It requires matching extrados indices, not identical whole-profile
+  discretization, so adjacent ribs may use different intake/intrados counts.
+- Stage 7 dual-runs that routine for every regular extrados panel and compares
+  all eight endpoint scalars and six source distances per quadrilateral before
+  stage 8 consumes the legacy arrays.
+- Stage-8 extrados contour lengths and widths are now assigned from typed
+  neutral panels after the typed and legacy results agree. Its adapter likewise
+  validates compatibility per surface rather than across unrelated ranges.
+
+The odd-cell Plan B outputs and Swoop2 geometry/line outputs are unchanged. The
+Swoop2 report oracle changed only to correct its displayed counts from 52/51 to
+the declared 51 ribs and 50 cells. Stage 7 remains the authoritative producer
+until the typed panel is written back through an adapter; intake and intrados
+development are not yet migrated.
 
 ## Terminology used in this plan
 
@@ -641,10 +663,10 @@ and production panel compare exactly with their legacy source arrays.
 
 ### Phase 2 — Migrate read-only production consumers first
 
-Implementation status: color construction uses typed production panels, and
-stage-8 extrados length/width calculations now dual-run through exact typed
-neutral segments. The legacy values remain authoritative until an even-cell
-fixture and a broader design corpus pass the same comparisons.
+Implementation status: color construction uses typed production panels.
+Stage-8 extrados length/width calculations dual-run through exact typed neutral
+segments, then assign the agreeing typed values as authoritative. Panel drawing,
+mark routines, and the remaining surface metrics still use legacy storage.
 
 1. Change color construction to accept a typed normalized-profile pair and
    `production_panel_2d` rather than full `np/u/v` arrays.
@@ -662,15 +684,17 @@ references.
 
 ### Phase 3 — Own neutral 2D development
 
-Implementation status: the read adapter and first dual-run consumer exist; the
-stage-7 producer is not yet migrated.
+Implementation status: the pure extrados developer and dual-run exist. The
+legacy stage-7 loop is still authoritative and intake/intrados are not yet
+migrated.
 
 1. Extract one pure `develop_panel_strip(spatial_left, spatial_right, topology)`
-   routine from stage 7.
+   routine from stage 7. **Complete for regular extrados panels.**
 2. Return exact lower/higher segment chains in `neutral_panel_2d`; decide
    explicitly whether closing measured legacy join gaps is an approved change.
 3. Dual-run it beside the legacy `pl*/pr*` calculation and compare every point
-   plus the six source distances for every quadrilateral.
+   plus the six source distances for every quadrilateral. **Complete for regular
+   extrados panels.**
 4. Initially write the typed result back through an adapter so stage 8 and
    stage 16 continue unchanged.
 5. Replace the special `xx/yy/zz` path with an explicit symmetry-virtual spatial
@@ -822,17 +846,19 @@ complete. It has a deliberately narrow numerical surface:
    interpolation and construction code.
 5. Add adapter and semantic-DXF tests before changing stage-6/7/8 producers.
 
-That slice produces immediate naming and interface improvements in a real
+That slice produced immediate naming and interface improvements in a real
 manufacturing workflow while keeping the existing geometry calculations as the
 comparison oracle for the deeper stages. The subsequent neutral-panel
-checkpoint also dual-runs stage-8 extrados metrics without changing their
-authoritative values.
+checkpoint dual-ran stage-8 extrados metrics before making the agreeing typed
+values authoritative.
 
 The next implementation slice is:
 
-1. add a maintained even-cell end-to-end fixture and semantic output oracle;
-2. switch extrados metrics to typed-authoritative values after corpus evidence;
-3. extract one pure stage-7 extrados strip developer and dual-run every exact
-   segment, six source distances, and recorded join gap;
-4. then repeat the producer migration for intake and intrados, preserving the
-   intake support segment and eliminating magic point 499 from the new path.
+1. write the typed extrados result back through a checked adapter and make the
+   pure developer authoritative;
+2. add a classic, non-single-surface (`k31d=0`) full-output fixture;
+3. resolve the legacy section-29 disabled-shaping index, stage-8
+   tip-support/shaping-point ownership, and later shaping-cut bounds exposed by
+   the Chooca-15 preset, then add it as a mixed-profile full-output fixture; and
+4. repeat the producer migration for intake and intrados, preserving the intake
+   support segment and eliminating magic point 499 from the new path.

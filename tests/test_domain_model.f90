@@ -17,7 +17,7 @@ program test_domain_model
   type(profile_topology) :: topology, saved_topology, neutral_topology
   type(profile_topology) :: test_topology, mismatched_topology
   type(profile_topology) :: profile_topologies(0:2)
-  type(spatial_rib_geometry_3d) :: spatial_rib
+  type(spatial_rib_geometry_3d) :: spatial_rib, zero_based_spatial_rib
   type(production_panel_edges_2d) :: panel
   type(production_panel_2d) :: complete_panel
   type(neutral_panel_2d) :: neutral_panel
@@ -184,6 +184,15 @@ program test_domain_model
   call require_close(spatial_rib%z(2), 41.0_real64, &
       'failed copy changed spatial rib')
 
+  zero_based_spatial_rib%rib_index = 2
+  allocate(zero_based_spatial_rib%x(0:3), &
+      zero_based_spatial_rib%y(0:3), zero_based_spatial_rib%z(0:3))
+  zero_based_spatial_rib%x = 0.0_real64
+  zero_based_spatial_rib%y = 0.0_real64
+  zero_based_spatial_rib%z = 0.0_real64
+  call require(.not. zero_based_spatial_rib%is_valid(), &
+      'zero-based spatial coordinates violated the topology-index contract')
+
   division%boundary_id = 7
   division%panel_index = 1
   division%lower_chord_percent = 48.0_real64
@@ -262,6 +271,21 @@ program test_domain_model
       neutral_panel%higher_start_biased_u, &
       neutral_panel%higher_start_biased_v), 6.0_real64, &
       'documented start-biased point view')
+  gap = neutral_panel_edge_gap(neutral_panel, 2, gap_valid)
+  call require(gap_valid, 'gapped internal width index rejected')
+  call require_close(gap, sqrt(16.0625_real64), &
+      'internal width did not use the following segment starts')
+
+  test_topology%point_count = 7
+  test_topology%extrados = index_range(1, 3)
+  test_topology%intake = index_range(3, 5)
+  test_topology%intrados = index_range(5, 7)
+  test_topology%leading_edge_index = 3
+  call copy_legacy_neutral_panel(pl1_u, pl1_v, pl2_u, pl2_v, &
+      pr1_u, pr1_v, pr2_u, pr2_v, 0, neutral_topology, &
+      test_topology, surface_extrados, neutral_panel, valid, message)
+  call require(valid, &
+      'matching extrados with different intrados was rejected: '//trim(message))
 
   ! Neutral copies are transactional and reject non-finite source geometry.
   pr1_u(0, 2) = ieee_value(0.0_real64, ieee_quiet_nan)

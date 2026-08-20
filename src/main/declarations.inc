@@ -276,7 +276,10 @@ c      Typed read-only views used while migrating legacy rib and neutral-panel
 c      arrays.  They own snapshots and never alias the numbered global slots.
        type(rib_identity), allocatable :: wing_rib_identities(:)
        type(profile_topology), allocatable :: wing_profile_topologies(:)
+       type(spatial_rib_geometry_3d), allocatable :: wing_spatial_ribs(:)
        type(neutral_panel_2d) :: neutral_extrados_panel
+       type(quadrilateral_distances_3d), allocatable ::
+     + typed_extrados_source_distances(:)
        logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
      + neutral_gap_valid
        character(len=256) :: domain_model_message

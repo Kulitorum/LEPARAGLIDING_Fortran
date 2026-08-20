@@ -358,6 +358,100 @@ c      Iteration
        
        end do
 
+c      Dual-run every final extrados panel through the pure typed developer.
+c      Compare all exact 2D endpoints and the six independent source distances
+c      before intrados reuses the legacy scratch variables.  The legacy arrays
+c      remain authoritative during this producer-migration checkpoint.
+       do i=0,nribss-1
+       call develop_extrados_panel(wing_spatial_ribs(i),
+     + wing_spatial_ribs(i+1),wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),neutral_extrados_panel,
+     + typed_extrados_source_distances,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed extrados panel ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+
+       do j=wing_profile_topologies(i)%extrados%first,
+     + wing_profile_topologies(i)%extrados%last-1
+       k=j-wing_profile_topologies(i)%extrados%first+1
+
+       if (.not.geometry_values_are_close(
+     + neutral_extrados_panel%lower_segment_start_u(k),pl1x(i,j)).or.
+     + .not.geometry_values_are_close(
+     + neutral_extrados_panel%lower_segment_start_v(k),pl1y(i,j)).or.
+     + .not.geometry_values_are_close(
+     + neutral_extrados_panel%lower_segment_end_u(k),pl2x(i,j)).or.
+     + .not.geometry_values_are_close(
+     + neutral_extrados_panel%lower_segment_end_v(k),pl2y(i,j)).or.
+     + .not.geometry_values_are_close(
+     + neutral_extrados_panel%higher_segment_start_u(k),pr1x(i,j)).or.
+     + .not.geometry_values_are_close(
+     + neutral_extrados_panel%higher_segment_start_v(k),pr1y(i,j)).or.
+     + .not.geometry_values_are_close(
+     + neutral_extrados_panel%higher_segment_end_u(k),pr2x(i,j)).or.
+     + .not.geometry_values_are_close(
+     + neutral_extrados_panel%higher_segment_end_v(k),pr2y(i,j))) then
+       write (*,'(A,2(I0,A))') 'ERROR: typed/legacy extrados endpoint at ',
+     + i,', point ',j,''
+       stop 1
+       end if
+
+c      Re-evaluate the legacy distance expressions here so the comparison is
+c      independent of the pure module's distance helper.  Panel 0 must use its
+c      original mirrored xx/yy/zz source, not the typed row-0 snapshot.
+       if(i.eq.0) then
+       pa=dsqrt((x(1,j)-xx(1,j))**2.+(y(1,j)-yy(1,j))**2.+
+     + (z(1,j)-zz(1,j))**2.)
+       pb=dsqrt((x(1,j+1)-xx(1,j))**2.+
+     + (y(1,j+1)-yy(1,j))**2.+(z(1,j+1)-zz(1,j))**2.)
+       pc=dsqrt((x(1,j+1)-x(1,j))**2.+
+     + (y(1,j+1)-y(1,j))**2.+(z(1,j+1)-z(1,j))**2.)
+       pd=dsqrt((x(1,j)-xx(1,j+1))**2.+
+     + (y(1,j)-yy(1,j+1))**2.+(z(1,j)-zz(1,j+1))**2.)
+       pe=dsqrt((xx(1,j+1)-xx(1,j))**2.+
+     + (yy(1,j+1)-yy(1,j))**2.+(zz(1,j+1)-zz(1,j))**2.)
+       pf=dsqrt((x(1,j+1)-xx(1,j+1))**2.+
+     + (y(1,j+1)-yy(1,j+1))**2.+
+     + (z(1,j+1)-zz(1,j+1))**2.)
+       else
+       pa=dsqrt((x(i+1,j)-x(i,j))**2.+(y(i+1,j)-y(i,j))**2.+
+     + (z(i+1,j)-z(i,j))**2.)
+       pb=dsqrt((x(i+1,j+1)-x(i,j))**2.+
+     + (y(i+1,j+1)-y(i,j))**2.+(z(i+1,j+1)-z(i,j))**2.)
+       pc=dsqrt((x(i+1,j+1)-x(i+1,j))**2.+
+     + (y(i+1,j+1)-y(i+1,j))**2.+
+     + (z(i+1,j+1)-z(i+1,j))**2.)
+       pd=dsqrt((x(i+1,j)-x(i,j+1))**2.+
+     + (y(i+1,j)-y(i,j+1))**2.+(z(i+1,j)-z(i,j+1))**2.)
+       pe=dsqrt((x(i,j+1)-x(i,j))**2.+(y(i,j+1)-y(i,j))**2.+
+     + (z(i,j+1)-z(i,j))**2.)
+       pf=dsqrt((x(i+1,j+1)-x(i,j+1))**2.+
+     + (y(i+1,j+1)-y(i,j+1))**2.+
+     + (z(i+1,j+1)-z(i,j+1))**2.)
+       end if
+
+       if (.not.geometry_values_are_close(
+     + typed_extrados_source_distances(k)%start_cross_edge,pa).or.
+     + .not.geometry_values_are_close(typed_extrados_source_distances(k)%
+     + lower_start_to_higher_end,pb).or.
+     + .not.geometry_values_are_close(typed_extrados_source_distances(k)%
+     + higher_contour_edge,pc).or.
+     + .not.geometry_values_are_close(typed_extrados_source_distances(k)%
+     + higher_start_to_lower_end,pd).or.
+     + .not.geometry_values_are_close(typed_extrados_source_distances(k)%
+     + lower_contour_edge,pe).or.
+     + .not.geometry_values_are_close(typed_extrados_source_distances(k)%
+     + end_cross_edge,pf)) then
+       write (*,'(A,2(I0,A))') 'ERROR: typed/legacy source distance at ',
+     + i,', point ',j,''
+       stop 1
+       end if
+       end do
+       end do
+
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      7.4 Panels 1 to nribss-1 Intrados

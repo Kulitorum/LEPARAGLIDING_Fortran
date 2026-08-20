@@ -83,8 +83,11 @@ The maintained structure now:
   normalized/spatial ribs, exact neutral-development segments, and flattened
   production panels in `leparagliding_domain_model`, with transactional checked
   legacy-array adapters;
-- dual-runs stage-8 extrados lengths and widths through the typed neutral-panel
-  model while the reviewed legacy calculation remains authoritative;
+- builds typed spatial-rib snapshots at the stage-6 boundary and dual-runs a
+  pure stage-7 extrados developer against every legacy endpoint and source
+  distance;
+- makes typed stage-8 extrados lengths and widths authoritative only after the
+  legacy calculation agrees with them;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -105,7 +108,7 @@ inserted, records the actual output indices when a nearby source point is used,
 and initializes the shared intake/intrados endpoint before any junction or
 typed-topology consumer reads it. The old routine could leave `np(:,5)`
 indeterminate and report the wrong index for a boundary moved to source point
-`j+1`.
+`j+1`. Even-cell reports now also preserve the declared cell/rib counts.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -150,25 +153,30 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Eight isolated tests are registered:
+Up to ten isolated tests are registered (eight do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
    hidden intake support/scratch semantics, the point-499 collision guard, and
    transactional adapters.
-2. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
+2. `neutral_development` checks the pure quadrilateral developer, exact source
+   distances, start-biased segment joins, panel zero, and transactional failure.
+3. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
    and verifies the rebuilt contour's topology identities.
-3. `color_geometry` checks robust color-edge interpolation, repeated profile
+4. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-4. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+5. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
    comparator (registered when Python 3 is available).
-5. `color_division_import` compares DXF import with a Swoop2-derived section-16
+6. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-6. `plan_b_regression` compares all five principal outputs with the reviewed
+7. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline, after normalizing line endings.
-7. `profile_capacity_guard` verifies that an oversized 501-point profile is
+8. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
+   design, checks its collapsed center and declared counts, rejects non-finite
+   DXF geometry, and compares all five principal outputs.
+9. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-8. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+10. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -188,6 +196,7 @@ working directory because output files there are overwritten.
 CMakeLists.txt
 cmake/
   run_color_import_test.cmake      Swoop2-derived DXF import oracle
+  run_even_cell_regression.cmake   complete even-cell Swoop2 regression
   run_plan_b_regression.cmake       complete-output regression
   run_profile_capacity_check.cmake oversized-profile rejection
   run_329_features.cmake           focused 3.29 feature coverage
@@ -199,6 +208,8 @@ src/
   leparagliding_procedures.f        explicit interface facade
   leparagliding_geometry.f90        vector, plane, rotation, transforms
   leparagliding_mark_types.f90      shared mark drawing configuration
+  leparagliding_neutral_development.f90
+                                      pure extrados strip development
   main/                             numbered main-program calculation stages
   procedures/                       procedures grouped by responsibility
 tests/

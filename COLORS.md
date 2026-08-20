@@ -157,10 +157,12 @@ Four focused tests accompany the existing end-to-end suite:
 - `profile_data` exercises exact, shifted-to-`j`, shifted-to-`j+1`, and inserted
   `.dat` intake endpoints, then checks the rebuilt counts and shared indices.
 
-The complete author-supplied Swoop2 DXF was also used locally as the end-to-end
+The complete author-supplied Swoop2 DXF was also used as the end-to-end color
 acceptance case. It imports 26 rib crossings and the full calculation produces
 50 internal seam lines, 100 allowance edges, 200 mark strokes, and no NaNs.
-The 25 MB reference archive is intentionally not copied into this repository.
+The small calculation input and profile are retained as the separate
+`even_cell_regression` fixture; the 25 MB reference archive and generated
+drawing outputs remain external.
 
 ## Current boundary and next work
 

@@ -55,6 +55,7 @@ add_executable(leparagliding
     src/leparagliding_mark_types.f90
     src/leparagliding_geometry.f90
     src/leparagliding_domain_model.f90
+    src/leparagliding_neutral_development.f90
     src/leparagliding_color_geometry.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
@@ -97,6 +98,28 @@ if(BUILD_TESTING)
   endif()
 
   add_test(NAME domain_model COMMAND test_domain_model)
+
+  add_executable(test_neutral_development
+      tests/test_neutral_development.f90
+      src/leparagliding_domain_model.f90
+      src/leparagliding_neutral_development.f90)
+
+  set_target_properties(test_neutral_development PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-neutral-development-modules")
+  target_include_directories(test_neutral_development PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-neutral-development-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_neutral_development PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_neutral_development PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME neutral_development COMMAND test_neutral_development)
 
   add_executable(test_profile_data
       tests/test_profile_data.f90
@@ -172,6 +195,14 @@ if(BUILD_TESTING)
           "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/Plan B Parakite"
           "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/plan-b-regression"
           -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_plan_b_regression.cmake")
+
+  add_test(
+      NAME even_cell_regression
+      COMMAND "${CMAKE_COMMAND}"
+          "-DPROGRAM=$<TARGET_FILE:leparagliding>"
+          "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/even-cell-swoop2"
+          "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/even-cell-swoop2-regression"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_even_cell_regression.cmake")
 
   add_test(
       NAME profile_capacity_guard

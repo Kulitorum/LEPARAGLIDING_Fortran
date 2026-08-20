@@ -17,7 +17,9 @@ array and its slot, not by the variable letter alone:
 | `u/v(i,j,1)` | Original normalized profile coordinates |
 | `u/v(i,j,2)` | Profile coordinates normalized to percentages |
 | `x/y/z(i,j)` | Absolute spatial skin coordinates after scale, arch, wash-in, and rotations |
+| `wing_spatial_ribs(i)` | Validated, independently owned snapshot of physical spatial rib `i` |
 | `pl*/pr*(panel,j)` | Neutral 2D development of the four quadrilateral corners |
+| `neutral_extrados_panel` | Exact typed extrados segments for the panel currently being compared or measured |
 | `u/v(panel,j,9)` | Tensioned/developed left skin edge |
 | `u/v(panel,j,10)` | Tensioned/developed right skin edge |
 | `u/v(panel,j,11:12)` | Left/right sewing-border coordinates |
@@ -36,9 +38,9 @@ a chord percentage at ribs, then mapped onto developed `u/v` panel edges.
 | `03_initialization.inc` | Initializes defaults, run state, and fixed I/O units |
 | `04_data_reading.inc` | Parses sections 1--39, validates options, scales geometry, derives placement |
 | `05_graphic_design.inc` | Draws planform/vault references and design annotations |
-| `06_airfoil_geometry.inc` | Loads profiles and constructs normalized plus absolute 3D geometry |
-| `07_panel_development.inc` | Flattens consecutive 3D quadrilaterals into neutral panel strips |
-| `08_skin_tension.inc` | Applies shaping and creates developed edges, borders, vents, and panel layouts |
+| `06_airfoil_geometry.inc` | Loads profiles, constructs normalized plus absolute 3D geometry, then snapshots physical spatial ribs |
+| `07_panel_development.inc` | Flattens consecutive 3D quadrilaterals and dual-runs regular extrados panels through the pure typed developer |
+| `08_skin_tension.inc` | Makes agreeing typed extrados metrics authoritative, then applies shaping and creates edges, borders, vents, and layouts |
 | `09_singular_rib_points.inc` | Resolves anchors, intake limits, and named construction points |
 | `10_calage.inc` | Calculates aerodynamic reference angles and balance geometry |
 | `11_panel_lengths.inc` | Measures corresponding sides and places assembly marks |
@@ -60,8 +62,10 @@ a chord percentage at ribs, then mapped onto developed `u/v` panel edges.
 section 1 rib planform + section 2 profiles
   -> normalized profile u/v
   -> absolute spatial x/y/z
+  -> validated spatial_rib_geometry_3d snapshots
   -> quadrilateral distances between ribs
-  -> neutral developed pl*/pr* coordinates
+  -> pure typed extrados development compared with neutral pl*/pr* coordinates
+  -> typed-authoritative extrados length/width metrics
   -> tensioned left/right u/v slots 9/10
   -> outer sewing/cutting geometry in slots 11/12 and panel routines
   -> section 15/16 chord percentages

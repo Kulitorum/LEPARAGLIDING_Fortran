@@ -27,9 +27,8 @@ c      8.1.1 Extrados longitud cella extrema
      + (pr2y(i-1,j)-pr1y(i-1,j))**2)
        end do
 
-c      Dual-run the first neutral-panel consumer through named geometry.
-c      Keep the legacy value authoritative until the migration oracle has
-c      covered more wings, but fail immediately if the two models diverge.
+c      Dual-run the first neutral-panel consumer through named geometry.  The
+c      typed value becomes authoritative only after the legacy oracle agrees.
        call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
      + pr1x,pr1y,pr2x,pr2y,i-1,wing_profile_topologies(i-1),
      + wing_profile_topologies(i),surface_extrados,
@@ -48,6 +47,8 @@ c      covered more wings, but fail immediately if the two models diverge.
      + typed_geometry_metric,rib(nribss,23)
        stop 1
        end if
+c      Typed exact segments are authoritative after the legacy oracle agrees.
+       rib(nribss,23)=typed_geometry_metric
 
 c      8.1.2 Intrados longitud cella extrema       
        i=nribss
@@ -96,6 +97,7 @@ c      8.1.3 Longitud extrados
      + typed_geometry_metric,rib(i,23)
        stop 1
        end if
+       rib(i,23)=typed_geometry_metric
 
 c      8.1.4 Longitud intrados
        do j=np(i,2)+np(i,3)-1,np(i,1)-1
@@ -127,6 +129,7 @@ c      Calcula punts je ji per definir ample celles, calcula ample
      + typed_geometry_metric,rib(i,22)
        stop 1
        end if
+       rib(i,22)=typed_geometry_metric
 
        ji=int((np(i,2)+np(i,3)-1+np(i,1))/2)
        rib(i,24)=dsqrt((pr1x(i,ji)-pl1x(i,ji))**2.+(pr1y(i,ji)
@@ -164,6 +167,7 @@ c      Ample celles extremes
      + typed_geometry_metric,rib(i,22)
        stop 1
        end if
+       rib(i,22)=typed_geometry_metric
 
        ji=int((np(i,2)+np(i,3)-1+np(i,1))/2)
        rib(i,24)=dsqrt((pr1x(i-1,ji)-pl1x(i-1,ji))**2.+(pr1y(i-1,ji)

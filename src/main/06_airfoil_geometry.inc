@@ -277,6 +277,21 @@ c       v(0,j,3)=u(1,j,3)+rib(1,50)  ERROR
 
        end do
 
+c      Freeze spatial ribs only after row 0 has received its explicit mirrored
+c      geometry.  These snapshots are the inputs to the pure stage-7 extrados
+c      dual-run; tip support nribss+1 is intentionally outside panel ownership.
+       allocate(wing_spatial_ribs(0:nribss))
+       do i=0,nribss
+       call copy_legacy_spatial_rib(x,y,z,i,
+     + wing_profile_topologies(i)%point_count,wing_spatial_ribs(i),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: invalid spatial rib ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       end do
+
 c      6.10 Assignation 3D coordinates airfoil 0:
 
        i=1 ! WARNIING
