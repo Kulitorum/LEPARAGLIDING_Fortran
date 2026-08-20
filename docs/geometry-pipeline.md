@@ -21,6 +21,7 @@ array and its slot, not by the variable letter alone:
 | `pl*/pr*(panel,j)` | Neutral 2D development of the four quadrilateral corners |
 | `neutral_extrados_panel` | Exact typed extrados segments for the current regular panel; after comparison these are written to the owned legacy extrados slice |
 | `neutral_intake_panel` | Exact typed intake segments plus explicit post-intake support for the current regular panel |
+| `terminal_extrados_edge`, `terminal_intake_edge` | Physical wingtip comparison edges derived from the higher side of the final real panel; these are boundaries, not fabricated panels |
 | `u/v(panel,j,9)` | Tensioned/developed left skin edge |
 | `u/v(panel,j,10)` | Tensioned/developed right skin edge |
 | `u/v(panel,j,11:12)` | Left/right sewing-border coordinates |
@@ -67,9 +68,11 @@ section 1 rib planform + section 2 profiles
   -> quadrilateral distances between ribs
   -> pure typed extrados development compared with neutral pl*/pr* coordinates
   -> checked write-back of typed exact segments to the owned extrados slice
-  -> typed-authoritative extrados length/width metrics
+  -> typed-authoritative extrados length/width metrics, including the final
+     real panel's higher edge as the physical wingtip comparison boundary
   -> pure typed intake development plus explicit post-intake support
-  -> checked intake write-back and typed-authoritative intake lengths
+  -> checked intake write-back and typed-authoritative intake lengths, with the
+     same explicit physical wingtip boundary
   -> tensioned left/right u/v slots 9/10
   -> outer sewing/cutting geometry in slots 11/12 and panel routines
   -> section 15/16 chord percentages
@@ -81,9 +84,10 @@ map artwork onto the neutral strip instead of the actual production panel.
 
 The typed authority boundary covers exact regular-extrados segments, exact
 regular-intake segments, the explicitly separated post-intake support, and
-their agreeing metrics. Intrados geometry, point 499 used as legacy scratch,
-and the unresolved terminal comparison row remain outside typed ownership;
-neither adapter synthesizes a nonexistent panel at the wingtip.
+their agreeing metrics. Stage 8 derives each physical wingtip comparison edge
+from the higher side of panel `nribss-1`; those comparisons no longer treat row
+`nribss` as a panel or synthesize geometry beyond the final rib. Intrados
+geometry and point 499 used as legacy scratch remain outside typed ownership.
 
 When section 29 shaping is disabled, data reading selects its declared
 one-based no-cut group, validates that every rib has a declared group, and

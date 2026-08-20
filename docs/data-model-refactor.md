@@ -140,8 +140,29 @@ ownership:
 - Stage-8 lower and wingtip-higher intake lengths are assigned from exact typed
   segments after agreement with the legacy sums.
 
-Intrados, scratch index 499, and the unresolved terminal comparison row remain
-outside this boundary. No typed panel is created for row `nribss`.
+Intrados and scratch index 499 remain outside this boundary. No typed panel is
+created for row `nribss`.
+
+### Sixth checkpoint: physical terminal comparison edges
+
+The stage-8 terminal boundary now has explicit geometry and provenance without
+inventing a panel beyond the wingtip:
+
+- `neutral_boundary_edge_2d` owns one exact surface edge, its join diagnostic,
+  its physical boundary-rib index, and the real source-panel index. Intake
+  boundaries also retain their explicit post-surface support and support join
+  gap.
+- `derive_neutral_boundary_edge` transactionally copies the higher edge of the
+  final real `neutral_panel_2d`. `neutral_boundary_edge_length` measures its
+  exact segments without closing legacy reconstruction gaps or including the
+  optional support segment.
+- Stage 8 uses these boundary objects for the physical wingtip extrados and
+  intake comparison lengths. Both originate from the higher side of panel
+  `nribss-1`; row `nribss` is not interpreted as a panel and no outward geometry
+  is fabricated.
+
+Intrados panel retention across intake processing and removal of scratch index
+499 are still the next neutral-development checkpoint.
 
 ## Terminology used in this plan
 
@@ -730,8 +751,9 @@ references.
 
 Implementation status: the pure shared quadrilateral developer, exact dual-run,
 and checked write-back exist for regular extrados and intake geometry. Intake's
-post-surface support is explicit. Intrados, point 499, and the terminal
-comparison row are not yet migrated.
+post-surface support is explicit, and physical terminal extrados/intake edges
+are derived from the final real panel. Intrados retention and point 499 are not
+yet migrated.
 
 1. Extract one pure `develop_panel_strip(spatial_left, spatial_right, topology)`
    routine from stage 7. **Complete for regular extrados and intake panels.**
@@ -906,11 +928,12 @@ The producer-authority checkpoints completed:
 3. map disabled section-29 shaping to its one-based no-cut group and guard
    shaping-table lookups against invalid group indices; and
 4. make typed intake contour segments and explicit post-intake support the
-   final regular-row values after exact dual-run agreement.
+   final regular-row values after exact dual-run agreement; and
+5. represent physical terminal extrados/intake comparison edges as the higher
+   side of the last real panel, with no fabricated row-`nribss` panel.
 
-The next slice must represent the stage-8 terminal comparison edge as the
-higher side of the final real panel, not as a fabricated row-`nribss` panel. It
-can then retain typed intrados panels across vent processing, write them back
-after the support segment is no longer needed, and eliminate magic point 499.
+The next slice can retain typed intrados panels across vent processing, write
+them back after the support segment is no longer needed, and eliminate magic
+point 499.
 Later shaping-cut bounds exposed by the Chooca-15 preset still need a
 mixed-profile full-output fixture.

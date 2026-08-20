@@ -24,6 +24,7 @@ program test_domain_model
   type(neutral_panel_2d) :: neutral_panel, extrados_write_panel
   type(neutral_panel_2d) :: zero_based_neutral_panel
   type(neutral_panel_2d) :: disconnected_support_panel
+  type(neutral_boundary_edge_2d) :: boundary_edge, invalid_boundary_edge
   type(rib_identity), allocatable :: identities(:), saved_identities(:)
   type(color_division) :: division
   character(len=120) :: message
@@ -286,6 +287,47 @@ program test_domain_model
   call require_close(gap, sqrt(16.0625_real64), &
       'internal width did not use the following segment starts')
 
+  ! A terminal boundary is one physical edge, not a fabricated panel beyond
+  ! the final rib.  It retains the final real panel's exact higher segments.
+  call derive_neutral_boundary_edge(neutral_panel, boundary_edge, valid, &
+      message)
+  call require(valid, 'valid terminal boundary rejected: '//trim(message))
+  call require(boundary_edge%is_valid(), 'terminal boundary is invalid')
+  call require(boundary_edge%source_panel_index == 0, &
+      'terminal boundary lost its source panel')
+  call require(boundary_edge%boundary_rib_index == 1, &
+      'terminal boundary has the wrong physical rib')
+  call require(boundary_edge%surface == surface_extrados, &
+      'terminal boundary has the wrong surface')
+  call require_close(boundary_edge%segment_start_u(2), &
+      neutral_panel%higher_segment_start_u(2), &
+      'terminal boundary did not copy the higher segment start')
+  call require_close(boundary_edge%segment_end_v(2), &
+      neutral_panel%higher_segment_end_v(2), &
+      'terminal boundary did not copy the higher segment end')
+  call require_close(boundary_edge%maximum_join_gap, 0.25_real64, &
+      'terminal boundary lost the higher-edge join diagnostic')
+  call require_close(neutral_boundary_edge_length(boundary_edge), &
+      5.75_real64, 'terminal boundary exact segment length')
+  call require(.not. boundary_edge%has_post_surface_support, &
+      'extrados boundary invented post-surface support')
+
+  ! Invalid source geometry and invalid provenance are rejected without
+  ! changing the previously derived destination.
+  extrados_write_panel = neutral_panel
+  extrados_write_panel%higher_rib_index = 2
+  call derive_neutral_boundary_edge(extrados_write_panel, boundary_edge, &
+      valid, message)
+  call require(.not. valid, 'invalid source panel produced a boundary')
+  call require_close(boundary_edge%maximum_join_gap, 0.25_real64, &
+      'failed boundary derivation changed the destination')
+  invalid_boundary_edge = boundary_edge
+  invalid_boundary_edge%boundary_rib_index = 2
+  call require(.not. invalid_boundary_edge%is_valid(), &
+      'terminal boundary accepted inconsistent source provenance')
+  call require_close(neutral_boundary_edge_length(invalid_boundary_edge), &
+      0.0_real64, 'invalid terminal boundary length is not zero')
+
   ! Publishing a typed extrados panel writes exact segments only after every
   ! destination and panel invariant has passed.
   extrados_write_panel = neutral_panel
@@ -410,6 +452,24 @@ program test_domain_model
       'intake support segment was not exposed')
   call require_close(neutral_panel%support_lower_end_u, 2.0_real64, &
       'intake support endpoint')
+  call derive_neutral_boundary_edge(neutral_panel, boundary_edge, valid, &
+      message)
+  call require(valid, 'intake terminal boundary rejected: '//trim(message))
+  call require(boundary_edge%surface == surface_intake, &
+      'intake boundary has the wrong surface')
+  call require(boundary_edge%has_post_surface_support, &
+      'intake boundary lost post-surface support')
+  call require_close(boundary_edge%support_start_u, &
+      neutral_panel%support_higher_start_u, &
+      'intake boundary support start did not use the higher edge')
+  call require_close(boundary_edge%support_end_v, &
+      neutral_panel%support_higher_end_v, &
+      'intake boundary support end did not use the higher edge')
+  call require_close(boundary_edge%support_join_gap, &
+      neutral_panel%support_higher_join_gap, &
+      'intake boundary lost its support join diagnostic')
+  call require_close(neutral_boundary_edge_length(boundary_edge), &
+      1.0_real64, 'intake boundary length included its support segment')
 
   ! Intake publication owns the exact contour segment and the explicit support
   ! at the following index, while leaving scratch 499 and other rows alone.

@@ -88,7 +88,8 @@ The maintained structure now:
   including the explicit post-intake support quadrilateral, then uses checked
   adapters to publish only the agreeing typed slices;
 - makes typed stage-8 extrados lengths/widths and intake lengths authoritative
-  only after the legacy calculations agree with them;
+  only after the legacy calculations agree with them, including physical
+  wingtip comparison edges derived from the higher side of the last real panel;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -115,10 +116,12 @@ Even-cell reports now also preserve the declared cell/rib counts.
 
 The stage-7 authority change is deliberately narrow. Regular intake owns its
 exact contour segments plus a separately named post-intake support segment;
-this also supplies the `k31d=1` extrados look-ahead at `j=np(i,2)`. Intrados,
-the legacy point-499 scratch value, and the unresolved terminal comparison row
-used by later stage-8 paths remain outside typed ownership. No nonexistent
-regular panel is fabricated at the wingtip.
+this also supplies the `k31d=1` extrados look-ahead at `j=np(i,2)`. Stage 8 now
+models the physical wingtip extrados and intake comparison edges as the higher
+side of the last real panel, with explicit source-panel provenance. It does not
+read row `nribss` for those comparisons as though it were another panel.
+Intrados retention and removal of the legacy point-499 scratch value remain the
+next neutral-development checkpoint.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -167,8 +170,8 @@ Up to twelve isolated tests are registered (ten do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
-   hidden intake support/scratch semantics, the point-499 collision guard, and
-   transactional adapters.
+   physical terminal comparison edges, hidden intake support/scratch semantics,
+   the point-499 collision guard, and transactional adapters.
 2. `neutral_development` checks the pure quadrilateral developer, exact source
    distances, start-biased segment joins, panel zero, and transactional failure.
 3. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries

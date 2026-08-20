@@ -38,8 +38,15 @@ c      typed value becomes authoritative only after the legacy oracle agrees.
      + trim(domain_model_message)
        stop 1
        end if
-       typed_geometry_metric=neutral_panel_higher_edge_length(
-     + neutral_extrados_panel)
+       call derive_neutral_boundary_edge(neutral_extrados_panel,
+     + terminal_extrados_edge,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid terminal extrados edge: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_boundary_edge_length(
+     + terminal_extrados_edge)
        if (.not.geometry_values_are_close(typed_geometry_metric,
      + rib(nribss,23))) then
        write (*,'(A,I0,2(1X,ES24.16))')
@@ -75,8 +82,15 @@ c      8.1.2+ Inlet longitud cella extrema
      + trim(domain_model_message)
        stop 1
        end if
-       typed_geometry_metric=neutral_panel_higher_edge_length(
-     + neutral_intake_panel)
+       call derive_neutral_boundary_edge(neutral_intake_panel,
+     + terminal_intake_edge,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid terminal intake edge: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_boundary_edge_length(
+     + terminal_intake_edge)
        if (.not.geometry_values_are_close(typed_geometry_metric,
      + rib(nribss,26))) then
        write (*,'(A,I0,2(1X,ES24.16))')

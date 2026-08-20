@@ -214,6 +214,37 @@ module leparagliding_domain_model
     procedure :: is_valid => neutral_panel_is_valid
   end type neutral_panel_2d
 
+  !> One terminal neutral edge derived from the higher side of a real panel.
+  !!
+  !! This is boundary support for consumers that need the physical wingtip's
+  !! outward comparison edge.  It is deliberately not a panel: no geometry is
+  !! invented beyond the final physical rib, and `source_panel_index` records
+  !! the real panel whose higher edge supplies every coordinate.  Intake keeps
+  !! its historical following-segment support explicit; scratch index 499 is
+  !! not part of this representation.
+  type, public :: neutral_boundary_edge_2d
+    integer :: boundary_rib_index = -1
+    integer :: source_panel_index = -1
+    integer :: surface = 0
+    integer :: contour_first_index = 0
+    integer :: contour_last_index = -1
+    real(real64), allocatable :: start_biased_u(:)
+    real(real64), allocatable :: start_biased_v(:)
+    real(real64), allocatable :: segment_start_u(:)
+    real(real64), allocatable :: segment_start_v(:)
+    real(real64), allocatable :: segment_end_u(:)
+    real(real64), allocatable :: segment_end_v(:)
+    real(real64) :: maximum_join_gap = 0.0_real64
+    logical :: has_post_surface_support = .false.
+    real(real64) :: support_start_u = 0.0_real64
+    real(real64) :: support_start_v = 0.0_real64
+    real(real64) :: support_end_u = 0.0_real64
+    real(real64) :: support_end_v = 0.0_real64
+    real(real64) :: support_join_gap = 0.0_real64
+  contains
+    procedure :: is_valid => neutral_boundary_edge_is_valid
+  end type neutral_boundary_edge_2d
+
   !> One open color division crossing a flattened panel between adjacent ribs.
   !!
   !! This is the design-space definition, before mapping onto developed panel
@@ -241,9 +272,11 @@ module leparagliding_domain_model
   public :: copy_legacy_neutral_panel_from_counts
   public :: write_legacy_extrados_panel
   public :: write_legacy_intake_panel
+  public :: derive_neutral_boundary_edge
   public :: polyline_length_2d
   public :: neutral_panel_lower_edge_length
   public :: neutral_panel_higher_edge_length
+  public :: neutral_boundary_edge_length
   public :: neutral_panel_edge_gap
   public :: geometry_values_are_close
 
@@ -597,6 +630,149 @@ contains
     end if
     valid = .true.
   end function neutral_panel_is_valid
+
+  !> Test the provenance and exact-segment invariants of a terminal edge.
+  pure logical function neutral_boundary_edge_is_valid(edge) result(valid)
+    class(neutral_boundary_edge_2d), intent(in) :: edge
+    integer :: point_count, segment_index
+    real(real64) :: expected_join_gap, expected_support_gap
+
+    valid = .false.
+    if (edge%source_panel_index < 0) return
+    if (edge%boundary_rib_index /= edge%source_panel_index + 1) return
+    if (edge%surface < surface_extrados .or. &
+        edge%surface > surface_intrados) return
+    if (edge%contour_first_index < 1) return
+    if (edge%contour_last_index < edge%contour_first_index) return
+    point_count = edge%contour_last_index - edge%contour_first_index + 1
+    if (point_count < 2) return
+    if (.not. allocated(edge%start_biased_u)) return
+    if (.not. allocated(edge%start_biased_v)) return
+    if (.not. allocated(edge%segment_start_u)) return
+    if (.not. allocated(edge%segment_start_v)) return
+    if (.not. allocated(edge%segment_end_u)) return
+    if (.not. allocated(edge%segment_end_v)) return
+    if (any([lbound(edge%start_biased_u, 1), &
+        lbound(edge%start_biased_v, 1), &
+        lbound(edge%segment_start_u, 1), &
+        lbound(edge%segment_start_v, 1), &
+        lbound(edge%segment_end_u, 1), &
+        lbound(edge%segment_end_v, 1)] /= 1)) return
+    if (size(edge%start_biased_u) /= point_count) return
+    if (size(edge%start_biased_v) /= point_count) return
+    if (size(edge%segment_start_u) /= point_count - 1) return
+    if (size(edge%segment_start_v) /= point_count - 1) return
+    if (size(edge%segment_end_u) /= point_count - 1) return
+    if (size(edge%segment_end_v) /= point_count - 1) return
+    if (.not. all(ieee_is_finite(edge%start_biased_u))) return
+    if (.not. all(ieee_is_finite(edge%start_biased_v))) return
+    if (.not. all(ieee_is_finite(edge%segment_start_u))) return
+    if (.not. all(ieee_is_finite(edge%segment_start_v))) return
+    if (.not. all(ieee_is_finite(edge%segment_end_u))) return
+    if (.not. all(ieee_is_finite(edge%segment_end_v))) return
+    if (.not. ieee_is_finite(edge%maximum_join_gap)) return
+    if (edge%maximum_join_gap < 0.0_real64) return
+    do segment_index = 1, point_count - 1
+      if (.not. points_match(edge%start_biased_u(segment_index), &
+          edge%start_biased_v(segment_index), &
+          edge%segment_start_u(segment_index), &
+          edge%segment_start_v(segment_index))) return
+    end do
+    if (.not. points_match(edge%start_biased_u(point_count), &
+        edge%start_biased_v(point_count), &
+        edge%segment_end_u(point_count - 1), &
+        edge%segment_end_v(point_count - 1))) return
+    expected_join_gap = 0.0_real64
+    do segment_index = 2, point_count - 1
+      expected_join_gap = max(expected_join_gap, hypot( &
+          edge%segment_start_u(segment_index) - &
+          edge%segment_end_u(segment_index - 1), &
+          edge%segment_start_v(segment_index) - &
+          edge%segment_end_v(segment_index - 1)))
+    end do
+    if (.not. geometry_values_are_close(edge%maximum_join_gap, &
+        expected_join_gap)) return
+    if (edge%has_post_surface_support .neqv. &
+        (edge%surface == surface_intake)) return
+    if (edge%has_post_surface_support) then
+      if (.not. ieee_is_finite(edge%support_start_u)) return
+      if (.not. ieee_is_finite(edge%support_start_v)) return
+      if (.not. ieee_is_finite(edge%support_end_u)) return
+      if (.not. ieee_is_finite(edge%support_end_v)) return
+      if (.not. ieee_is_finite(edge%support_join_gap)) return
+      if (edge%support_join_gap < 0.0_real64) return
+      expected_support_gap = hypot(edge%support_start_u - &
+          edge%start_biased_u(point_count), edge%support_start_v - &
+          edge%start_biased_v(point_count))
+      if (.not. geometry_values_are_close(edge%support_join_gap, &
+          expected_support_gap)) return
+    else
+      if (.not. geometry_values_are_close(edge%support_join_gap, &
+          0.0_real64)) return
+    end if
+    valid = .true.
+  end function neutral_boundary_edge_is_valid
+
+  !> Derive a terminal boundary from a real panel's higher neutral edge.
+  !!
+  !! The operation is transactional.  The source panel remains unchanged and
+  !! the destination is replaced only after its provenance, exact segments,
+  !! join diagnostics, and optional intake support all validate.
+  pure subroutine derive_neutral_boundary_edge(source_panel, edge, valid, &
+      message)
+    type(neutral_panel_2d), intent(in) :: source_panel
+    type(neutral_boundary_edge_2d), intent(inout) :: edge
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(neutral_boundary_edge_2d) :: candidate
+    integer :: point_count, segment_count
+
+    valid = .false.
+    message = ''
+    if (.not. source_panel%is_valid()) then
+      message = 'terminal boundary received an invalid source panel'
+      return
+    end if
+
+    candidate%source_panel_index = source_panel%panel_index
+    candidate%boundary_rib_index = source_panel%higher_rib_index
+    candidate%surface = source_panel%surface
+    candidate%contour_first_index = source_panel%contour_first_index
+    candidate%contour_last_index = source_panel%contour_last_index
+    candidate%maximum_join_gap = source_panel%maximum_higher_join_gap
+    candidate%has_post_surface_support = &
+        source_panel%has_post_surface_support
+    point_count = candidate%contour_last_index - &
+        candidate%contour_first_index + 1
+    segment_count = point_count - 1
+    allocate(candidate%start_biased_u(point_count), &
+        candidate%start_biased_v(point_count), &
+        candidate%segment_start_u(segment_count), &
+        candidate%segment_start_v(segment_count), &
+        candidate%segment_end_u(segment_count), &
+        candidate%segment_end_v(segment_count))
+    candidate%start_biased_u = source_panel%higher_start_biased_u
+    candidate%start_biased_v = source_panel%higher_start_biased_v
+    candidate%segment_start_u = source_panel%higher_segment_start_u
+    candidate%segment_start_v = source_panel%higher_segment_start_v
+    candidate%segment_end_u = source_panel%higher_segment_end_u
+    candidate%segment_end_v = source_panel%higher_segment_end_v
+    if (candidate%has_post_surface_support) then
+      candidate%support_start_u = source_panel%support_higher_start_u
+      candidate%support_start_v = source_panel%support_higher_start_v
+      candidate%support_end_u = source_panel%support_higher_end_u
+      candidate%support_end_v = source_panel%support_higher_end_v
+      candidate%support_join_gap = source_panel%support_higher_join_gap
+    end if
+    if (.not. candidate%is_valid()) then
+      message = 'derived terminal boundary failed validation'
+      return
+    end if
+
+    edge = candidate
+    valid = .true.
+  end subroutine derive_neutral_boundary_edge
 
   !> Test whether a color division satisfies all documented invariants.
   pure logical function color_division_is_valid(division) result(valid)
@@ -1539,6 +1715,22 @@ contains
           panel%higher_segment_start_v(segment_index))**2)
     end do
   end function neutral_panel_higher_edge_length
+
+  !> Sum exact terminal-boundary segments without closing reconstruction gaps.
+  !! Invalid boundaries return zero, matching the neutral-panel length helpers.
+  pure real(real64) function neutral_boundary_edge_length(edge) result(length)
+    type(neutral_boundary_edge_2d), intent(in) :: edge
+    integer :: segment_index
+
+    length = 0.0_real64
+    if (.not. edge%is_valid()) return
+    do segment_index = 1, size(edge%segment_start_u)
+      length = length + sqrt((edge%segment_end_u(segment_index) - &
+          edge%segment_start_u(segment_index))**2 + &
+          (edge%segment_end_v(segment_index) - &
+          edge%segment_start_v(segment_index))**2)
+    end do
+  end function neutral_boundary_edge_length
 
   !> Measure the cross-panel gap at one original contour index.
   real(real64) function neutral_panel_edge_gap(panel, contour_index, &
