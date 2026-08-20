@@ -16,6 +16,10 @@ c***********************************************************************
        private :: typm1, typm2, typm3, typm4, typm5, typm6
        private :: dxf_point_entity, dxf_circle_entity
        private :: dxf_line3d_entity, dxf_text_header, dxf_text_footer
+       private :: utf8_to_dxf_text
+       private :: joncs45, interpolate_surface_y
+
+       integer, private, save :: configured_ellipse_segments = 60
 
        contains
 

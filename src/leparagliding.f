@@ -1,5 +1,5 @@
 c***************************************************************
-c      LE PARAGLIDING v 3.28 "Jardins"
+c      LE PARAGLIDING v 3.29 "Jardins"
 c      Pere Casellas 2010-2026
 c      Laboratori d'envol
 c      http://www.laboratoridenvol.com
@@ -67,6 +67,7 @@ c      version 3.25 2025-01-10 "Jardins"
 c      version 3.27e 2025-12-11 "Jardins"
 c      version 3.27+ 2026-01-28 "Jardins"
 c      version 3.28 2026-05-01 "Jardins"
+c      version 3.29 2026-08-19 "Jardins"
 c      FORTRAN fort77/gfortran (GNU/Linux)
 c      GNU General Public License 3.0 (http://www.gnu.org)
 c
@@ -87,6 +88,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        program leparagliding
        use leparagliding_procedures
        use leparagliding_mark_types
+       use leparagliding_hvr_config
 
        include 'main/declarations.inc'
        include 'main/03_initialization.inc'

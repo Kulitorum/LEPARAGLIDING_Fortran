@@ -2895,6 +2895,7 @@ c      Length
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      DRAW section
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       if (evenodd2.eq.0.or.i.gt.1) then
 c      Draw extrados minirib, Print and MC
        do j=1,jcontrole
 c      Aifoil contour
@@ -2921,6 +2922,7 @@ c      Initial perpendicular segment
        call line(2530.*xkf+sepx+u(i-1,j,72),-v(i-1,j,72)+sepy-sepriy*0.5
      + ,2530.*xkf+sepx+u(i-1,j,71),-v(i-1,j,71)+sepy-sepriy*0.5,1)
 
+       endif
        end if ! upper surface
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -3075,6 +3077,7 @@ c      Length
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      DRAW section
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       if (evenodd2.eq.0.or.i.gt.1) then
 c      Draw intrados minirib, Print and MC
        do j=np(i,1),jcontroli,-1
 c      Airfoil contour
@@ -3122,6 +3125,31 @@ c      Draw minirib number
        y1=-0.5*(v(i-1,j1,71)+v(i-1,j2,71))+sepy-sepriy*0.5
        call itxt(x1-rib(i,60)*0.35-30.,y1,3.0d0,0.0d0,i,7)
 
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c      Section 38: elliptic holes in miniribs (type 9)
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       call find_hvr_hole_spec(hvr_holes,9,hvr_hole,
+     + hvr_hole_found)
+       if (hvr_hole_found) then
+       hvr_hmax=abs(yequise-yequisi)
+       do hvr_hole_index=1,hvr_hole%hole_count
+       hvr_span_fraction=dfloat(hvr_hole%hole_count+2-
+     + hvr_hole_index)/dfloat(hvr_hole%hole_count+2)
+       x3=hvr_span_fraction*xminirib+0.05d0*xminirib
+       y3=hvr_span_fraction*hvr_hmax*hvr_hole%parameter(3)
+       hvr_hole_height=hvr_span_fraction*hvr_hmax*
+     + hvr_hole%parameter(1)/100.0d0
+       b=0.5d0*abs(hvr_hole_height)
+       a=abs(hvr_hole%parameter(2))*b
+       angle=hvr_hole%parameter(4)*pi/180.0d0
+       x0=sepx+u(i-1,1,3)-x3
+       y0=sepy-sepriy*0.5+v(i-1,1,3)-y3
+       call ellipse(x0,y0,a,b,angle,3)
+       call ellipse(2530.*xkf+x0,y0,a,b,angle,3)
+       end do
+       endif
+
+       endif
        end if ! bottom surface
 
        kx=int((float(i)/6.))
@@ -4236,11 +4264,15 @@ c      Draw reference points for miniribs in extrados
 
 c      Laser cuting
        xadd=2520.*xkf
+       if (i37_2005.eq.1) then
+       call line(psep+xpo1+xadd,psey-ypo1,
+     + psep+xpo3+xadd,psey-ypo3,5)
+       endif
        call point(psep+xpo1+xadd,psey-ypo1,1)
        call point(psep+xpo3+xadd,psey-ypo3,1)
 
        end if
-      
+
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Case extrados 0 cuts
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -4732,6 +4764,10 @@ c      Draw reference points for miniribs in intrados
 
 c      Laser cuting
        xadd=2520.*xkf
+       if (i37_2005.eq.1) then
+       call line(psep+xpo1+xadd,psey-ypo1+ysaut,
+     + psep+xpo3+xadd,psey-ypo3+ysaut,5)
+       endif
        call point(psep+xpo1+xadd,psey-ypo1+ysaut,1)
        call point(psep+xpo3+xadd,psey-ypo3+ysaut,1)
 

@@ -339,46 +339,31 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 !> Write an open 2D POLYLINE entity to DXF unit 20.
 !! @param[in] plx X coordinates of the vertices.
-!! @param[in] ply Y coordinates of the vertices in DXF coordinates.
+!! @param[in] ply Y coordinates in design coordinates; output is reflected.
 !! @param[in] nvertex Number of vertices to emit from the arrays.
 !! @param[in] linecolor AutoCAD color index.
        SUBROUTINE poly2d(plx,ply,nvertex,linecolor)
+       implicit none
 
        real*8 plx(500),ply(500)
+       integer nvertex,linecolor,k
 
-       write (20,'(A,/,I1,/,I1,/,I2)') "POLYLINE",8,0,62
+       write (20,'(A,/,I1,/,A,/,I2)') "POLYLINE",8,"default",62
        write (20,'(I3,/,I2,/,I1)') linecolor,66,1
-       write (20,'(I2,/,F3.1,/,I2,/,F3.1,/,I2,/,F3.1,/,I1)') 
+       write (20,'(I2,/,F15.4,/,I2,/,F15.4,/,I2,/,F15.4,/,I1)')
      + 10,0.0,20,0.0,30,0.0,0
        
        do k=1,nvertex
 
-       write (20,'(A,/,I1,/,I1,/,I2)') "VERTEX",8,0,62
+       write (20,'(A,/,I1,/,A,/,I2)') "VERTEX",8,"default",62
        write (20,'(I3,/,I2,/,I1)') linecolor,66,1 
-       write (20,'(I2,/,F9.3,/,I2,/,F9.3,/,I2,/,F9.3,/,I1)') 
-     + 10,plx(k),20,ply(k),30,0.0,0
+       write (20,'(I2,/,F15.4,/,I2,/,F15.4,/,I2,/,F15.4,/,I1)')
+     + 10,plx(k),20,-ply(k),30,0.0,0
 
        end do
        
-       write (20,'(A,/,I1,/,I1,/,I2)') "SEQEND",8,0,62
+       write (20,'(A,/,I1,/,A,/,I2)') "SEQEND",8,"default",62
        write (20,'(I3,/,I1)') linecolor,0 
-
-c       write (*,'(A,/,I1,/,I1,/,I2)') "POLYLINE",8,0,62
-c       write (*,'(I3,/,I2,/,I1)') linecolor,66,1
-c       write (*,'(I2,/,F3.1,/,I2,/,F3.1,/,I2,/,F3.1,/,I1)') 
-c     + 10,0.0,20,0.0,30,0.0,0
-       
-c       do k=1,nvertex
-
-c       write (*,'(A,/,I1,/,I1,/,I2)') "VERTEX",8,0,62
-c       write (*,'(I3,/,I2,/,I1)') linecolor,66,1 
-c       write (*,'(I2,/,F9.3,/,I2,/,F9.3,/,I2,/,F9.3,/,I1)') 
-c     + 10,plx(k),20,ply(k),30,0.0,0
-
-c       end do
-
-c       write (*,'(A,/,I1,/,I1,/,I2)') "SEQEND",8,0,62
-c       write (*,'(I3,/,I1)') linecolor,0 
 
        return
 
@@ -389,7 +374,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      ELLIPSE
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-!> Approximate and draw a rotated ellipse with 39 line segments.
+!> Approximate a rotated ellipse as one closed DXF POLYLINE.
 !! @param[in] u0 Horizontal coordinate of the ellipse center.
 !! @param[in] v0 Vertical coordinate of the ellipse center.
 !! @param[in] a First ellipse semiaxis.
@@ -397,41 +382,40 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !! @param[in] tet0 Ellipse rotation in radians.
 !! @param[in] linecolor AutoCAD color index.
        SUBROUTINE ellipse(u0,v0,a,b,tet0,linecolor)
+       implicit none
 
        real*8 xe(500),ye(500)
-
        real*8 pi,u0,v0,a,b,tet,tet0
-
-       real*8 p1x,p1y,p2x,p2y
+       integer linecolor,ll,n
 
        pi=4.0d0*datan(1.0d0)
+       n=configured_ellipse_segments
 
-       do ll=1,40
+       do ll=1,n+1
 
-       tet=2.*pi*((float(ll)-1.)/39.)
-
-c      write (*,*) ll,float(ll),tet," ",pi,"---"
+       tet=2.0d0*pi*dfloat(ll-1)/dfloat(n)
 
        xe(ll)=u0+a*dcos(tet)*dcos(tet0)-b*dsin(tet)*dsin(tet0)
        ye(ll)=v0+a*dcos(tet)*dsin(tet0)+b*dsin(tet)*dcos(tet0)
 
        end do
 
-       do ll=1,39
-
-       p1x=xe(ll)
-       p2x=xe(ll+1)
-       p1y=ye(ll)
-       p2y=ye(ll+1)
-
-       call line(p1x,p1y,p2x,p2y,linecolor)
-
-c       write (*,*) ll,tet*180./pi,xe(ll),ye(ll)
-
-       end do
+       call poly2d(xe,ye,n+1,linecolor)
 
        return
 
+       end
+
+!> Configure the resolution used by subsequent ellipse entities.
+!! @param[in] segment_count Number of straight segments, in the range 4..499.
+       SUBROUTINE set_ellipse_segments(segment_count)
+       implicit none
+       integer segment_count
+
+       if (segment_count.lt.4.or.segment_count.gt.499) then
+       error stop "ellipse segment count is outside 4..499"
+       end if
+       configured_ellipse_segments=segment_count
        end
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -510,14 +494,16 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !! @param[in] xtext Fixed-width text to write.
 !! @param[in] txtcolor AutoCAD color index.
        SUBROUTINE txt(p1x,p1y,htext,atext,xtext,txtcolor)
-c      line P1-P2
+       implicit none
 
        real*8 atext,htext,p1x,p1y
        character*50 xtext
+       character*350 text_out
        integer txtcolor
 
+       call utf8_to_dxf_text(xtext,text_out)
        call dxf_text_header(p1x,p1y,htext,txtcolor)
-       write(20,'(I2,/,A50)') 1, xtext
+       write(20,'(I2,/,A)') 1, trim(text_out)
        call dxf_text_footer(atext)
 
        return
@@ -570,6 +556,88 @@ c      line P1-P2
        call dxf_text_footer(atext)
 
        return
+       end
+
+!> Convert a UTF-8 byte string to AutoCAD's \U+XXXX escape notation.
+!! @param[in] input UTF-8 text, normally read from the design file.
+!! @param[out] output ASCII-only text suitable for an R12 TEXT entity.
+!! @private
+       SUBROUTINE utf8_to_dxf_text(input,output)
+       implicit none
+       character*(*) input,output
+       character*4 hex4
+       character*7 escape
+       integer i,j,n,b1,b2,b3,b4,codepoint,consumed
+       integer high_surrogate,low_surrogate
+
+       output=' '
+       n=len_trim(input)
+       i=1
+       j=1
+
+       do while (i.le.n.and.j.le.len(output))
+       b1=iachar(input(i:i))
+       codepoint=-1
+       consumed=1
+
+       if (b1.le.127) then
+       codepoint=b1
+       else if (b1.ge.194.and.b1.le.223.and.i+1.le.n) then
+       b2=iachar(input(i+1:i+1))
+       if (b2.ge.128.and.b2.le.191) then
+       codepoint=(b1-192)*64+(b2-128)
+       consumed=2
+       end if
+       else if (b1.ge.224.and.b1.le.239.and.i+2.le.n) then
+       b2=iachar(input(i+1:i+1))
+       b3=iachar(input(i+2:i+2))
+       if (b2.ge.128.and.b2.le.191.and.b3.ge.128.and.b3.le.191) then
+       codepoint=(b1-224)*4096+(b2-128)*64+(b3-128)
+       if (codepoint.ge.2048.and.
+     +     .not.(codepoint.ge.55296.and.codepoint.le.57343)) consumed=3
+       if (consumed.eq.1) codepoint=-1
+       end if
+       else if (b1.ge.240.and.b1.le.244.and.i+3.le.n) then
+       b2=iachar(input(i+1:i+1))
+       b3=iachar(input(i+2:i+2))
+       b4=iachar(input(i+3:i+3))
+       if (b2.ge.128.and.b2.le.191.and.b3.ge.128.and.b3.le.191.and.
+     +     b4.ge.128.and.b4.le.191) then
+       codepoint=(b1-240)*262144+(b2-128)*4096+(b3-128)*64+(b4-128)
+       if (codepoint.ge.65536.and.codepoint.le.1114111) consumed=4
+       if (consumed.eq.1) codepoint=-1
+       end if
+       end if
+
+       if (codepoint.lt.0) then
+       output(j:j)='?'
+       j=j+1
+       else if (codepoint.le.127) then
+       output(j:j)=achar(codepoint)
+       j=j+1
+       else if (codepoint.le.65535) then
+       if (j+6.gt.len(output)) exit
+       write(hex4,'(Z4.4)') codepoint
+       escape='\U+'//hex4
+       output(j:j+6)=escape
+       j=j+7
+       else
+c      DXF R12 escapes are UTF-16 code units, so emit a surrogate pair.
+       if (j+13.gt.len(output)) exit
+       codepoint=codepoint-65536
+       high_surrogate=55296+codepoint/1024
+       low_surrogate=56320+mod(codepoint,1024)
+       write(hex4,'(Z4.4)') high_surrogate
+       escape='\U+'//hex4
+       output(j:j+6)=escape
+       write(hex4,'(Z4.4)') low_surrogate
+       escape='\U+'//hex4
+       output(j+7:j+13)=escape
+       j=j+14
+       end if
+
+       i=i+consumed
+       end do
        end
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -674,17 +742,24 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      DXF init
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        
-!> Start a minimal DXF document and open its ENTITIES section.
+!> Start an R12-compatible DXF document and open its ENTITIES section.
 !! @param[in] nunit Open Fortran output unit.
-!! @note The historical fixed drawing extents are preserved.
        SUBROUTINE dxfinit(nunit)
+       implicit none
+       integer nunit
        
        write(nunit,'(I1,/,A,/,I1)') 0,"SECTION",2
        write(nunit,'(A)') "HEADER"
-       write(nunit,'(I1,/,A)') 9,"$EXTMAX"
-       write(nunit,'(I2,/,F12.3,/,I2,/,F12.3)') 10,-670.,20,-3630.
+       write(nunit,'(I1,/,A,/,I1,/,A)') 9,"$ACADVER",1,"AC1009"
+       write(nunit,'(I1,/,A,/,I1,/,A)') 9,"$DWGCODEPAGE",3,
+     + "ANSI_1252"
        write(nunit,'(I1,/,A)') 9,"$EXTMIN"
-       write(nunit,'(I2,/,F12.3,/,I2,/,F12.3)') 10,7000.,20,120.
+       write(nunit,'(I2,/,F12.3,/,I2,/,F12.3)') 10,-945.,20,-5270.
+       write(nunit,'(I1,/,A)') 9,"$EXTMAX"
+       write(nunit,'(I2,/,F12.3,/,I2,/,F12.3)') 10,14175.,20,750.
+       write(nunit,'(I1,/,A)') 9,"$VIEWCTR"
+       write(nunit,'(I2,/,F12.3,/,I2,/,F12.3)') 10,6615.,20,-2260.
+       write(nunit,'(I1,/,A,/,I2,/,F12.3)') 9,"$VIEWSIZE",40,8500.
        write(nunit,'(I1,/,A,/,I1)') 0,"ENDSEC",0
        write(nunit,'(A,/,I1)') "SECTION",2
        write(nunit,'(A,/,I1)') "ENTITIES",0

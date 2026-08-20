@@ -415,7 +415,7 @@ c      Generic parabola y=xk*x**xn
        if (sectx(27,4).eq.0.0) then
        xn=y1*x1/((x1-x0)*y1)
        else
-       xn=x1*dtan(sectx(27,4)*pi/180.)/y1
+       xn=x1*dtan(sectx(27,4))/y1
        end if
        xk=y1/(x1**xn)
 c      Compute parabola in 60 points

@@ -107,41 +107,51 @@ c      Row 1
        xtext="1-7 NYLON RODS POCKETS, NOSE MYLARS"
        call txt(xpos,ypos,12.0d0,0.0d0,xtext,7)
 
-c      Print joncs in BOX(1,7)
-c      ACTUALITZAR BLOCS m !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-c      Print blocs separate
-c      Define jonc lenghts in each bloc
+c      Print nylon-rod blocks in separate columns in BOX(1,7)
        if (k21d.ge.1) then
-       xqw=0.
-
        do m=1,k21blocs
-
-       y1=40.*float(m-1) ! Desplacement in Y for each bloc
+       xqw=0.0d0
+       x0=(350.0d0*float(m-1)-900.0d0)*xkf
+       y1=300.0d0*xkf
 
        write (xtext,'(A25,I2,A1)') "List of nylon rods (bloc ",
      + m,")"
 
        ng21=k21blocf(m,3)
-       call txt(xpos+400.*xkf,ypos+y1+(-700.+xqw)*
+       call txt(xpos+400.*xkf+x0,ypos+y1+(-700.+xqw)*
      + xkf,xmida1,0.0d0,xtext,7)
        do ng=1,ng21
        xqw=xqw+15.
        write (xtext,'(A5,I3)') "Group ",ng
-       call txt(xpos+400*xkf,ypos+y1+(-700.+xqw)*
+       call txt(xpos+400*xkf+x0,ypos+y1+(-700.+xqw)*
      + xkf,xmida2,0.0d0,xtext,7)
        ngo(ng,2)=ngoo(m,ng,2)
        ngo(ng,3)=ngoo(m,ng,3)
        do i=ngo(ng,2),ngo(ng,3)
        xqw=xqw+15.
        if (k21blocf(m,2).le.2) then
-       write (xtext,'(A5,I3,2x,F7.1)') "Jonc ",i,joncf(i,m,ng,2)
-       call txt(xpos+400*xkf,ypos+y1+(-700.+xqw)*
+       write (xtext,'(A5,I3,2x,A4,1x,I2,2x,F7.1)') "Jonc ",i,
+     + "type",k21blocf(m,2),joncf(i,m,ng,2)
+       call txt(xpos+400*xkf+x0,ypos+y1+(-700.+xqw)*
      + xkf,xmida2,0.0d0,xtext,7)
        end if
        if (k21blocf(m,2).eq.3) then
-       write (xtext,'(A5,I3,x,A3,x,F7.1,x,A3,x,F7.1)') "Jonc ",i,"sup",
-     + joncf(i,m,ng,2),"inf",joncf(i,m,ng,3)
-       call txt(xpos+400*xkf,ypos+y1+(-700.+xqw)*
+       write (xtext,'(A5,I3,x,A4,x,I2,x,A3,x,F7.1,x,A3,x,F7.1)')
+     + "Jonc ",i,"type",k21blocf(m,2),"sup",joncf(i,m,ng,2),
+     + "inf",joncf(i,m,ng,3)
+       call txt(xpos+400*xkf+x0,ypos+y1+(-700.+xqw)*
+     + xkf,xmida2,0.0d0,xtext,7)
+       end if
+       if (k21blocf(m,2).eq.4) then
+       write (xtext,'(A5,I3,2x,A4,1x,I2,2x,F7.1)') "Jonc ",i,
+     + "type",k21blocf(m,2),joncf(i,m,ng,4)
+       call txt(xpos+400*xkf+x0,ypos+y1+(-700.+xqw)*
+     + xkf,xmida2,0.0d0,xtext,7)
+       end if
+       if (k21blocf(m,2).eq.5) then
+       write (xtext,'(A5,I3,2x,A4,1x,I2,2x,F7.1)') "Jonc ",i,
+     + "type",k21blocf(m,2),joncf(i,m,ng,5)
+       call txt(xpos+400*xkf+x0,ypos+y1+(-700.+xqw)*
      + xkf,xmida2,0.0d0,xtext,7)
        end if
        end do ! ngo

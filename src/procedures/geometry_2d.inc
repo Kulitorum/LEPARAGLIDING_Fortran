@@ -374,3 +374,35 @@ c
 c      WARNING IN REDEFINITION VARIABLES u, v !!!
 c      ISOLATE THEM!
 
+!> Fit an ellipse inside a four-corner H/V-rib strip at a span fraction.
+!! @param[in] lx1,ly1 Left edge at the first longitudinal station.
+!! @param[in] rx1,ry1 Right edge at the first longitudinal station.
+!! @param[in] lx2,ly2 Left edge at the second longitudinal station.
+!! @param[in] rx2,ry2 Right edge at the second longitudinal station.
+!! @param[in] span_fraction Position between the two stations, in `[0,1]`.
+!! @param[in] height_percent Semiaxis along the local strip height, percent.
+!! @param[in] width_percent Perpendicular semiaxis, percent of local height.
+!! @param[in] center_fraction Center position from the local left to right edge.
+!! @param[out] x0,y0 Ellipse center.
+!! @param[out] a,b Ellipse semiaxes.
+!! @param[out] angle Rotation of semiaxis `a` in radians.
+       SUBROUTINE vrib_hole_ellipse(lx1,ly1,rx1,ry1,lx2,ly2,rx2,ry2,
+     + span_fraction,height_percent,width_percent,center_fraction,
+     + x0,y0,a,b,angle)
+       implicit none
+       real*8 lx1,ly1,rx1,ry1,lx2,ly2,rx2,ry2
+       real*8 span_fraction,height_percent,width_percent,center_fraction
+       real*8 x0,y0,a,b,angle,lx,ly,rx,ry,height
+
+       lx=lx1+span_fraction*(lx2-lx1)
+       ly=ly1+span_fraction*(ly2-ly1)
+       rx=rx1+span_fraction*(rx2-rx1)
+       ry=ry1+span_fraction*(ry2-ry1)
+       height=dsqrt((rx-lx)**2+(ry-ly)**2)
+       angle=datan2(ry-ly,rx-lx)
+       x0=lx+center_fraction*(rx-lx)
+       y0=ly+center_fraction*(ry-ly)
+       a=0.005d0*height*height_percent
+       b=0.005d0*height*width_percent
+       end
+

@@ -10,6 +10,7 @@
 
        real*8 uo(0:500,2),vo(0:500,2)
        real*8 xo,alpha1,alpha2,alpha
+       integer previous_index
 
        do j=1,npo
 
@@ -26,8 +27,13 @@ c      Angle alpha
        alpha=0.5*(alpha1+alpha2)
        end if
        if (j.eq.npo) then
-       alpha=(datan((vo(j,1)-vo(j-2,1))/
-     + (uo(j,1)-uo(j-2,1))))
+       if (j.ge.2) then
+       previous_index=max(0,j-2)
+       alpha=(datan((vo(j,1)-vo(previous_index,1))/
+     + (uo(j,1)-uo(previous_index,1))))
+       else
+       alpha=0.0d0
+       end if
        end if
 
 c      OFFSET OTION 1 IS OK

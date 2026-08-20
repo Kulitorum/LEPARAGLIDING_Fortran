@@ -28,20 +28,6 @@ c      6.1 Read global points
        read (24,*) np(i,4) ! intrados points
 
        np(i,5)=np(i,2)+np(i,3)-1
-       
-c      Rib 0 points
-       np(0,1)=np(1,1)
-       np(0,2)=np(1,2)
-       np(0,3)=np(1,3)
-       np(0,4)=np(1,4)
-       np(0,5)=np(1,5)
-
-c      Rib nribss+1 points
-       np(nribss+1,1)=np(nribss-1,1)
-       np(nribss+1,2)=np(nribss-1,2)
-       np(nribss+1,3)=np(nribss-1,3)
-       np(nribss+1,4)=np(nribss-1,4)
-       np(nribss+1,5)=np(nribss-1,5)
 
 c      6.2 Read airfoil coordinates
        do j=1,np(i,1)
@@ -60,6 +46,31 @@ c      Go to reformat airfoil (u,v) and np
        end if
 
        end do ! i
+
+c      Locate the leading-edge sample for both .txt and .dat profiles.
+c      Real profile files do not always contain an exact (0,0) point.
+       do i=1,nribss
+       np(i,6)=1
+       nose_distance_sq=huge(0.0d0)
+       do j=1,np(i,1)
+       if (u(i,j,1)*u(i,j,1)+v(i,j,1)*v(i,j,1).lt.
+     + nose_distance_sq) then
+       np(i,6)=j
+       nose_distance_sq=u(i,j,1)*u(i,j,1)+v(i,j,1)*v(i,j,1)
+       endif
+       end do
+       end do
+
+c      Virtual profiles are assigned only after every source profile is read.
+c      This keeps mixed .txt/.dat inputs from copying uninitialized counts.
+       do j=1,6
+       np(0,j)=np(1,j)
+       np(nribss+1,j)=np(nribss-1,j)
+       end do
+       do j=1,np(nribss+1,1)
+       u(nribss+1,j,1)=u(nribss-1,j,1)
+       v(nribss+1,j,1)=v(nribss-1,j,1)
+       end do
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Detect cut points if defined by points (case 1)
@@ -122,12 +133,6 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        tetha=rib(i,8)*pi/180.0d0
        rot_z=rib(i,250)*pi/180.0d0
        pos=rib(i,5)*rib(i,251)/100.0d0
-
-c      Default to a valid point and then locate the profile point nearest
-c      the normalized leading-edge origin. Real profile files do not always
-c      contain an exact (0,0) sample.
-       np(i,6)=1
-       nose_distance_sq=huge(nose_distance_sq)
 
        do j=1,np(i,1)
 
@@ -192,13 +197,6 @@ c      6.8 Tornar a posar la costella al seu lloc
 c      WARNING! Això no ho veig clar
 c      Fer experiment per a verificar. És necessari?
 c       v(i,j,3)=v(i,j,3)+rib(i,50)
-
-c      Calculate nose point np(i,6) as the sample nearest (0,0)
-       if(u(i,j,2)*u(i,j,2)+v(i,j,2)*v(i,j,2).lt.
-     + nose_distance_sq) then
-       np(i,6)=j
-       nose_distance_sq=u(i,j,2)*u(i,j,2)+v(i,j,2)*v(i,j,2)
-       end if
 
        end do ! j
 
@@ -1074,6 +1072,38 @@ c      Draw lower jonc in box (1,7)
        sepyjo=sepyjo-50.0d0*xwf*jonc_i_coe
 
        end if ! bloc type 3
+
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c      Case long rods on the extrados (type 4)
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       if (k21blocf(m,2).eq.4) then
+       do jjk=1,4
+       xextra(ng,jjk)=xextraa(m,ng,jjk)
+       xintra(ng,jjk)=xintraa(m,ng,jjk)
+       sjo(ng,jjk)=sjoo(m,ng,jjk)
+       end do
+       rib(i,166)=float(ng)
+       call joncs4(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np)
+       call pjoncs_b12(i,xjonc,npo,sjo,sepx,sepy,rib,xkf)
+       call pjoncs_b17(i,xjonc,npo,sjo,sepxjo,sepyjo,rib,xkf)
+       joncf(i,m,ng,4)=rib(i,167)
+       end if
+
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c      Case long rods on the intrados (type 5)
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       if (k21blocf(m,2).eq.5) then
+       do jjk=1,4
+       xextra(ng,jjk)=xextraa(m,ng,jjk)
+       xintra(ng,jjk)=xintraa(m,ng,jjk)
+       sjo(ng,jjk)=sjoo(m,ng,jjk)
+       end do
+       rib(i,166)=float(ng)
+       call joncs5(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np)
+       call pjoncs_b12(i,xjonc,npo,sjo,sepx,sepy,rib,xkf)
+       call pjoncs_b17(i,xjonc,npo,sjo,sepxjo,sepyjo,rib,xkf)
+       joncf(i,m,ng,5)=rib(i,167)
+       end if
 
 
        end if ! detect rib

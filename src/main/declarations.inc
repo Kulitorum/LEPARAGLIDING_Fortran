@@ -198,7 +198,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        real*8 xcos
 
-       integer ncells,nribst,evenodd
+       integer ncells,nribst,evenodd,evenodd2
 
        real*8 xkf,xwf
        real*8 ribdif, htens, xndif
@@ -210,6 +210,7 @@ c      Coordenades airfoil en gir Z
        real*8 rib(0:100,500)
 
        real*8 alpha,tetha,alpham,alphac,alphat,alpha1,alpha2,alpr,alpl
+       real*8 alprr(500),alpll(500)
        real*8 alple,alp
        real*8 phii(0:100),alpha_ii,assiette_ii,chii(0:100)
        real*8 x_apap(0:100),y_apap(0:100),z_apap(0:100)
@@ -374,7 +375,8 @@ c       real*8 px9i(300),py9i(300)
        real*8 xanchorir(0:100,6),yanchorir(0:100,6)
 
        real*8 xprb(0:100,6,0:10),yprb(0:100,6,0:10)
-       real*8 jconi(6),jconf(6),xkprb(6)
+       integer jconi(6),jconf(6)
+       real*8 xkprb(6)
        real*8 jcve(100),jcvi(100)
        real*8 xirl(0:500),xirr(0:500),jirl(0:500),jirr(0:500)
        real*8 distee(0:500),anglee(0:500),siu(0:500),siv(0:500)
@@ -387,7 +389,7 @@ c       real*8 xlll,xrrr,yrrr,ylll
        real*8 xlabel, zlabel, clli, varrow
 
        integer typepoint,typetab,typevent,typejonc
-       integer iccolor(50),ele3d(50),ele3dc(50),iccolor34(50)
+       integer iccolor(50),ele3d(50),ele3dc(50),iccolor34(500)
        real*8 xrad
 
 c      Section 21
@@ -455,6 +457,7 @@ c      Section 32
        real*8 panel_x_coe,panel_x_min,panel_y_coe,rib_x_coe,rib_y_coe
        real*8 rib_1_coe
        real*8 jonc_x_coe,jonc_y_coe,jonc_i_coe
+       real*8 section32_unused
        real*8 sepjox,sepjoy,sepxjo,sepyjo
 
 c      Section 33
@@ -510,11 +513,24 @@ c      Internal section 14.9
 c      Section 37
        character*30 a37date
        real*8 c3001(20) ! Miniribs values
-       integer i3001(20)
+       integer i3001(20),icode37(250),ellipse_segments
+       integer i37_2005,i37_2006
+
+c      Sections 38 and 39
+       type(hvr_hole_config) hvr_holes
+       type(hvr_hole_spec) hvr_hole
+       type(hvr_position_config) hvr_positions
+       logical hvr_sections_present,hvr_hole_found
+       character*160 hvr_config_error
+       integer hvr_config_status,hvr_hole_index
+       integer hvr_gap_start,hvr_gap_end,hvr_edge_start,hvr_openings
+       real*8 hvr_span_fraction,hvr_hmax,hvr_hole_height
 
 c      xwimp
 
-       character*50 folder, makedirectory
+       character*100 makedirectory
+       character*100 command_shell
+       integer directory_status
        real*8 xdihedral(0:100)
 
 c      Section 4.20 control parameters

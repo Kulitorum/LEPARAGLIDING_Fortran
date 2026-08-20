@@ -833,13 +833,27 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Case jonc type 1 or 2
        if (k21blocf(m,2).le.2) then
        x1=x1+joncf(i,m,ng,2)
-       write (23,'(A5,I3,2x,F7.1)') "Jonc ",i,joncf(i,m,ng,2)
+       write (23,'(A5,I3,2x,A4,1x,I2,2x,F7.1)') "Jonc ",i,
+     + "type",k21blocf(m,2),joncf(i,m,ng,2)
        end if
 c      Case jonc type 3 (shark nose)
        if (k21blocf(m,2).eq.3) then
        x1=x1+joncf(i,m,ng,2)+joncf(i,m,ng,3)
-       write (23,'(A5,I3,x,A3,x,F7.1,x,A3,x,F7.1)') "Jonc ",i,"sup",
-     + joncf(i,m,ng,2),"inf",joncf(i,m,ng,3)
+       write (23,'(A5,I3,x,A4,x,I2,x,A3,x,F7.1,x,A3,x,F7.1)')
+     + "Jonc ",i,"type",k21blocf(m,2),"sup",joncf(i,m,ng,2),
+     + "inf",joncf(i,m,ng,3)
+       end if
+c      Case jonc type 4 (long extrados rod)
+       if (k21blocf(m,2).eq.4) then
+       x1=x1+joncf(i,m,ng,4)
+       write (23,'(A5,I3,2x,A4,1x,I2,2x,F7.1)') "Jonc ",i,
+     + "type",k21blocf(m,2),joncf(i,m,ng,4)
+       end if
+c      Case jonc type 5 (long intrados rod)
+       if (k21blocf(m,2).eq.5) then
+       x1=x1+joncf(i,m,ng,5)
+       write (23,'(A5,I3,2x,A4,1x,I2,2x,F7.1)') "Jonc ",i,
+     + "type",k21blocf(m,2),joncf(i,m,ng,5)
        end if
        end do
        write (23,*) "----------------------------"
@@ -1572,6 +1586,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        if (k37d.eq.1) then
        write (23,'(I3,x,A)') k37n, "special codes used"
+       do i=1,k37n
+       write (23,'(x,I3,2x,I4)') i,icode37(i)
+       end do
        end if
 
 

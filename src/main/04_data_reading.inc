@@ -1063,8 +1063,9 @@ c      Read each type
 
        read (22,*) k21blocf(m,1), k21blocf(m,2)
 
-c      Case classic joncs in the nose
-       if (k21blocf(m,2).eq.1) then
+c      Types 1, 4, and 5 share the same four-line group format.
+       if (k21blocf(m,2).eq.1.or.k21blocf(m,2).eq.4.or.
+     +     k21blocf(m,2).eq.5) then
 
        read (22,*) k21blocf(m,3) ! Number of groups in bloc m
        do ng=1,k21blocf(m,3) ! read in group
@@ -1076,6 +1077,12 @@ c      Case classic joncs in the nose
        read (22,*) sjoo(m,ng,1),sjoo(m,ng,2),sjoo(m,ng,3),sjoo(m,ng,4)
        end do
 
+       end if
+
+       if (k21blocf(m,2).lt.1.or.k21blocf(m,2).gt.5) then
+       write (*,*) "ERROR: unsupported nylon rod type ",k21blocf(m,2)
+       write (50,*) "ERROR: unsupported nylon rod type ",k21blocf(m,2)
+       error stop 1
        end if
 
 c      Case arc joncs
@@ -1327,7 +1334,7 @@ c      Parabolic wingtip
        if (k27d.eq.2) then
        read (22,*) gname, sectx(27,3)  ! Distance
        read (22,*) gname, sectx(27,4)  ! Angle
-       alc1=alc1*pi/180.
+       sectx(27,4)=sectx(27,4)*pi/180.0d0
        end if
 
 c      Last rib displacement and rotation
@@ -1644,7 +1651,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        read (22,*) gname, jonc_x_coe
        read (22,*) gname, jonc_y_coe
        read (22,*) gname, jonc_i_coe
-       read (22,*) gname, gname
+       read (22,*) gname, section32_unused
        end if
 
        end if
@@ -1897,6 +1904,12 @@ c      Set default values
        i37solve=1 ! solve equilibrium equations by Casellas method (1) or De Villiers (2) or combined (3)
        i37fparea=2 ! Solve Lift, drag, Speed for Flat area (1) projected (2)
        i37output=0 ! 0=simplified output, 1=detailed output
+       iflag2000=0
+       iflag_assiette=0
+       i3001(2)=0 ! by default no minirib transition modification
+       i37_2005=0 ! reference lines for miniribs
+       i37_2006=0 ! reference lines for H/V-ribs
+       ellipse_segments=60
 c      End default values
 
        read (22,*)
@@ -1911,72 +1924,93 @@ c      Case no special parameters, set defaults
 c      Case read special parameters
        if (k37d.eq.1) then
        read (22,*) k37n ! Number of lines to read
+       if (k37n.lt.0.or.k37n.gt.size(icode37)) then
+       write (*,*) "ERROR: section 37 has too many parameter rows"
+       write (50,*) "ERROR: section 37 has too many parameter rows"
+       error stop 1
+       end if
 
        do i=1,k37n
 
-       read (22,*) icode
-       backspace (22)
+       read (22,'(A)') entireline
+       read (entireline,*) icode
+       icode37(i)=icode
 
 c      Code 1291, set nsegments for stl surfaces
        if (icode.eq.1291) then
-       read (22,*) icode, nsegments
+       read (entireline,*) icode, nsegments
        end if
 
 c      Code 1146, set cdg of a typical wing section
        if (icode.eq.1146) then
-       read (22,*) icode, chord_pcdg
+       read (entireline,*) icode, chord_pcdg
        end if
 
 c      Code 1341, set CAD colors for each lyne type
        if (icode.eq.1341) then
-       read (22,*) icode,i37c
+       read (entireline,*) icode,i37c
        end if
 
 c      Code 1351, change solve method for equilibrium equations
        if (icode.eq.1351) then
-       read (22,*) icode,i37solve
+       read (entireline,*) icode,i37solve
        end if
 
 c      Code 1352, solve for flat (1) or projected (2) areas
        if (icode.eq.1352) then
-       read (22,*) icode,i37fparea
+       read (entireline,*) icode,i37fparea
        end if
 
 c      Code 1353, normal (0) or detailed output (1)
        if (icode.eq.1353) then
-       read (22,*) icode,i37output
+       read (entireline,*) icode,i37output
        end if
 
 c      Code 2000, print edition date
-       iflag2000=0
        if (icode.eq.2000) then
-       read (22,*) icode,a37date
+       read (entireline,*) icode,a37date
        iflag2000=1
        end if
 
 c      Code 2003, force assiette angle defined by the user
 c      Used in phii and chii calculus section 10.1
        if (icode.eq.2003) then
-       read (22,*) icode,assiette2003 ! set in degrees, positive below, negative below horizon
+       read (entireline,*) icode,assiette2003 ! set in degrees, positive below, negative below horizon
        iflag_assiette=1
        end if
 
 c      Code 3001, set minirib transitions
-       i3001(2)=0 ! by default no modification
        if (icode.eq.3001) then
-       read (22,*) i3001(1),i3001(2)
-       backspace(22)
+       read (entireline,*) i3001(1),i3001(2)
        if (i3001(2).eq.0) then ! do nothing
        end if
        if (i3001(2).eq.1) then ! read linear
-       read (22,*) i3001(1),i3001(2),c3001(3),c3001(4)
+       read (entireline,*) i3001(1),i3001(2),c3001(3),c3001(4)
        end if
        if (i3001(2).eq.2) then ! read parabolic
-       read (22,*) i3001(1),i3001(2),c3001(3),c3001(4)
+       read (entireline,*) i3001(1),i3001(2),c3001(3),c3001(4)
        end if
        if (i3001(2).eq.3) then ! read cosinuidal
-       read (22,*) i3001(1),i3001(2),c3001(3),c3001(4)
+       read (entireline,*) i3001(1),i3001(2),c3001(3),c3001(4)
        end if
+       end if
+
+c      Code 3002, set the number of segments used for DXF ellipses.
+       if (icode.eq.3002) then
+       read (entireline,*) icode,ellipse_segments
+       if (ellipse_segments.lt.4.or.ellipse_segments.gt.499) then
+       write (*,*) "ERROR: code 3002 must be between 4 and 499"
+       write (50,*) "ERROR: code 3002 must be between 4 and 499"
+       error stop 1
+       end if
+       end if
+
+c      Codes 2005 and 2006 toggle optional design-reference lines.
+       if (icode.eq.2005) then
+       read (entireline,*) icode,i37_2005
+       end if
+       if (icode.eq.2006) then
+       read (entireline,*) icode,i37_2006
        end if
 
        end do ! read all lines
@@ -1986,6 +2020,21 @@ c      Code 3001, set minirib transitions
        write (*,*) "37-Some special parameters read"
        write (50,*) "37-Some special parameters read"
 
+c      Sections 38 and 39 are optional at EOF for 3.28-file compatibility.
+       call read_hvr_sections(22,hvr_holes,hvr_positions,
+     + hvr_sections_present,hvr_config_status,hvr_config_error)
+       if (hvr_config_status.ne.0) then
+       write (*,*) "ERROR: ",trim(hvr_config_error)
+       write (50,*) "ERROR: ",trim(hvr_config_error)
+       error stop 1
+       end if
+       if (hvr_sections_present) then
+       write (*,*) "38-HVR holes read"
+       write (50,*) "38-HVR holes read"
+       write (*,*) "39-HVR position parameters read"
+       write (50,*) "39-HVR position parameters read"
+       end if
+       call set_ellipse_segments(ellipse_segments)
 
 c      END OF READ SECTION
 
@@ -1997,9 +2046,20 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        if (k36d.eq.1) then
 
 c      Make xflr5 folder
-       folder = 'xflr5'
-       makedirectory = 'mkdir -p ' // trim('../') // "/" // trim(folder)
-       call system(makedirectory)
+       command_shell = ' '
+       call get_environment_variable('ComSpec',command_shell,
+     +                                status=directory_status)
+       if (directory_status.eq.0.and.len_trim(command_shell).gt.0) then
+       makedirectory = 'cmd.exe /d /c if not exist ..\xflr5 ' //
+     +                 'mkdir ..\xflr5'
+       else
+       makedirectory = 'mkdir -p ../xflr5'
+       end if
+       call execute_command_line(trim(makedirectory),
+     +                           exitstat=directory_status)
+       if (directory_status.ne.0) then
+       write (*,*) 'Warning: could not create ../xflr5'
+       end if
 
 c      open xwimp file
        l=0
@@ -2160,9 +2220,20 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        if (pp29(5,1).eq.1) then ! case stl and scad
 
 c      Make stl folder
-       folder = 'stl'
-       makedirectory = 'mkdir -p ' // trim('../') // "/" // trim(folder)
-       call system(makedirectory)
+       command_shell = ' '
+       call get_environment_variable('ComSpec',command_shell,
+     +                                status=directory_status)
+       if (directory_status.eq.0.and.len_trim(command_shell).gt.0) then
+       makedirectory = 'cmd.exe /d /c if not exist ..\stl ' //
+     +                 'mkdir ..\stl'
+       else
+       makedirectory = 'mkdir -p ../stl'
+       end if
+       call execute_command_line(trim(makedirectory),
+     +                           exitstat=directory_status)
+       if (directory_status.ne.0) then
+       write (*,*) 'Warning: could not create ../stl'
+       end if
 
 
        if (pp29(4,1).eq.1) then ! Open external DXF
@@ -2421,6 +2492,13 @@ c     Adjust beta rotation in rib 0
       rib(0,9)=-rib(1,9)
 c     Adjust rot_z rotation in rib 0
       rib(0,250)=-rib(1,250)
+
+c     The central minirib is omitted for even-cell wings.
+      if (abs(rib(1,2)).le.0.1d0) then
+      evenodd2=1
+      else
+      evenodd2=0
+      endif
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     4.8 DXF layers  (project)

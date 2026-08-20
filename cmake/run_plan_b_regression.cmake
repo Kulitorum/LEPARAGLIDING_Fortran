@@ -45,11 +45,11 @@ endif()
 # Hash the text after normalizing line endings so GNU/Linux and Windows can
 # share the same regression oracle.
 set(expected_outputs
-    leparagliding.dxf 836176f70755e5343be1a2a285123c14f45b447b79fba81a7ce3aa5fa3af0125
-    lep-3d.dxf        26543ac41008ca7f3d7df739238b124fa60953517b7703da998635457c1fc1ee
-    lep-out.txt       7f236a9a65d680a51b72adcef1889f40d98649da8ff3fa154b505c46f917fa80
+    leparagliding.dxf cc3c0365a73aba5fb6d096743d32a1016b5483c92c82e41f24b847226b6923dc
+    lep-3d.dxf        dfc3917d4c402ebb7c8543c2fb0e636f8a4845f6f83397ae1fa61496a2612958
+    lep-out.txt       0c1f8a9f844ae94fccaaa9351c2d174caa3e01cd7ebee670ecef048f1d503c65
     lines.txt         0e9cc3879f81d77e3909918f4391e786af34ed22d9c5c3acf483a5dcf6da6cc8
-    run-log.txt       e85d948c4bc287854e49b73a4f4bb56bc34607d58435bbac5a5726e4a5791bae)
+    run-log.txt       24c2d35b5b762d0dcb5c4191564787ccad93726680dcd25765e3a6f1eb641d4c)
 
 list(LENGTH expected_outputs output_list_length)
 math(EXPR last_output_index "${output_list_length} - 1")
@@ -82,4 +82,4 @@ if(NOT changed_outputs STREQUAL "")
   message(FATAL_ERROR "Plan B outputs changed:${changed_outputs}")
 endif()
 
-message(STATUS "Plan B outputs match the corrected 3.28 safety baseline")
+message(STATUS "Plan B outputs match the reviewed 3.29 baseline")

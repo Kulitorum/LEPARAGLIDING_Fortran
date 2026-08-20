@@ -798,6 +798,216 @@ c      Set to scale
        end
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c      SUBROUTINES JONCS TYPES 4 AND 5
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+!> Extract a long rod following the extrados between two transition zones.
+!! @param[in] i Rib index.
+!! @param[in] u Horizontal profile coordinates.
+!! @param[in] v Vertical profile coordinates.
+!! @param[in] rib Rib geometry and junction-group selection.
+!! @param[in] xintra Higher-chord transition percentages and deflection.
+!! @param[in] xextra Lower-chord transition percentages and deflection.
+!! @param[out] xjonc Generated rod centerline.
+!! @param[out] npo Number of valid centerline points.
+!! @param[in] atp Airfoil type, retained for compatibility with other rods.
+!! @param[in] np Profile point counts and surface boundaries.
+       SUBROUTINE joncs4(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np)
+       implicit none
+       integer i,npo,np(0:100,9)
+       real*8 u(0:100,500,99),v(0:100,500,99)
+       real*8 rib(0:100,500),xintra(0:100,10),xextra(0:100,10)
+       real*8 xjonc(0:100,0:500,10)
+       character*2 atp
+
+       call joncs45(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np,1)
+       end
+
+!> Extract a long rod following the intrados between two transition zones.
+!! @copydetails joncs4
+       SUBROUTINE joncs5(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np)
+       implicit none
+       integer i,npo,np(0:100,9)
+       real*8 u(0:100,500,99),v(0:100,500,99)
+       real*8 rib(0:100,500),xintra(0:100,10),xextra(0:100,10)
+       real*8 xjonc(0:100,0:500,10)
+       character*2 atp
+
+       call joncs45(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np,-1)
+       end
+
+!> Shared, bounds-checked implementation for long surface rods.
+!! @private
+       SUBROUTINE joncs45(i,u,v,rib,xintra,xextra,xjonc,npo,atp,np,
+     + surface_sign)
+       implicit none
+       integer i,npo,np(0:100,9),surface_sign
+       integer ng,j,first_index,last_index
+       real*8 u(0:100,500,99),v(0:100,500,99)
+       real*8 rib(0:100,500),xintra(0:100,10),xextra(0:100,10)
+       real*8 xjonc(0:100,0:500,10)
+       real*8 lower_end,lower_inner,upper_inner,upper_end
+       real*8 lower_amplitude,upper_amplitude,lower_exponent,upper_exponent
+       real*8 y_lower,y_upper,xvalue,deflection,ratio,tolerance
+       logical found_lower,found_upper
+       character*2 atp
+
+       ng=int(rib(i,166))
+       if (ng.lt.1.or.ng.gt.100) then
+       write (*,*) "ERROR: invalid rod group for rib ",i
+       write (50,*) "ERROR: invalid rod group for rib ",i
+       error stop 1
+       end if
+
+       lower_end=xextra(ng,1)*rib(i,5)/100.0d0
+       lower_inner=xextra(ng,2)*rib(i,5)/100.0d0
+       upper_inner=xintra(ng,1)*rib(i,5)/100.0d0
+       upper_end=xintra(ng,2)*rib(i,5)/100.0d0
+       lower_amplitude=xextra(ng,3)*rib(i,5)/100.0d0
+       upper_amplitude=xintra(ng,3)*rib(i,5)/100.0d0
+       lower_exponent=xextra(ng,4)
+       upper_exponent=xintra(ng,4)
+
+       if (lower_end.ge.lower_inner.or.lower_inner.gt.upper_inner.or.
+     +     upper_inner.ge.upper_end.or.lower_exponent.le.0.0d0.or.
+     +     upper_exponent.le.0.0d0) then
+       write (*,*) "ERROR: invalid type 4/5 rod interval on rib ",i
+       write (50,*) "ERROR: invalid type 4/5 rod interval on rib ",i
+       error stop 1
+       end if
+
+       if (surface_sign.eq.1) then
+       first_index=1
+       last_index=np(i,2)
+       else
+       first_index=np(i,5)
+       last_index=np(i,1)
+       end if
+       if (first_index.lt.1.or.last_index.gt.500.or.
+     +     first_index.ge.last_index) then
+       write (*,*) "ERROR: profile surface is unavailable for rod on rib ",i
+       write (50,*) "ERROR: profile surface is unavailable for rod on rib ",i
+       error stop 1
+       end if
+
+       call interpolate_surface_y(i,u,v,first_index,last_index,lower_end,
+     + y_lower,found_lower)
+       call interpolate_surface_y(i,u,v,first_index,last_index,upper_end,
+     + y_upper,found_upper)
+       if (.not.found_lower.or..not.found_upper) then
+       write (*,*) "ERROR: rod endpoints are outside profile on rib ",i
+       write (50,*) "ERROR: rod endpoints are outside profile on rib ",i
+       error stop 1
+       end if
+
+       tolerance=max(1.0d-10,1.0d-10*rib(i,5))
+       npo=1
+       if (surface_sign.eq.1) then
+       xjonc(i,npo,1)=upper_end
+       xjonc(i,npo,2)=y_upper
+       do j=first_index,last_index
+       if (u(i,j,3).lt.upper_end-tolerance.and.
+     +     u(i,j,3).gt.lower_end+tolerance) then
+       if (npo.ge.499) then
+       write (*,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       write (50,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       error stop 1
+       endif
+       npo=npo+1
+       xjonc(i,npo,1)=u(i,j,3)
+       xjonc(i,npo,2)=v(i,j,3)
+       end if
+       end do
+       if (npo.ge.499) then
+       write (*,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       write (50,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       error stop 1
+       endif
+       npo=npo+1
+       xjonc(i,npo,1)=lower_end
+       xjonc(i,npo,2)=y_lower
+       else
+       xjonc(i,npo,1)=lower_end
+       xjonc(i,npo,2)=y_lower
+       do j=first_index,last_index
+       if (u(i,j,3).gt.lower_end+tolerance.and.
+     +     u(i,j,3).lt.upper_end-tolerance) then
+       if (npo.ge.499) then
+       write (*,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       write (50,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       error stop 1
+       endif
+       npo=npo+1
+       xjonc(i,npo,1)=u(i,j,3)
+       xjonc(i,npo,2)=v(i,j,3)
+       end if
+       end do
+       if (npo.ge.499) then
+       write (*,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       write (50,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       error stop 1
+       endif
+       npo=npo+1
+       xjonc(i,npo,1)=upper_end
+       xjonc(i,npo,2)=y_upper
+       end if
+
+       if (npo.gt.499) then
+       write (*,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       write (50,*) "ERROR: type 4/5 rod exceeds 499 points on rib ",i
+       error stop 1
+       end if
+
+c      Move both end transitions inward from the selected skin surface.
+       do j=1,npo
+       xvalue=xjonc(i,j,1)
+       deflection=0.0d0
+       if (xvalue.ge.lower_end.and.xvalue.le.lower_inner) then
+       ratio=(lower_inner-xvalue)/(lower_inner-lower_end)
+       deflection=deflection+lower_amplitude*ratio**lower_exponent
+       end if
+       if (xvalue.ge.upper_inner.and.xvalue.le.upper_end) then
+       ratio=(xvalue-upper_inner)/(upper_end-upper_inner)
+       deflection=deflection+upper_amplitude*ratio**upper_exponent
+       end if
+       xjonc(i,j,2)=xjonc(i,j,2)-dfloat(surface_sign)*deflection
+       end do
+
+c      Keep compatibility slots deterministic for the offset routines.
+       xjonc(i,0,1)=xjonc(i,1,1)
+       xjonc(i,0,2)=xjonc(i,1,2)
+       xjonc(i,npo+1,1)=xjonc(i,npo,1)
+       xjonc(i,npo+1,2)=xjonc(i,npo,2)
+
+c      Reference the compatibility argument so warning builds stay useful.
+       if (len(atp).eq.0) npo=npo
+       end
+
+!> Interpolate a profile-surface ordinate at a requested chord coordinate.
+!! @private
+       SUBROUTINE interpolate_surface_y(i,u,v,first_index,last_index,
+     + target_x,target_y,found)
+       implicit none
+       integer i,first_index,last_index,j
+       real*8 u(0:100,500,99),v(0:100,500,99)
+       real*8 target_x,target_y,denominator,fraction
+       logical found
+
+       found=.false.
+       target_y=0.0d0
+       do j=first_index,last_index-1
+       if ((u(i,j,3)-target_x)*(u(i,j+1,3)-target_x).le.0.0d0) then
+       denominator=u(i,j+1,3)-u(i,j,3)
+       if (dabs(denominator).le.1.0d-12) cycle
+       fraction=(target_x-u(i,j,3))/denominator
+       target_y=v(i,j,3)+fraction*(v(i,j+1,3)-v(i,j,3))
+       found=.true.
+       return
+       end if
+       end do
+       end
+
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      SUBROUTINE LINEAL INTERPOLATION
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

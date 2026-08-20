@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(LEparagliding VERSION 3.28 LANGUAGES Fortran)
+project(LEparagliding VERSION 3.29 LANGUAGES Fortran)
 
 option(LEPARAGLIDING_ENABLE_WARNINGS "Enable additional compiler warnings" OFF)
 option(LEPARAGLIDING_RUNTIME_CHECKS "Enable GNU Fortran runtime checks" OFF)
@@ -50,6 +50,7 @@ set_source_files_properties(
     PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_executable(leparagliding
+    src/leparagliding_hvr_config.f90
     src/leparagliding_mark_types.f90
     src/leparagliding_geometry.f90
     src/leparagliding_procedures.f
@@ -96,4 +97,12 @@ if(BUILD_TESTING)
           "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/Plan B Parakite"
           "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/profile-capacity-check"
           -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_profile_capacity_check.cmake")
+
+  add_test(
+      NAME version_329_features
+      COMMAND "${CMAKE_COMMAND}"
+          "-DPROGRAM=$<TARGET_FILE:leparagliding>"
+          "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/Plan B Parakite"
+          "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/version-329-features"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_329_features.cmake")
 endif()

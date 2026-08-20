@@ -44,8 +44,8 @@ c      common typepoint
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Basic LEparagliding data version
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-       lepv="3.28"              ! Version
-       lepd="2026-05-01"        ! Date
+       lepv="3.29"              ! Version
+       lepd="2026-08-19"        ! Date
        lepc='"Jardins"'         ! Code name
        lepuser="GENERAL"  
        ich=0                    ! 0=general version, 1=special version

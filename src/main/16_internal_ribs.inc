@@ -376,8 +376,8 @@ c       write (*,*) "dist tensades ", i, "-", i+1, hdist(i), hangle(i)
 
 c      Drawing in 2D model
        
-       psep=3300.*xkf+xrsep*float(i)
-       psey=800.*xkf+yrsep*float(ii)+sepri1_y
+       psep=3300.*xkf+xrsep*hvr_positions%horizontal(1)*float(i)
+       psey=800.*xkf+hvr_positions%vertical(1)*yrsep*float(ii)+sepri1_y
 
 c       write (*,*) i,ii,psep,psey
 
@@ -2712,6 +2712,9 @@ c      We only need first "9" and last "11"
        ucnt(i,ii,9)=ucnt(i,ii,1)
        ucnt(i,ii,10)=ucnt(i,ii,3)
        ucnt(i,ii,11)=ucnt(i,ii,5)
+       jcon(i,ii,9)=1
+       jcon(i,ii,10)=1
+       jcon(i,ii,11)=1
 
 c      Points 2,3,4 interpolation in rib i-1
        do j=np(i,2),np(i,1)
@@ -2762,6 +2765,11 @@ c      Points 9,10,11 interpolation in rib i-1 (not used)
        vcnt(i,ii,11)=xm*ucnt(i,ii,11)+xb
        jcon(i,ii,11)=j+1
        end if
+
+c      Use the interpolated intrados points when no upper crossing exists.
+       if (jcon(i,ii,9).eq.1) vcnt(i,ii,9)=vcnt(i,ii,2)
+       if (jcon(i,ii,10).eq.1) vcnt(i,ii,10)=vcnt(i,ii,3)
+       if (jcon(i,ii,11).eq.1) vcnt(i,ii,11)=vcnt(i,ii,4)
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Detect first 9 and last 11 (rib i-1)
@@ -2854,6 +2862,11 @@ c       call line(xru(1),-300-xrv(1),xtu11(i),-300-xtv11(i),7)
 
        end do   ! in points upper surface
 
+c      Keep later tangent lookups inside the profile when no crossing exists.
+       if (jcon(i,ii,9).eq.1) jcon(i,ii,9)=2
+       if (jcon(i,ii,10).eq.1) jcon(i,ii,10)=2
+       if (jcon(i,ii,11).eq.1) jcon(i,ii,11)=2
+
 c      Calculus of partial lengths in rib i-1
 
 c      Calculus of te-11 length
@@ -2945,6 +2958,9 @@ c      We only need first "9" and last "11"
        ucnt(i,ii,9)=ucnt(i,ii,1)
        ucnt(i,ii,10)=ucnt(i,ii,3)
        ucnt(i,ii,11)=ucnt(i,ii,5)
+       jcon(i,ii,9)=1
+       jcon(i,ii,10)=1
+       jcon(i,ii,11)=1
 
 c      Points 2,3,4 interpolation in rib i+1
        do j=np(i,2),np(i,1)
@@ -2995,6 +3011,11 @@ c      Points 9,10,11 interpolation in rib i+1 (not used)
        vcnt(i,ii,11)=xm*ucnt(i,ii,11)+xb
        jcon(i,ii,11)=j+1
        end if
+
+c      Use the interpolated intrados points when no upper crossing exists.
+       if (jcon(i,ii,9).eq.1) vcnt(i,ii,9)=vcnt(i,ii,2)
+       if (jcon(i,ii,10).eq.1) vcnt(i,ii,10)=vcnt(i,ii,3)
+       if (jcon(i,ii,11).eq.1) vcnt(i,ii,11)=vcnt(i,ii,4)
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Detect first 9 and last 11 (rib i+1)
@@ -3071,6 +3092,11 @@ c      Calcule te-11
        end if   ! Last 11
 
        end do
+
+c      Keep later tangent lookups inside the profile when no crossing exists.
+       if (jcon(i,ii,9).eq.1) jcon(i,ii,9)=2
+       if (jcon(i,ii,10).eq.1) jcon(i,ii,10)=2
+       if (jcon(i,ii,11).eq.1) jcon(i,ii,11)=2
 
 c      Calculus of partial lengths in rib i+1
 
@@ -3335,8 +3361,9 @@ c      Align using right side
       
 c      Drawing in 2D model (BOX 2,7)
        
-       psep=5820.*xkf+xrsep*1.6*float(i)-150
-       psey=800.*xkf+yrsep*float(ii)-500.
+       psep=5820.*xkf+xrsep*1.2*hvr_positions%horizontal(5)*
+     + float(i)-150
+       psey=800.*xkf+yrsep*hvr_positions%vertical(5)*float(ii)-500.
 
        if (hvr(k,5).eq.1) then
 
@@ -3385,10 +3412,8 @@ c      Correction in alpl
        lvcy(i,j)=psey+pl1y(i,j)-xrib*0.1*dcos(alpl)
 
 c      Edges right
-       alpr=-(datan((pr1y(i,j)-pr2y(i,j))/(pr1x(i,j)-pr2x(i,j))))
-       if (alpr.lt.0.) then
-       alpr=alpr+pi
-       end if
+       alpr=-datan2(pr1y(i,j)-pr2y(i,j),
+     + pr1x(i,j)-pr2x(i,j))
 c      Correction in alpr
        if (j.eq.120) then
        alpr120=alpr
@@ -3396,6 +3421,7 @@ c      Correction in alpr
        if (j.eq.121) then
        alpr=alpr120
        end if
+       alprr(j)=alpr
 
        rvcx(i,j)=psep+pr1x(i,j)+xrib*0.1*dsin(alpr)
        rvcy(i,j)=psey+pr1y(i,j)+xrib*0.1*dcos(alpr)
@@ -3405,7 +3431,6 @@ c      Correction in alpr
 c      Edges drawing       
        do j=1,120
        call line(lvcx(i,j),lvcy(i,j),lvcx(i,j+1),lvcy(i,j+1),5)
-       call line(rvcx(i,j),rvcy(i,j),rvcx(i,j+1),rvcy(i,j+1),5)
        end do
 
 c      Segments drawing
@@ -3626,6 +3651,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Mark anchor points in left rib
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+       call find_hvr_hole_spec(hvr_holes,15,hvr_hole,
+     + hvr_hole_found)
        do klz=1,rib(i+1,15)
 
        xlen=0.
@@ -3668,6 +3695,16 @@ c      Girar angle
        call point (psep+xpeq-1.,psey+ypeq,30)
        call point (psep+xpeq-2.,psey+ypeq,30)
 
+c      Section 38: one type-15 ellipse at each requested anchor
+       if (hvr_hole_found.and.klz.le.hvr_hole%hole_count) then
+       hvr_hmax=xequis-pl1x(i,j)
+       x0=psep+xequis-hvr_hmax*hvr_hole%parameter(3)
+       y0=psey+yequis
+       a=abs(hvr_hole%parameter(1)*hvr_hmax*0.005d0)
+       b=abs(hvr_hole%parameter(2)*hvr_hmax*0.005d0)
+       call ellipse(x0,y0,a,b,0.0d0,3)
+       endif
+
        end if ! detect point
 
        xlen=xlen+sqrt((pr1x(i,j)-pr1x(i,j-1))**2+
@@ -3688,6 +3725,8 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        xprb(i+1,klz,0)=(xanchor(i+1,klz)+xanchor(i+1,klz+1))/2.
        yprb(i+1,klz,0)=(yanchor(i+1,klz)+yanchor(i+1,klz+1))/2.
+       jconi(klz)=1
+       jconf(klz)=120
 
        do j=1,120
 
@@ -3850,6 +3889,45 @@ c      Draw ellipses
        end do ! in klz
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c      Complete the right cutting edge around parabolic openings
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       hvr_openings=max(0,int(rib(i+1,15))-1)
+       hvr_edge_start=1
+       do klz=1,hvr_openings
+       hvr_gap_start=max(hvr_edge_start,
+     + max(1,min(120,jconi(klz)-1)))
+       hvr_gap_end=max(hvr_gap_start,
+     + min(121,jconf(klz)+1))
+
+       do j=hvr_edge_start,hvr_gap_start-1
+       call line(rvcx(i,j),rvcy(i,j),
+     + rvcx(i,j+1),rvcy(i,j+1),5)
+       end do
+
+       x1=psep+xprb(i+1,klz,1)
+       y1=psey+yprb(i+1,klz,1)
+       x2=x1+xrib*0.1d0*dsin(alprr(hvr_gap_start))
+       y2=y1+xrib*0.1d0*dcos(alprr(hvr_gap_start))
+       call line(x1,y1,x2,y2,5)
+       call line(x2,y2,rvcx(i,hvr_gap_start),
+     + rvcy(i,hvr_gap_start),5)
+
+       x1=psep+xprb(i+1,klz,2)
+       y1=psey+yprb(i+1,klz,2)
+       x2=x1+xrib*0.1d0*dsin(alprr(hvr_gap_end))
+       y2=y1+xrib*0.1d0*dcos(alprr(hvr_gap_end))
+       call line(x1,y1,x2,y2,5)
+       call line(x2,y2,rvcx(i,hvr_gap_end),
+     + rvcy(i,hvr_gap_end),5)
+       hvr_edge_start=hvr_gap_end
+       end do
+
+       do j=hvr_edge_start,120
+       call line(rvcx(i,j),rvcy(i,j),
+     + rvcx(i,j+1),rvcy(i,j+1),5)
+       end do
+
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Draw left diagonal in 3D space
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -3929,8 +4007,9 @@ c      And do displacement using xsegment and angle2 defined in left rib
 
 c      Drawing in 2D model
        
-       psep=5820.*xkf+xrsep*1.6*float(i-1)+1.5*xsegment-150
-       psey=800.*xkf+yrsep*float(ii)-500.
+       psep=5820.*xkf+xrsep*1.2*hvr_positions%horizontal(5)*
+     + float(i-1)+1.2*hvr_positions%horizontal(5)*xsegment-150
+       psey=800.*xkf+yrsep*hvr_positions%vertical(5)*float(ii)-500.
 
        if (hvr(k,6).eq.1) then
 
@@ -3955,10 +4034,8 @@ c      External edges calculus and drawing
        do j=1,121
 
 c      Edges left
-       alpl=-(datan((pl1y(i,j)-pl2y(i,j))/(pl1x(i,j)-pl2x(i,j))))
-       if (alpl.lt.0.) then
-       alpl=alpl+pi
-       end if
+       alpl=-datan2(pl1y(i,j)-pl2y(i,j),
+     + pl1x(i,j)-pl2x(i,j))
 
 c      Correction in alpl
        if (j.eq.120) then
@@ -3967,6 +4044,7 @@ c      Correction in alpl
        if (j.eq.121) then
        alpl=alpl120
        end if
+       alpll(j)=alpl
 
        lvcx(i,j)=psep+pl1x(i,j)-xrib*0.1*dsin(alpl)
        lvcy(i,j)=psey+pl1y(i,j)-xrib*0.1*dcos(alpl)
@@ -3991,7 +4069,6 @@ c      Correction in alpr
 
 c      Edges drawing       
        do j=1,120
-       call line(lvcx(i,j),lvcy(i,j),lvcx(i,j+1),lvcy(i,j+1),1)
        call line(rvcx(i,j),rvcy(i,j),rvcx(i,j+1),rvcy(i,j+1),1)
        end do
 
@@ -4220,6 +4297,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Mark anchor points in right rib
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+       call find_hvr_hole_spec(hvr_holes,15,hvr_hole,
+     + hvr_hole_found)
        do klz=1,rib(i,15)
 
        xlen=0.
@@ -4262,6 +4341,16 @@ c      Girar angle
        call point (psep+xpeq+1.,psey+ypeq,30)
        call point (psep+xpeq+2.,psey+ypeq,30)
 
+c      Section 38: one type-15 ellipse at each requested anchor
+       if (hvr_hole_found.and.klz.le.hvr_hole%hole_count) then
+       hvr_hmax=-(xequis-pr1x(i,j))
+       x0=psep+xequis+hvr_hmax*hvr_hole%parameter(3)
+       y0=psey+yequis
+       a=abs(hvr_hole%parameter(1)*hvr_hmax*0.005d0)
+       b=abs(hvr_hole%parameter(2)*hvr_hmax*0.005d0)
+       call ellipse(x0,y0,a,b,0.0d0,3)
+       endif
+
        end if ! detect point
 
        xlen=xlen+sqrt((pl1x(i,j)-pl1x(i,j-1))**2+
@@ -4290,6 +4379,8 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        xprb(i,klz,0)=(xanchor(i,klz)+xanchor(i,klz+1))/2.
        yprb(i,klz,0)=(yanchor(i,klz)+yanchor(i,klz+1))/2.
+       jconi(klz)=1
+       jconf(klz)=120
 
        do j=1,120
 
@@ -4454,6 +4545,45 @@ c      Draw ellipses
        end if
 
        end do ! in klz
+
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c      Complete the left cutting edge around parabolic openings
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+       hvr_openings=max(0,int(rib(i,15))-1)
+       hvr_edge_start=1
+       do klz=1,hvr_openings
+       hvr_gap_start=max(hvr_edge_start,
+     + max(1,min(120,jconi(klz)-1)))
+       hvr_gap_end=max(hvr_gap_start,
+     + min(121,jconf(klz)+1))
+
+       do j=hvr_edge_start,hvr_gap_start-1
+       call line(lvcx(i,j),lvcy(i,j),
+     + lvcx(i,j+1),lvcy(i,j+1),1)
+       end do
+
+       x1=psep+xprb(i,klz,1)
+       y1=psey+yprb(i,klz,1)
+       x2=x1-xrib*0.1d0*dsin(alpll(hvr_gap_start))
+       y2=y1-xrib*0.1d0*dcos(alpll(hvr_gap_start))
+       call line(x1,y1,x2,y2,1)
+       call line(x2,y2,lvcx(i,hvr_gap_start),
+     + lvcy(i,hvr_gap_start),1)
+
+       x1=psep+xprb(i,klz,2)
+       y1=psey+yprb(i,klz,2)
+       x2=x1-xrib*0.1d0*dsin(alpll(hvr_gap_end))
+       y2=y1-xrib*0.1d0*dcos(alpll(hvr_gap_end))
+       call line(x1,y1,x2,y2,1)
+       call line(x2,y2,lvcx(i,hvr_gap_end),
+     + lvcy(i,hvr_gap_end),1)
+       hvr_edge_start=hvr_gap_end
+       end do
+
+       do j=hvr_edge_start,120
+       call line(lvcx(i,j),lvcy(i,j),
+     + lvcx(i,j+1),lvcy(i,j+1),1)
+       end do
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Draw right diagonal in 3D space
@@ -6504,9 +6634,10 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 c      Draw in BOX(2,6)
 
-       psep=(3300.+1260.+1260.)*xkf+xrsep*float(i)
-       psey=(800.+890.85+100.)*xkf+(hvr(k,4)+hvr(k,9))*0.5*
-     + rib(int(hvr(k,3)),5)*3.0/100.
+       psep=(3300.+1260.+1260.)*xkf+
+     + xrsep*hvr_positions%horizontal(6)*float(i)
+       psey=(800.+890.85+100.)*xkf+hvr_positions%vertical(6)*
+     + (hvr(k,4)+hvr(k,9))*0.5*rib(int(hvr(k,3)),5)*3.0/100.
 
 c       write (*,*) "i,ii ",i,ii
 
@@ -6520,6 +6651,19 @@ c      Costat vora d'atac
 c      Costat fuga
        call line(psep+pl1x(i,j),psey+pl1y(i,j),psep+pr1x(i,j),
      + psey+pr1y(i,j),1)
+
+c      Optional section-38 holes for generic V-ribs (types 6/16).
+       call find_hvr_hole_spec(hvr_holes,16,hvr_hole,hvr_hole_found)
+       if (hvr_hole_found) then
+       do iell=1,hvr_hole%hole_count
+       hvr_span_fraction=dfloat(iell)/dfloat(hvr_hole%hole_count+1)
+       call vrib_hole_ellipse(pl1x(i,1),pl1y(i,1),pr1x(i,1),pr1y(i,1),
+     + pl1x(i,21),pl1y(i,21),pr1x(i,21),pr1y(i,21),hvr_span_fraction,
+     + hvr_hole%parameter(1),hvr_hole%parameter(2),
+     + hvr_hole%parameter(3),x0,y0,a,b,angle)
+       call ellipse(psep+x0,psey+y0,a,b,angle,3)
+       end do
+       end if
 
 
 c      Marca punts MC a l'esquerra
@@ -6689,8 +6833,10 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Segment
        call line(sepx+ucnt(i,ii,2),-vcnt(i,ii,2)+sepy,
      + sepx+ucnt(i,ii,4),-vcnt(i,ii,4)+sepy,1)
+       if (i37_2006.eq.1) then
        call line(sepx+2530.*xkf+ucnt(i,ii,2),-vcnt(i,ii,2)+sepy,
      + sepx+2530.*xkf+ucnt(i,ii,4),-vcnt(i,ii,4)+sepy,1)
+       endif
 
 c      Points in 2 and 4 (Experimental)
 
@@ -6733,8 +6879,10 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Segment
        call line(sepx+ucnt(i,ii,6),-vcnt(i,ii,6)+sepy,
      + sepx+ucnt(i,ii,8),-vcnt(i,ii,8)+sepy,1)
+       if (i37_2006.eq.1) then
        call line(sepx+2530.*xkf+ucnt(i,ii,6),-vcnt(i,ii,6)+sepy,
      + sepx+2530.*xkf+ucnt(i,ii,8),-vcnt(i,ii,8)+sepy,1)
+       endif
 
 c      Punts marcatge V-rib
        alpha=datan((vcnt(i,ii,8)-vcnt(i,ii,6))/
@@ -6763,8 +6911,10 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Segment
        call line(sepx+ucnt(i,ii,9),-vcnt(i,ii,9)+sepy,
      + sepx+ucnt(i,ii,11),-vcnt(i,ii,11)+sepy,1)
+       if (i37_2006.eq.1) then
        call line(sepx+2530.*xkf+ucnt(i,ii,9),-vcnt(i,ii,9)+sepy,
      + sepx+2530.*xkf+ucnt(i,ii,11),-vcnt(i,ii,11)+sepy,1)
+       endif
 
 c      Points in 9
        alpha=(datan((v(i,jcon(i,ii,9)-1,3)-v(i,jcon(i,ii,9)+1,
@@ -6816,8 +6966,10 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Segments
        call line(sepx+ucnt(i+1,ii,2),-vcnt(i+1,ii,2)+sepy,
      + sepx+ucnt(i+1,ii,4),-vcnt(i+1,ii,4)+sepy,4)
+       if (i37_2006.eq.1) then
        call line(sepx+2530.*xkf+ucnt(i+1,ii,2),-vcnt(i+1,ii,2)+sepy,
      + sepx+2530.*xkf+ucnt(i+1,ii,4),-vcnt(i+1,ii,4)+sepy,4)
+       endif
 
 c      Draw 3 point in 2 and 4
 
@@ -6862,8 +7014,10 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Segments
        call line(sepx+ucnt(i+1,ii,6),-vcnt(i+1,ii,6)+sepy,
      + sepx+ucnt(i+1,ii,8),-vcnt(i+1,ii,8)+sepy,4)
+       if (i37_2006.eq.1) then
        call line(sepx+2530.*xkf+ucnt(i+1,ii,6),-vcnt(i+1,ii,6)+sepy,
      + sepx+2530.*xkf+ucnt(i+1,ii,8),-vcnt(i+1,ii,8)+sepy,4)
+       endif
 
 c      Punts marcatge V-rib
        alpha=datan((vcnt(i+1,ii,8)-vcnt(i+1,ii,6))/
@@ -6892,8 +7046,10 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Segements
        call line(sepx+ucnt(i+1,ii,9),-vcnt(i+1,ii,9)+sepy,
      + sepx+ucnt(i+1,ii,11),-vcnt(i+1,ii,11)+sepy,4)
+       if (i37_2006.eq.1) then
        call line(sepx+2530.*xkf+ucnt(i+1,ii,9),-vcnt(i+1,ii,9)+sepy,
      + sepx+2530.*xkf+ucnt(i+1,ii,11),-vcnt(i+1,ii,11)+sepy,4)
+       endif
 
 c      Draw 3 point in 9 and 11
 
