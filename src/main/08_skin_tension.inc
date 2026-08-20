@@ -27,6 +27,28 @@ c      8.1.1 Extrados longitud cella extrema
      + (pr2y(i-1,j)-pr1y(i-1,j))**2)
        end do
 
+c      Dual-run the first neutral-panel consumer through named geometry.
+c      Keep the legacy value authoritative until the migration oracle has
+c      covered more wings, but fail immediately if the two models diverge.
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i-1,wing_profile_topologies(i-1),
+     + wing_profile_topologies(i),surface_extrados,
+     + neutral_extrados_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid neutral extrados: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_panel_higher_edge_length(
+     + neutral_extrados_panel)
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + rib(nribss,23))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy extrados length differs at rib ',nribss,
+     + typed_geometry_metric,rib(nribss,23)
+       stop 1
+       end if
+
 c      8.1.2 Intrados longitud cella extrema       
        i=nribss
        rib(nribss,25)=0.
@@ -56,6 +78,25 @@ c      8.1.3 Longitud extrados
      + (pl2y(i,j)-pl1y(i,j))**2)
        end do
 
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i,wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),surface_extrados,
+     + neutral_extrados_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: invalid neutral panel ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_panel_lower_edge_length(
+     + neutral_extrados_panel)
+       if (.not.geometry_values_are_close(typed_geometry_metric,rib(i,23)))
+     + then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy extrados length differs at rib ',i,
+     + typed_geometry_metric,rib(i,23)
+       stop 1
+       end if
+
 c      8.1.4 Longitud intrados
        do j=np(i,2)+np(i,3)-1,np(i,1)-1
        rib(i,25)=rib(i,25)+sqrt((pl2x(i,j)-pl1x(i,j))**2+
@@ -76,6 +117,17 @@ c      Calcula punts je ji per definir ample celles, calcula ample
        rib(i,22)=dsqrt((pr1x(i,je)-pl1x(i,je))**2.+(pr1y(i,je)
      + -pl1y(i,je))**2.)
 
+       typed_geometry_metric=neutral_panel_edge_gap(
+     + neutral_extrados_panel,je,neutral_gap_valid)
+       if (.not.neutral_gap_valid.or.
+     + .not.geometry_values_are_close(typed_geometry_metric,rib(i,22)))
+     + then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy extrados width differs at panel ',i,
+     + typed_geometry_metric,rib(i,22)
+       stop 1
+       end if
+
        ji=int((np(i,2)+np(i,3)-1+np(i,1))/2)
        rib(i,24)=dsqrt((pr1x(i,ji)-pl1x(i,ji))**2.+(pr1y(i,ji)
      + -pl1y(i,ji))**2.)
@@ -92,6 +144,26 @@ c      Ample celles extremes
        je=int(np(i,2)/2)
        rib(i,22)=dsqrt((pr1x(i-1,je)-pl1x(i-1,je))**2.+(pr1y(i-1,je)
      + -pl1y(i-1,je))**2.)
+
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i-1,wing_profile_topologies(i-1),
+     + wing_profile_topologies(i),surface_extrados,
+     + neutral_extrados_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid tip neutral extrados: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_panel_edge_gap(
+     + neutral_extrados_panel,je,neutral_gap_valid)
+       if (.not.neutral_gap_valid.or.
+     + .not.geometry_values_are_close(typed_geometry_metric,rib(i,22)))
+     + then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy extrados width differs at rib ',i,
+     + typed_geometry_metric,rib(i,22)
+       stop 1
+       end if
 
        ji=int((np(i,2)+np(i,3)-1+np(i,1))/2)
        rib(i,24)=dsqrt((pr1x(i-1,ji)-pl1x(i-1,ji))**2.+(pr1y(i-1,ji)

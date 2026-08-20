@@ -32,8 +32,6 @@ c      6.1 Read global points
        read (24,*) np(i,3) ! intake points
        read (24,*) np(i,4) ! intrados points
 
-       np(i,5)=np(i,2)+np(i,3)-1
-
 c      6.2 Read airfoil coordinates
        do j=1,np(i,1)
        read (24,*) u(i,j,1),v(i,j,1)
@@ -52,9 +50,15 @@ c      Go to reformat airfoil (u,v) and np
 
        end do ! i
 
+c      Complete topology shared by .txt and .dat profiles.  datair now derives
+c      all five values from its rebuilt contour; repeating the shared-endpoint
+c      identity here keeps both input paths on one authoritative rule.
+c      Column 5 is the shared intake/intrados endpoint.
+c
 c      Locate the leading-edge sample for both .txt and .dat profiles.
 c      Real profile files do not always contain an exact (0,0) point.
        do i=1,nribss
+       np(i,5)=np(i,2)+np(i,3)-1
        np(i,6)=1
        nose_distance_sq=huge(0.0d0)
        do j=1,np(i,1)
@@ -75,6 +79,20 @@ c      This keeps mixed .txt/.dat inputs from copying uninitialized counts.
        do j=1,np(nribss+1,1)
        u(nribss+1,j,1)=u(nribss-1,j,1)
        v(nribss+1,j,1)=v(nribss-1,j,1)
+       end do
+
+c      Freeze the authoritative stage-6 topology as named snapshots.  This
+c      validates every physical and generated profile before stage 7 can use
+c      its counts or collide with the legacy point-499 scratch convention.
+       allocate(wing_profile_topologies(0:nribss+1))
+       do i=0,nribss+1
+       call copy_legacy_profile_topology(np,i,wing_profile_topologies(i),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: invalid profile topology at rib ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
        end do
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

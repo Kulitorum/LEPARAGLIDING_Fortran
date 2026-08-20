@@ -79,8 +79,12 @@ The maintained structure now:
 - owns vector, plane, and rotation concepts in `leparagliding_geometry`;
 - owns robust color-edge interpolation and seam offsets in
   `leparagliding_color_geometry`;
-- separates normalized profiles, spatial ribs, and flattened production panels
-  in `leparagliding_domain_model`, with checked legacy-array adapters;
+- separates named profile topology, central-panel-aware rib identities,
+  normalized/spatial ribs, exact neutral-development segments, and flattened
+  production panels in `leparagliding_domain_model`, with transactional checked
+  legacy-array adapters;
+- dual-runs stage-8 extrados lengths and widths through the typed neutral-panel
+  model while the reviewed legacy calculation remains authoritative;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -96,6 +100,12 @@ capacity-checked, reported negative/zero array-index paths are guarded, the
 leading-edge sample is selected deterministically, optional results and
 interpolation fallbacks are initialized, the fifth line level is reachable,
 and V-rib coordinate buffers hold the 121 samples written by the algorithm.
+The `.dat` profile path now rebuilds the contour when an intake boundary must be
+inserted, records the actual output indices when a nearby source point is used,
+and initializes the shared intake/intrados endpoint before any junction or
+typed-topology consumer reads it. The old routine could leave `np(:,5)`
+indeterminate and report the wrong index for a boundary moved to source point
+`j+1`.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -140,21 +150,25 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Seven isolated tests are registered:
+Eight isolated tests are registered:
 
-1. `domain_model` checks typed profile, spatial-rib, production-panel, panel-0,
-   and transactional legacy-adapter invariants.
-2. `color_geometry` checks robust color-edge interpolation, repeated profile
+1. `domain_model` checks named profile partitions, odd/even and virtual rib
+   roles, spatial and production snapshots, exact neutral segments, panel 0,
+   hidden intake support/scratch semantics, the point-499 collision guard, and
+   transactional adapters.
+2. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
+   and verifies the rebuilt contour's topology identities.
+3. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-3. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+4. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
    comparator (registered when Python 3 is available).
-4. `color_division_import` compares DXF import with a Swoop2-derived section-16
+5. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-5. `plan_b_regression` compares all five principal outputs with the reviewed
+6. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline, after normalizing line endings.
-6. `profile_capacity_guard` verifies that an oversized 501-point profile is
+7. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-7. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+8. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 

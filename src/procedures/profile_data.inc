@@ -1,7 +1,9 @@
 !> Read and prepare the profile assigned to one rib from open unit 24.
 !! @param[in] i Rib index receiving the profile.
 !! @param[in] rib Rib settings, including inlet start/end percentages.
-!! @param[in,out] np Profile point counts and derived segment counts.
+!! @param[in,out] np Profile topology. On success columns 1--5 contain total
+!!                   points, extrados endpoint, intake count, intrados count,
+!!                   and the shared intake/intrados endpoint.
 !! @param[in,out] u Profile horizontal coordinates; slot 1 is populated and may
 !!                  be adjusted to place inlet-boundary points exactly.
 !! @param[in,out] v Profile vertical coordinates; slot 1 is populated and may be
@@ -9,14 +11,21 @@
 !! @note Rewinds unit 24 and writes verbose diagnostics to standard output.
 !! @note Input is buffered for up to 1,000 points, then rejected cleanly if it
 !!       exceeds the caller's profile-array capacity.
+!! @note Inlet boundaries snap to a sufficiently close source point; otherwise
+!!       an interpolated point is inserted without changing contour order.
       SUBROUTINE datair(i,rib,np,u,v)
 
-      integer np(0:100,9),kini(0:100),kfin(0:100),npini,npfin
+      integer np(0:100,9),npini,npfin
       integer jkini,jkfin,read_count,point_capacity
+      integer ini_action,fin_action,ini_source_index,fin_source_index
+      integer ini_final_index,fin_final_index,insertion_count
+      integer output_index
       real*8 u(0:100,500,99),v(0:100,500,99)
       real*8 rib(0:100,500),xini,xfin,yini,yfin,d0,d1,d2,d3,dm
+      real*8 point_u,point_v,boundary_tolerance,xm,xb
       real*8 ucont(500),vcont(500)
       real*8 read_u(1000),read_v(1000)
+      logical ini_segment
 
 c     Read and count airfoil points
 
@@ -50,120 +59,202 @@ c      Read into a capacity-independent buffer before touching the caller.
        stop 1
        end if
 
-       do j=1,read_count
-       u(i,j,1)=read_u(j)
-       v(i,j,1)=read_v(j)
-       end do
+       write (*,*) "Num punts initial",read_count
 
-       np(i,1)=read_count
-      
-       write (*,*) "Num punts initial",np(i,1)
-
-c      Set inlet points
+c      Locate the two inlet boundary segments in the original contour.
+c
+c      Each boundary is classified independently as:
+c        action 1: move source point j to the exact boundary;
+c        action 2: move source point j+1 to the exact boundary;
+c        action 3: insert a new point between j and j+1.
+c
+c      The contour is rebuilt only after both boundaries are known.  Recording
+c      their indices while rebuilding avoids all manual index-shift arithmetic
+c      and guarantees the shared-endpoint identities in np(:,1:5).
 
        xini=rib(i,11)/100.
        xfin=rib(i,12)/100.
-       kini(i)=0
-       kfin(i)=0
        jkini=0
        jkfin=0
+       ini_action=0
+       fin_action=0
+       ini_source_index=0
+       fin_source_index=0
+       yini=0.0d0
+       yfin=0.0d0
 
-       do j=2,np(i,1)-2
+       do j=2,read_count-2
 
-c      Detect xini and reasign if necesary
+c      Detect xini.  Positive inlet positions are found on the lower surface;
+c      negative positions retain the legacy upper-surface search.
 
-       if (u(i,j,1).le.xini.and.u(i,j+1,1).gt.xini.and.v(i,j,1).
-     + le.0.0d0.and.rib(i,11).ge.0.0d0) then
+       ini_segment=.false.
+       if (read_u(j).le.xini.and.read_u(j+1).gt.xini.and.
+     + read_v(j).le.0.0d0.and.rib(i,11).ge.0.0d0) then
+       ini_segment=.true.
+       end if
+       if (read_u(j).ge.xini.and.read_u(j+1).lt.xini.and.
+     + read_v(j).gt.0.0d0.and.rib(i,11).lt.0.0d0) then
+       ini_segment=.true.
+       end if
+
+       if (ini_segment) then
        jkini=j
        write (*,*) "jkini= ",j
 
-       d0=dsqrt((u(i,j,1)-u(i,j-1,1))**2.+(v(i,j,1)-v(i,j-1,1))**2.)
-       xm=(v(i,j+1,1)-v(i,j,1))/(u(i,j+1,1)-u(i,j,1))
-       xb=v(i,j,1)-xm*u(i,j,1)
+       d0=dsqrt((read_u(j)-read_u(j-1))**2.+
+     + (read_v(j)-read_v(j-1))**2.)
+       xm=(read_v(j+1)-read_v(j))/(read_u(j+1)-read_u(j))
+       xb=read_v(j)-xm*read_u(j)
        yini=xm*xini+xb
-       d1=dsqrt((xini-u(i,j,1))**2.+(yini-v(i,j,1))**2.)
-       d2=dsqrt((xini-u(i,j+1,1))**2.+(yini-v(i,j+1,1))**2.)
-       d3=dsqrt((u(i,j+2,1)-u(i,j+1,1))**2.+(v(i,j+2,1)-v(i,j+1,1))**2.)
+       d1=dsqrt((xini-read_u(j))**2.+(yini-read_v(j))**2.)
+       d2=dsqrt((xini-read_u(j+1))**2.+
+     + (yini-read_v(j+1))**2.)
+       d3=dsqrt((read_u(j+2)-read_u(j+1))**2.+
+     + (read_v(j+2)-read_v(j+1))**2.)
        dm=(d0+d1+d2+d3)/3.0d0
+       boundary_tolerance=dm/5.0d0
 
        write (*,*) "Ep ini"
-       write (*,*) u(i,j,1),xini
-       write (*,*) v(i,j,1),yini
+       write (*,*) read_u(j),xini
+       write (*,*) read_v(j),yini
        write (*,*) d0,d1,d2,d3,dm
 
-       if (d1.lt.(dm/5.0)) then ! move point j to xini
-       u(i,j,1)=xini
-       v(i,j,1)=yini
-       endif
-
-       if (d2.lt.(dm/5.0)) then ! move point j+1 to xini
-       u(i,j+1,1)=xini
-       v(i,j+1,1)=yini
-       endif
-
-       if (d1.ge.(dm/5.0).and.d2.ge.(dm/5)) then ! add point
-       kini=1
-       endif
+       if (d1.lt.boundary_tolerance.and.d1.le.d2) then
+       ini_action=1
+       ini_source_index=j
+       else if (d2.lt.boundary_tolerance) then
+       ini_action=2
+       ini_source_index=j+1
+       else
+       ini_action=3
+       ini_source_index=0
+       end if
 
        end if ! xini
 
-c      A verificar gràficament (!!!!) cas inici extrados
-c      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-       if (u(i,j,1).ge.xini.and.u(i,j+1,1).lt.xini.and.v(i,j,1).
-     + gt.0.0d0.and.rib(i,11).lt.0.0d0) then
-       jkini=j
-       write (*,*) "jkini= ",j
-       end if
+c      Detect xfin on the lower surface and classify it by the same rule.
 
-c      Detect xfin and reasign if necesary
-
-       if (u(i,j,1).le.xfin.and.u(i,j+1,1).gt.xfin.and.v(i,j,1).
+       if (read_u(j).le.xfin.and.read_u(j+1).gt.xfin.and.read_v(j).
      + le.0.0d0) then
        jkfin=j
        write (*,*) "jkfin= ",j
 
-       d0=dsqrt((u(i,j,1)-u(i,j-1,1))**2.+(v(i,j,1)-v(i,j-1,1))**2.)
-       xm=(v(i,j+1,1)-v(i,j,1))/(u(i,j+1,1)-u(i,j,1))
-       xb=v(i,j,1)-xm*u(i,j,1)
+       d0=dsqrt((read_u(j)-read_u(j-1))**2.+
+     + (read_v(j)-read_v(j-1))**2.)
+       xm=(read_v(j+1)-read_v(j))/(read_u(j+1)-read_u(j))
+       xb=read_v(j)-xm*read_u(j)
        yfin=xm*xfin+xb
-       d1=dsqrt((xfin-u(i,j,1))**2.+(yfin-v(i,j,1))**2.)
-       d2=dsqrt((xfin-u(i,j+1,1))**2.+(yfin-v(i,j+1,1))**2.)
-       d3=dsqrt((u(i,j+2,1)-u(i,j+1,1))**2.+(v(i,j+2,1)-v(i,j+1,1))**2.)
+       d1=dsqrt((xfin-read_u(j))**2.+(yfin-read_v(j))**2.)
+       d2=dsqrt((xfin-read_u(j+1))**2.+
+     + (yfin-read_v(j+1))**2.)
+       d3=dsqrt((read_u(j+2)-read_u(j+1))**2.+
+     + (read_v(j+2)-read_v(j+1))**2.)
        dm=(d0+d1+d2+d3)/3.0d0
+       boundary_tolerance=dm/5.0d0
 
        write (*,*) "Ep fin"
-       write (*,*) u(i,j,1),xfin
-       write (*,*) v(i,j,1),yfin
+       write (*,*) read_u(j),xfin
+       write (*,*) read_v(j),yfin
        write (*,*) d0,d1,d2,d3,dm
 
-       if (d1.lt.(dm/5.0)) then ! move point j to xini
-       u(i,j,1)=xfin
-       v(i,j,1)=yfin
-       endif
-
-       if (d2.lt.(dm/5.0)) then ! move point j+1 to xini
-       u(i,j+1,1)=xfin
-       v(i,j+1,1)=yfin
-       endif
-
-       if (d1.ge.(dm/5.0).and.d2.ge.(dm/5)) then ! add point
-       kfin(i)=1
-       endif
+       if (d1.lt.boundary_tolerance.and.d1.le.d2) then
+       fin_action=1
+       fin_source_index=j
+       else if (d2.lt.boundary_tolerance) then
+       fin_action=2
+       fin_source_index=j+1
+       else
+       fin_action=3
+       fin_source_index=0
+       end if
 
        end if ! xfin
 
        end do ! j
 
-       if (jkini.eq.0.or.jkfin.eq.0) then
+       if (jkini.eq.0.or.jkfin.eq.0.or.ini_action.eq.0.or.
+     + fin_action.eq.0) then
        write (*,*) "ERROR: unable to locate profile inlet boundaries"
        stop 1
        end if
 
-c      Points counting
-       np(i,1)=np(i,1)+kini(i)+kfin(i)
-       np(i,2)=jkini+kini(i)
-       np(i,3)=jkfin-jkini+1
-       np(i,4)=np(i,1)-jkfin+1+kfin(i)
+c      A source point cannot represent two distinct inlet boundaries.
+       if (ini_action.ne.3.and.fin_action.ne.3.and.
+     + ini_source_index.eq.fin_source_index.and.
+     + dabs(xini-xfin).gt.1.0d-12) then
+       write (*,*) "ERROR: inlet boundaries collapse onto one profile point"
+       stop 1
+       end if
+
+c      Verify capacity before modifying the caller's profile arrays.
+       insertion_count=0
+       if (ini_action.eq.3) insertion_count=insertion_count+1
+       if (fin_action.eq.3) insertion_count=insertion_count+1
+       if (read_count+insertion_count.gt.point_capacity) then
+       write (*,*) "ERROR: prepared profile has",read_count+insertion_count,
+     + "points; capacity is",point_capacity
+       stop 1
+       end if
+
+c      Rebuild the contour and record the boundary indices in output space.
+c      Insertions are emitted after their source segment's first point.  When
+c      both boundaries occupy one segment, xini precedes xfin by definition.
+       output_index=0
+       ini_final_index=0
+       fin_final_index=0
+
+       do j=1,read_count
+       point_u=read_u(j)
+       point_v=read_v(j)
+
+       if (ini_action.ne.3.and.j.eq.ini_source_index) then
+       point_u=xini
+       point_v=yini
+       end if
+       if (fin_action.ne.3.and.j.eq.fin_source_index) then
+       point_u=xfin
+       point_v=yfin
+       end if
+
+       output_index=output_index+1
+       u(i,output_index,1)=point_u
+       v(i,output_index,1)=point_v
+       if (ini_action.ne.3.and.j.eq.ini_source_index) then
+       ini_final_index=output_index
+       end if
+       if (fin_action.ne.3.and.j.eq.fin_source_index) then
+       fin_final_index=output_index
+       end if
+
+       if (ini_action.eq.3.and.j.eq.jkini) then
+       output_index=output_index+1
+       u(i,output_index,1)=xini
+       v(i,output_index,1)=yini
+       ini_final_index=output_index
+       end if
+       if (fin_action.eq.3.and.j.eq.jkfin) then
+       output_index=output_index+1
+       u(i,output_index,1)=xfin
+       v(i,output_index,1)=yfin
+       fin_final_index=output_index
+       end if
+       end do
+
+       if (ini_final_index.lt.1.or.fin_final_index.le.ini_final_index) then
+       write (*,*) "ERROR: inlet boundary order is invalid"
+       stop 1
+       end if
+
+c      np(:,2) and np(:,5) are inclusive, shared surface endpoints.
+c      Deriving all counts from the rebuilt indices enforces:
+c        np1 = np2 + np3 + np4 - 2
+c        np5 = np2 + np3 - 1
+       np(i,1)=output_index
+       np(i,2)=ini_final_index
+       np(i,5)=fin_final_index
+       np(i,3)=np(i,5)-np(i,2)+1
+       np(i,4)=np(i,1)-np(i,5)+1
 
        write (*,*) "np(i,1)= ",np(i,1)
        write (*,*) "np(i,2)= ",np(i,2)

@@ -2506,6 +2506,24 @@ c     The central minirib is omitted for even-cell wings.
       evenodd2=0
       endif
 
+c     Classify authored, symmetry-generated, and tip-support rib rows once
+c     every input section and station adjustment is complete.  The legacy
+c     cencell value remains authoritative for panel-zero activation; declared
+c     parity is retained as a non-fatal consistency diagnostic.
+      call infer_legacy_rib_identities(ncells,nribss,dble(cencell),rib(:,2),
+     + rib(:,6),rib(:,7),wing_rib_identities,panel_zero_active,
+     + rib_parity_consistent,domain_model_valid,domain_model_message)
+      if (.not.domain_model_valid) then
+      write (*,'(2A)') 'ERROR: invalid rib-role model: ',
+     + trim(domain_model_message)
+      stop 1
+      end if
+      if (.not.rib_parity_consistent) then
+      write (*,'(A,I0,A,ES12.4)')
+     + 'Warning: declared cell parity and central width differ: cells=',
+     + ncells,', center width=',cencell
+      end if
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     4.8 DXF layers  (project)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

@@ -136,14 +136,26 @@ either traversal direction, repeated coordinates, exact vertices, invalid
 ranges, and non-finite inputs without emitting geometry. The supplied Swoop2
 project changes from 12 NaN coordinates in `leparagliding.dxf` to zero.
 
+Color construction now obtains its extrados/intake/intrados ranges from the
+validated `profile_topology` model. Raw `np(:,*)` column arithmetic is confined
+to the legacy adapter. The `.dat` loader now rebuilds the contour and its named
+boundaries after moving or inserting intake endpoints, including the shared
+intake/intrados endpoint. This matters for Swoop2, whose reference profiles use
+the `.dat` path.
+
 ## Validation
 
-Two focused tests accompany the existing end-to-end suite:
+Four focused tests accompany the existing end-to-end suite:
 
 - `color_geometry` checks interpolation, repeated profile coordinates, seam
   offsets, and the 1.1 mm inward mark calculation.
 - `color_division_import` checks the importer against a small coordinate-only
   fixture derived from Swoop2 and its known section-16 values.
+- `domain_model` checks named topology, unequal adjacent profile
+  discretization, transactional production-panel snapshots, and the exact
+  neutral-segment representation used by the stage-8 dual-run.
+- `profile_data` exercises exact, shifted-to-`j`, shifted-to-`j+1`, and inserted
+  `.dat` intake endpoints, then checks the rebuilt counts and shared indices.
 
 The complete author-supplied Swoop2 DXF was also used locally as the end-to-end
 acceptance case. It imports 26 rib crossings and the full calculation produces

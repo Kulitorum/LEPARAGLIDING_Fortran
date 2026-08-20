@@ -1,7 +1,9 @@
 # Data-model refactor: inventory and migration design
 
-Status: implementation plan and legacy-schema inventory  
-Evidence baseline: commit `8e0a1cb` (LEparagliding 3.29)  
+Status: implementation in progress; phases 0--1 and read-only phase-2 migration
+
+Evidence baseline: commit `a5a04ca` (typed adapter/color checkpoint)
+
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
 
@@ -38,11 +40,42 @@ The first migration boundary is implemented alongside this plan:
 - `tools/dxf_semantic_diff.py` adds a tolerance-aware DXF geometry oracle for
   later numerical migrations.
 
-This checkpoint does **not** make the typed model authoritative. Stages 6--8
-still produce the legacy arrays, and the production-panel adapter copies their
-results. The remaining work in the first slice is to model `np` as explicit
-profile topology, add physical/virtual rib roles, and migrate a spatial or
-neutral-development consumer before changing any geometry producer.
+### Second checkpoint: topology, rib roles, and neutral development
+
+The next migration boundary is now implemented and dual-running:
+
+- `profile_topology` replaces raw `np(:,1:6)` at typed boundaries with named,
+  validated extrados, intake, and intrados ranges.
+- The `.dat` producer now rebuilds the contour when intake endpoints are moved
+  or inserted, records their actual output indices, and initializes the shared
+  intake/intrados endpoint. It previously left `np(:,5)` indeterminate and
+  could report `j` after moving a boundary to `j+1`.
+- Color construction no longer indexes any `np` column. Its production-panel
+  adapter supplies both normalized profiles and their named topology while
+  retaining the legacy behavior for unequal adjacent discretizations.
+- `rib_identity` distinguishes authored centerline/center-adjacent/interior/
+  wingtip ribs, finite-center symmetry mirrors, collapsed-center aliases, and
+  the nonphysical extrapolated tip support. The legacy `cencell >= 0.01` rule
+  remains authoritative for central-panel activity; declared cell parity is a
+  diagnostic, while source and placement stations are validated after stage 4.
+- `neutral_panel_2d` owns exact lower/higher segment starts and ends for one
+  surface, hides the point-499 intake/intrados scratch convention, and exposes
+  the intake-only support segment explicitly.
+- Stage 8 dual-runs extrados lengths and widths through the neutral-panel model
+  and stops on disagreement while retaining the legacy assignments as the
+  numerical authority.
+
+The dual-run revealed that the higher developed edge is only approximately
+chained: repeated triangulation can leave small gaps between one segment end
+and the next segment start. The typed object therefore preserves exact segment
+endpoints and reports maximum join gaps instead of silently merging points into
+a mathematically continuous polyline. This distinction is essential for
+bit-for-bit legacy length comparisons.
+
+Stages 6--8 still produce the authoritative legacy coordinate arrays. The next
+safe work is to add an even-cell end-to-end fixture, make extrados metrics
+typed-authoritative across a broader design corpus, and then dual-run the
+stage-7 neutral-development producer itself.
 
 ## Terminology used in this plan
 
@@ -318,9 +351,15 @@ Stage 7 derives six distances from one spatial quadrilateral, reconstructs the
 four planar corners, then advances `pl2` to the next `pl1`
 (`src/main/07_panel_development.inc:300-355`). For normal panels, panel `i` lies
 between spatial ribs `i` and `i+1` (`src/main/07_panel_development.inc:300-322`).
-The target `neutral_panel_2d` should store two canonical polylines rather than
-duplicating every shared point in per-segment corner arrays. A compatibility
-adapter can expose the four legacy views until stage 16 is migrated.
+The first implementation tested the natural hypothesis that these corners form
+two canonical continuous polylines. The stage-8 dual-run disproved that exact
+invariant: on the higher-index edge, independently reconstructed
+quadrilaterals can leave small numerical gaps between `pr2(:,j)` and
+`pr1(:,j+1)`. Collapsing either endpoint changes the legacy contour length.
+`neutral_panel_2d` therefore owns exact segment starts and ends, plus a
+point-oriented view and measured maximum join gaps. A future authoritative
+stage-7 algorithm may choose a continuous representation, but that would be an
+approved numerical change rather than a storage-only refactor.
 
 Index 499 is used as a hidden save location for the intake/intrados junction
 (`src/main/07_panel_development.inc:423-434`). That is scratch state and must
@@ -374,9 +413,9 @@ Legacy procedure signatures expose the storage layout instead of the domain:
   (`src/procedures/geometry_utilities.inc:350-365`).
 - `dpanelc` and related procedures accept a mutable generic `uf/vf` store even
   though they draw one panel (`src/procedures/panel_edges.inc:182-206`).
-- The color routine is an improvement because it has `implicit none` and
-  `intent`, but it still receives the full legacy `np/u/v` stores
-  (`src/procedures/color_construction.inc:26-44`).
+- The color routine has `implicit none` and `intent`. It receives named profile
+  topology plus the full legacy `u/v` stores at its compatibility boundary,
+  but all numeric slot access is confined to `copy_legacy_production_panel`.
 
 The newer free-form color geometry demonstrates the desired interface style:
 private module state, `real64`, assumed-shape arrays, `intent`, finite checks,
@@ -392,6 +431,10 @@ but their ownership boundaries and invariants should not.
 ```fortran
 type :: point_2d
   real(real64) :: u_cm, v_cm
+end type
+
+type :: segment_2d
+  type(point_2d) :: start, finish
 end type
 
 type :: point_3d
@@ -441,8 +484,17 @@ end type
 type :: neutral_panel_2d
   integer :: panel_index, lower_rib_index, higher_rib_index
   integer :: surface
-  type(point_2d), allocatable :: lower_index_edge(:)
-  type(point_2d), allocatable :: higher_index_edge(:)
+  ! Inspection views only: the following segment start wins at a join.
+  type(point_2d), allocatable :: lower_start_biased_view(:)
+  type(point_2d), allocatable :: higher_start_biased_view(:)
+  ! Exact segments are authoritative for measurements and migration checks.
+  type(segment_2d), allocatable :: lower_index_segments(:)
+  type(segment_2d), allocatable :: higher_index_segments(:)
+  real(real64) :: maximum_lower_join_gap
+  real(real64) :: maximum_higher_join_gap
+  logical :: has_post_intake_support
+  type(segment_2d) :: lower_post_intake_support
+  type(segment_2d) :: higher_post_intake_support
 end type
 
 type :: production_panel_2d
@@ -513,9 +565,11 @@ These invariants should be executable validation procedures, not comments only.
 ### Neutral development
 
 - Panel adjacency is explicit: a panel names both source ribs.
-- Both 2D edge polylines are finite and compatible with their source profiles.
-- Consecutive legacy corners satisfy `pl2(j) ~= pl1(j+1)` and
-  `pr2(j) ~= pr1(j+1)` when converted to canonical polylines.
+- Both exact 2D segment arrays are finite and compatible with their source
+  profiles; they are authoritative for lengths and comparisons.
+- Consecutive legacy corners are not assumed to join. The exact
+  `pl2(j)`--`pl1(j+1)` and `pr2(j)`--`pr1(j+1)` gaps are retained and their
+  maxima reported. Start-biased point views exist for inspection only.
 - Every reconstructed 2D quadrilateral preserves all available spatial edge
   and diagonal distances within an agreed tolerance.
 - Extrados, intake, and intrados ranges retain their shared endpoints; no
@@ -566,6 +620,11 @@ change” automatically.
 
 ### Phase 1 — Establish names and adapters without changing calculations
 
+Implementation status: complete for profile topology, normalized/spatial ribs,
+rib identities, neutral panels, production edges, and color divisions. Layout
+transforms and the wider `rib_definition` remain future types because their
+final axis/field vocabulary still needs confirmation.
+
 1. Add the foundational point, range, topology, normalized-profile, spatial-rib,
    neutral-panel, production-panel, and layout-transform types in free-form
    modules using `real64` and `implicit none`.
@@ -581,6 +640,11 @@ Exit criterion: typed snapshots of every profile, spatial rib, neutral panel,
 and production panel compare exactly with their legacy source arrays.
 
 ### Phase 2 — Migrate read-only production consumers first
+
+Implementation status: color construction uses typed production panels, and
+stage-8 extrados length/width calculations now dual-run through exact typed
+neutral segments. The legacy values remain authoritative until an even-cell
+fixture and a broader design corpus pass the same comparisons.
 
 1. Change color construction to accept a typed normalized-profile pair and
    `production_panel_2d` rather than full `np/u/v` arrays.
@@ -598,9 +662,13 @@ references.
 
 ### Phase 3 — Own neutral 2D development
 
+Implementation status: the read adapter and first dual-run consumer exist; the
+stage-7 producer is not yet migrated.
+
 1. Extract one pure `develop_panel_strip(spatial_left, spatial_right, topology)`
    routine from stage 7.
-2. Return canonical left/right polylines in `neutral_panel_2d`.
+2. Return exact lower/higher segment chains in `neutral_panel_2d`; decide
+   explicitly whether closing measured legacy join gaps is an approved change.
 3. Dual-run it beside the legacy `pl*/pr*` calculation and compare every point
    plus the six source distances for every quadrilateral.
 4. Initially write the typed result back through an adapter so stage 8 and
@@ -685,9 +753,11 @@ names and for deleting the corresponding legacy representations.
 5. Must all neighboring profile files have identical point counts and matching
    extrados/intake/intrados indices? If not, what is the intended remapping rule
    before panel development?
-6. For even and odd cell counts, which of rib 0, panel 0, and rib 1 are physical,
-   mirrored, or only computational? Should the central panel be exposed in
-   manufacturing output?
+6. The code now proves that rib 0 is a finite-center symmetry mirror or a
+   collapsed-center alias, while `nribss+1` is extrapolated tip support.
+   Declared odd/even parity is only a consistency diagnostic. Should a finite
+   panel 0 always be exposed in manufacturing output, and should the collapsed
+   alias ever appear outside calculations?
 7. In manufacturing terminology, are slots 9/10 the sewing lines and slots
    11/12 the cut edges, or should they be named nominal edge/sewing allowance
    edge?
@@ -701,6 +771,9 @@ names and for deleting the corresponding legacy representations.
 10. May the output ordering of DXF entities change when semantic content is
     equivalent, or do downstream CAD scripts depend on order as well as layers
     and colors?
+11. Are the small `pr2(:,j)` to `pr1(:,j+1)` gaps in neutral development an
+    accepted consequence of independent quadrilateral flattening, or should an
+    authoritative stage-7 rewrite force a continuous higher-index edge?
 
 ## Definition of done
 
@@ -737,8 +810,8 @@ true:
 
 ## First implementation slice
 
-The first shippable slice should be phases 0 and 1 plus the color portion of
-phase 2. It has a deliberately narrow numerical surface:
+The first shippable slice—phases 0 and 1 plus the color portion of phase 2—is
+complete. It has a deliberately narrow numerical surface:
 
 1. Introduce validated `profile_topology`, `normalized_profile_2d`,
    `spatial_rib_3d`, and `production_panel_2d` snapshots.
@@ -751,4 +824,15 @@ phase 2. It has a deliberately narrow numerical surface:
 
 That slice produces immediate naming and interface improvements in a real
 manufacturing workflow while keeping the existing geometry calculations as the
-comparison oracle for the deeper stages.
+comparison oracle for the deeper stages. The subsequent neutral-panel
+checkpoint also dual-runs stage-8 extrados metrics without changing their
+authoritative values.
+
+The next implementation slice is:
+
+1. add a maintained even-cell end-to-end fixture and semantic output oracle;
+2. switch extrados metrics to typed-authoritative values after corpus evidence;
+3. extract one pure stage-7 extrados strip developer and dual-run every exact
+   segment, six source distances, and recorded join gap;
+4. then repeat the producer migration for intake and intrados, preserving the
+   intake support segment and eliminating magic point 499 from the new path.

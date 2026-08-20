@@ -272,6 +272,16 @@ c      Coordenades airfoil en gir Z
        real*8 pr1x(0:100,500),pr1y(0:100,500),pr2x(0:100,500),
      + pr2y(0:100,500)
 
+c      Typed read-only views used while migrating legacy rib and neutral-panel
+c      arrays.  They own snapshots and never alias the numbered global slots.
+       type(rib_identity), allocatable :: wing_rib_identities(:)
+       type(profile_topology), allocatable :: wing_profile_topologies(:)
+       type(neutral_panel_2d) :: neutral_extrados_panel
+       logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
+     + neutral_gap_valid
+       character(len=256) :: domain_model_message
+       real*8 :: typed_geometry_metric
+
        real*8 hol(0:100,200,20),skin(10,10)
 
        real*8 xsob(10),ysob(10)

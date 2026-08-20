@@ -98,6 +98,42 @@ if(BUILD_TESTING)
 
   add_test(NAME domain_model COMMAND test_domain_model)
 
+  add_executable(test_profile_data
+      tests/test_profile_data.f90
+      src/leparagliding_hvr_config.f90
+      src/leparagliding_mark_types.f90
+      src/leparagliding_geometry.f90
+      src/leparagliding_domain_model.f90
+      src/leparagliding_color_geometry.f90
+      src/leparagliding_procedures.f
+      ${LEPARAGLIDING_PROCEDURE_FRAGMENTS})
+
+  set_target_properties(test_profile_data PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-profile-data-modules")
+  target_include_directories(test_profile_data PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src"
+      "${CMAKE_CURRENT_BINARY_DIR}/test-profile-data-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_profile_data PRIVATE
+        -std=legacy
+        -ffixed-line-length-none
+        -fallow-argument-mismatch)
+    if(LEPARAGLIDING_ENABLE_WARNINGS)
+      target_compile_options(test_profile_data PRIVATE
+          -Wall
+          -Wextra
+          -Wimplicit-interface
+          -Wsurprising)
+    endif()
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_profile_data PRIVATE -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME profile_data COMMAND test_profile_data)
+
   add_executable(test_color_geometry
       tests/test_color_geometry.f90
       src/leparagliding_color_geometry.f90)
