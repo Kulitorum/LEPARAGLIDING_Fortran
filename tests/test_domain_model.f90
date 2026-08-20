@@ -16,7 +16,7 @@ program test_domain_model
   type(normalized_profile_2d) :: profile
   type(profile_topology) :: topology, saved_topology, neutral_topology
   type(profile_topology) :: test_topology, mismatched_topology
-  type(profile_topology) :: scratch_collision_topology
+  type(profile_topology) :: maximum_capacity_topology
   type(profile_topology) :: profile_topologies(0:2)
   type(spatial_rib_geometry_3d) :: spatial_rib, zero_based_spatial_rib
   type(production_panel_edges_2d) :: panel
@@ -24,6 +24,8 @@ program test_domain_model
   type(neutral_panel_2d) :: neutral_panel, extrados_write_panel
   type(neutral_panel_2d) :: zero_based_neutral_panel
   type(neutral_panel_2d) :: disconnected_support_panel
+  type(neutral_panel_2d) :: maximum_capacity_intake_panel
+  type(neutral_panel_2d) :: maximum_capacity_intrados_panel
   type(neutral_boundary_edge_2d) :: boundary_edge, invalid_boundary_edge
   type(rib_identity), allocatable :: identities(:), saved_identities(:)
   type(color_division) :: division
@@ -85,7 +87,7 @@ program test_domain_model
   legacy_np(1, 1:6) = [500, 250, 20, 232, 269, 250]
   call copy_legacy_profile_topology(legacy_np, 1, test_topology, valid, &
       message)
-  call require(.not. valid, '500-point neutral scratch collision accepted')
+  call require(valid, '500-point topology rejected after scratch removal')
   legacy_np(1, 1:6) = [4, 2, 2, 2, 3, 2]
 
   legacy_u(1, 1:4, legacy_normalized_profile_slot) = &
@@ -339,7 +341,7 @@ program test_domain_model
   pr1_v(0, 1:3) = -106.0_real64
   pr2_u(0, 1:3) = -107.0_real64
   pr2_v(0, 1:3) = -108.0_real64
-  pl1_u(0, legacy_neutral_scratch_index) = 4991.0_real64
+  pl1_u(0, 500) = 5001.0_real64
   pr2_v(1, 1) = 171.0_real64
   call write_legacy_extrados_panel(extrados_write_panel, neutral_topology, &
       neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
@@ -373,8 +375,8 @@ program test_domain_model
   end do
   call require_close(pl1_u(0, 3), -101.0_real64, &
       'write-back changed the post-extrados index')
-  call require_close(pl1_u(0, legacy_neutral_scratch_index), &
-      4991.0_real64, 'write-back changed legacy scratch storage')
+  call require_close(pl1_u(0, 500), 5001.0_real64, &
+      'write-back changed an unrelated high segment index')
   call require_close(pr2_v(1, 1), 171.0_real64, &
       'write-back changed another panel row')
 
@@ -472,7 +474,7 @@ program test_domain_model
       1.0_real64, 'intake boundary length included its support segment')
 
   ! Intake publication owns the exact contour segment and the explicit support
-  ! at the following index, while leaving scratch 499 and other rows alone.
+  ! at the following index, while leaving unrelated indices and rows alone.
   pl1_u(0, 3:4) = -201.0_real64
   pl1_v(0, 3:4) = -202.0_real64
   pl2_u(0, 3:4) = -203.0_real64
@@ -481,7 +483,7 @@ program test_domain_model
   pr1_v(0, 3:4) = -206.0_real64
   pr2_u(0, 3:4) = -207.0_real64
   pr2_v(0, 3:4) = -208.0_real64
-  pl1_u(0, legacy_neutral_scratch_index) = 6499.0_real64
+  pl1_u(0, 500) = 6500.0_real64
   call write_legacy_intake_panel(neutral_panel, neutral_topology, &
       neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
       pr2_u, pr2_v, valid, message)
@@ -494,8 +496,8 @@ program test_domain_model
       'typed intake support start')
   call require_close(pr2_v(0, 4), neutral_panel%support_higher_end_v, &
       'typed intake support end')
-  call require_close(pl1_u(0, legacy_neutral_scratch_index), &
-      6499.0_real64, 'typed intake write changed scratch storage')
+  call require_close(pl1_u(0, 500), 6500.0_real64, &
+      'typed intake write changed an unrelated high segment index')
   pr2_v(1, 4) = 814.0_real64
   call write_legacy_intake_panel(neutral_panel, neutral_topology, &
       neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
@@ -521,26 +523,56 @@ program test_domain_model
       pr2_u, pr2_v, valid, message)
   call require(valid, 'typed intake rewrite failed: '//trim(message))
 
-  scratch_collision_topology%point_count = 500
-  scratch_collision_topology%extrados = index_range(1, 498)
-  scratch_collision_topology%intake = index_range(498, 499)
-  scratch_collision_topology%intrados = index_range(499, 500)
-  scratch_collision_topology%leading_edge_index = 498
-  call require(scratch_collision_topology%is_valid(), &
-      'scratch-collision topology is invalid')
-  disconnected_support_panel = neutral_panel
-  disconnected_support_panel%contour_first_index = 498
-  disconnected_support_panel%contour_last_index = 499
+  maximum_capacity_topology%point_count = 500
+  maximum_capacity_topology%extrados = index_range(1, 498)
+  maximum_capacity_topology%intake = index_range(498, 499)
+  maximum_capacity_topology%intrados = index_range(499, 500)
+  maximum_capacity_topology%leading_edge_index = 498
+  call require(maximum_capacity_topology%is_valid(), &
+      'maximum-capacity topology is invalid')
+  maximum_capacity_intake_panel = neutral_panel
+  maximum_capacity_intake_panel%contour_first_index = 498
+  maximum_capacity_intake_panel%contour_last_index = 499
   pl1_u(0, 498) = 4981.0_real64
-  pl1_u(0, legacy_neutral_scratch_index) = 4991.0_real64
-  call write_legacy_intake_panel(disconnected_support_panel, &
-      scratch_collision_topology, scratch_collision_topology, pl1_u, pl1_v, &
+  pl1_u(0, 499) = 4991.0_real64
+  call write_legacy_intake_panel(maximum_capacity_intake_panel, &
+      maximum_capacity_topology, maximum_capacity_topology, pl1_u, pl1_v, &
       pl2_u, pl2_v, pr1_u, pr1_v, pr2_u, pr2_v, valid, message)
-  call require(.not. valid, 'intake support was allowed to occupy scratch 499')
-  call require_close(pl1_u(0, 498), 4981.0_real64, &
-      'scratch collision changed the preceding destination')
-  call require_close(pl1_u(0, legacy_neutral_scratch_index), &
-      4991.0_real64, 'scratch collision changed scratch storage')
+  call require(valid, 'intake support could not use real segment 499: '// &
+      trim(message))
+  call require_close(pl1_u(0, 498), &
+      maximum_capacity_intake_panel%lower_segment_start_u(1), &
+      'maximum-capacity intake segment was not published')
+  call require_close(pl1_u(0, 499), &
+      maximum_capacity_intake_panel%support_lower_start_u, &
+      'maximum-capacity intake support was not published at 499')
+
+  ! Once support consumers are finished, typed intrados legitimately replaces
+  ! the shared index 499 with the final real contour segment.
+  maximum_capacity_intrados_panel = maximum_capacity_intake_panel
+  maximum_capacity_intrados_panel%surface = surface_intrados
+  maximum_capacity_intrados_panel%contour_first_index = 499
+  maximum_capacity_intrados_panel%contour_last_index = 500
+  maximum_capacity_intrados_panel%has_post_surface_support = .false.
+  maximum_capacity_intrados_panel%support_lower_join_gap = 0.0_real64
+  maximum_capacity_intrados_panel%support_higher_join_gap = 0.0_real64
+  call require(maximum_capacity_intrados_panel%is_valid(), &
+      'maximum-capacity intrados panel is invalid')
+  call write_legacy_intrados_panel(maximum_capacity_intrados_panel, &
+      maximum_capacity_topology, maximum_capacity_topology, pl1_u, pl1_v, &
+      pl2_u, pl2_v, pr1_u, pr1_v, pr2_u, pr2_v, valid, message)
+  call require(valid, 'maximum-capacity intrados write failed: '// &
+      trim(message))
+  call require_close(pl1_u(0, 499), &
+      maximum_capacity_intrados_panel%lower_segment_start_u(1), &
+      'intrados did not replace support at real segment 499')
+  pl1_u(0, 499) = 7499.0_real64
+  call write_legacy_intrados_panel(maximum_capacity_intake_panel, &
+      maximum_capacity_topology, maximum_capacity_topology, pl1_u, pl1_v, &
+      pl2_u, pl2_v, pr1_u, pr1_v, pr2_u, pr2_v, valid, message)
+  call require(.not. valid, 'intake panel was accepted as typed intrados')
+  call require_close(pl1_u(0, 499), 7499.0_real64, &
+      'wrong-surface intrados write changed its destination')
 
   pl1_u(0, 3) = 771.0_real64
   call write_legacy_intake_panel(extrados_write_panel, neutral_topology, &
@@ -563,13 +595,13 @@ program test_domain_model
       'failed support copy changed the neutral destination')
   pr2_v(0, 4) = 2.0_real64
 
-  ! Intrados starts from the saved segment at legacy scratch index 499.
-  pl1_u(0, 499) = 0.0_real64
-  pl2_u(0, 499) = 2.0_real64
-  pr1_u(0, 499) = 0.0_real64
-  pr2_u(0, 499) = 2.0_real64
-  pr1_v(0, 499) = 3.0_real64
-  pr2_v(0, 499) = 3.0_real64
+  ! Intrados reads and writes its exact contour range directly.
+  pl1_u(0, 4) = 0.0_real64
+  pl2_u(0, 4) = 2.0_real64
+  pr1_u(0, 4) = 0.0_real64
+  pr2_u(0, 4) = 2.0_real64
+  pr1_v(0, 4) = 3.0_real64
+  pr2_v(0, 4) = 3.0_real64
   pl1_u(0, 5) = 2.0_real64
   pl2_u(0, 5) = 4.0_real64
   pr1_u(0, 5) = 2.0_real64
@@ -581,17 +613,27 @@ program test_domain_model
       neutral_topology, surface_intrados, neutral_panel, valid, message)
   call require(valid, 'valid neutral intrados rejected: '//trim(message))
   call require_close(neutral_panel%lower_start_biased_u(2), 2.0_real64, &
-      'saved intrados segment was not restored')
+      'intrados segment join was not reconstructed')
   call require_close(neutral_panel%lower_start_biased_u(3), 4.0_real64, &
       'intrados continuation endpoint')
-  pl1_u(0, 499) = ieee_value(0.0_real64, ieee_quiet_nan)
+  pl1_u(0, 4) = ieee_value(0.0_real64, ieee_quiet_nan)
   call copy_legacy_neutral_panel(pl1_u, pl1_v, pl2_u, pl2_v, &
       pr1_u, pr1_v, pr2_u, pr2_v, 0, neutral_topology, &
       neutral_topology, surface_intrados, neutral_panel, valid, message)
-  call require(.not. valid, 'non-finite intrados scratch was accepted')
+  call require(.not. valid, 'non-finite intrados segment was accepted')
   call require_close(neutral_panel%lower_start_biased_u(3), 4.0_real64, &
-      'failed scratch copy changed the neutral destination')
-  pl1_u(0, 499) = 0.0_real64
+      'failed intrados copy changed the neutral destination')
+  pl1_u(0, 4) = 0.0_real64
+
+  pl1_u(0, 4:5) = -401.0_real64
+  call write_legacy_intrados_panel(neutral_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(valid, 'valid typed intrados write rejected: '//trim(message))
+  call require_close(pl1_u(0, 4), neutral_panel%lower_segment_start_u(1), &
+      'typed intrados first segment was not published')
+  call require_close(pl1_u(0, 5), neutral_panel%lower_segment_start_u(2), &
+      'typed intrados continuation was not published')
 
   ! Infer parity-sensitive row-zero roles and the nonphysical tip support.
   planform_station = 0.0_real64

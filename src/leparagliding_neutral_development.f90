@@ -1,6 +1,6 @@
 ! SPDX-License-Identifier: GPL-3.0-or-later
 !
-!> Develop one spatial extrados strip into exact neutral 2D segments.
+!> Develop spatial wing-surface strips into exact neutral 2D segments.
 !!
 !! This module extracts the distance-preserving stage-7 quadrilateral
 !! calculation without changing its numerical conventions. In particular, it
@@ -11,6 +11,7 @@ module leparagliding_neutral_development
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
   use leparagliding_domain_model, only : neutral_panel_2d, profile_topology, &
       spatial_rib_geometry_3d, surface_extrados, surface_intake, &
+      surface_intrados, &
       extrados_topologies_are_index_compatible
   implicit none
   private
@@ -49,6 +50,7 @@ module leparagliding_neutral_development
 
   public :: develop_extrados_panel
   public :: develop_intake_panel
+  public :: develop_intrados_panel
 
 contains
 
@@ -138,6 +140,38 @@ contains
         lower_topology%intake%first, lower_topology%intake%last, &
         surface_intake, .true., panel, source_distances, valid, message)
   end subroutine develop_intake_panel
+
+  !> Purely develop the exact intrados segments between two adjacent ribs.
+  !!
+  !! The developed range is `intrados%first:intrados%last-1`, corresponding to
+  !! legacy indices `np(:,2)+np(:,3)-1:np(:,1)-1`. The initial join state is
+  !! local to this surface, so its first segment is produced directly without
+  !! reading or reserving legacy scratch index 499. Rejected calls leave both
+  !! output objects unchanged.
+  pure subroutine develop_intrados_panel(lower_rib, higher_rib, &
+      lower_topology, higher_topology, panel, source_distances, valid, message)
+    type(spatial_rib_geometry_3d), intent(in) :: lower_rib, higher_rib
+    type(profile_topology), intent(in) :: lower_topology, higher_topology
+    type(neutral_panel_2d), intent(inout) :: panel
+    type(quadrilateral_distances_3d), allocatable, intent(inout) :: &
+        source_distances(:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    valid = .false.
+    message = ''
+    if (.not. lower_topology%is_valid() .or. &
+        .not. higher_topology%is_valid() .or. &
+        lower_topology%intrados%first /= higher_topology%intrados%first .or. &
+        lower_topology%intrados%last /= higher_topology%intrados%last) then
+      message = 'intrados development requires matching intrados indices'
+      return
+    end if
+
+    call develop_surface_panel(lower_rib, higher_rib, &
+        lower_topology%intrados%first, lower_topology%intrados%last, &
+        surface_intrados, .false., panel, source_distances, valid, message)
+  end subroutine develop_intrados_panel
 
   !> Develop one matching surface range, optionally retaining its next segment.
   !!

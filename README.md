@@ -84,12 +84,13 @@ The maintained structure now:
   production panels in `leparagliding_domain_model`, with transactional checked
   legacy-array adapters;
 - builds typed spatial-rib snapshots at the stage-6 boundary and dual-runs a
-  pure stage-7 neutral developer for regular extrados and intake geometry,
-  including the explicit post-intake support quadrilateral, then uses checked
-  adapters to publish only the agreeing typed slices;
-- makes typed stage-8 extrados lengths/widths and intake lengths authoritative
-  only after the legacy calculations agree with them, including physical
-  wingtip comparison edges derived from the higher side of the last real panel;
+  pure stage-7 neutral developer for every real extrados, intake, and intrados
+  panel, including the explicit post-intake support quadrilateral, then uses
+  checked adapters to publish only the agreeing typed slices;
+- retains typed intrados panels across vent processing, publishes them after
+  the shared intake support is no longer needed, and makes typed stage-8
+  surface lengths/widths authoritative after legacy agreement, including
+  physical wingtip comparison edges derived from the final real panel;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -114,14 +115,19 @@ indeterminate and report the wrong index for a boundary moved to source point
 no-cut group, and shaping consumers defensively bounds-check group indices.
 Even-cell reports now also preserve the declared cell/rib counts.
 
-The stage-7 authority change is deliberately narrow. Regular intake owns its
-exact contour segments plus a separately named post-intake support segment;
-this also supplies the `k31d=1` extrados look-ahead at `j=np(i,2)`. Stage 8 now
-models the physical wingtip extrados and intake comparison edges as the higher
-side of the last real panel, with explicit source-panel provenance. It does not
-read row `nribss` for those comparisons as though it were another panel.
-Intrados retention and removal of the legacy point-499 scratch value remain the
-next neutral-development checkpoint.
+The stage-7 authority change remains deliberately limited to real panels
+`0:nribss-1`. Regular intake owns its exact contour segments plus a separately
+named post-intake support segment; this also supplies the `k31d=1` extrados
+look-ahead at `j=np(i,2)`. Intrados is developed and dual-compared before that
+support overwrites the shared legacy index, retained as typed geometry while
+vents are processed, and checked-written afterward. Stage 8 takes intrados
+length and width metrics from those agreeing typed panels. The old point-499
+save/restore and topology collision restriction are gone; unit tests prove that
+a 500-point topology can use segment 499 as real geometry, while both profile
+input paths reject point 501 before copying. This does not yet claim that every
+later legacy algorithm supports arbitrary 500-point inputs.
+Row `nribss` remains a terminal boundary, not another panel, and is untouched
+by regular-panel write-back.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -170,10 +176,12 @@ Up to twelve isolated tests are registered (ten do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
-   physical terminal comparison edges, hidden intake support/scratch semantics,
-   the point-499 collision guard, and transactional adapters.
+   physical terminal comparison edges, explicit intake support, direct
+   intrados publication, 500-point topology/real segment-499 behavior, and
+   transactional adapters.
 2. `neutral_development` checks the pure quadrilateral developer, exact source
-   distances, start-biased segment joins, panel zero, and transactional failure.
+   distances, start-biased joins, all three neutral surfaces, panel zero, and
+   transactional failure.
 3. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
    and verifies the rebuilt contour's topology identities.
 4. `color_geometry` checks robust color-edge interpolation, repeated profile

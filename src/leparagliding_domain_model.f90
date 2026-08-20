@@ -24,9 +24,6 @@ module leparagliding_domain_model
   integer, parameter, public :: legacy_production_lower_cut_slot = 11
   !> Legacy `u/v` slot holding the higher-index production cut edge.
   integer, parameter, public :: legacy_production_higher_cut_slot = 12
-  !> Legacy `pl*/pr*` row used to save the first intrados segment.
-  integer, parameter, public :: legacy_neutral_scratch_index = 499
-
   !> Profile/neutral-panel surface identifiers.
   integer, parameter, public :: surface_extrados = 1
   integer, parameter, public :: surface_intake = 2
@@ -173,8 +170,7 @@ module leparagliding_domain_model
   !!
   !! `lower_*` belongs to `panel_index`; `higher_*` belongs to its successor.
   !! Arrays contain contour points rather than the legacy quadrilateral-corner
-  !! pairs.  Intake's historical extra tangent segment is exposed separately
-  !! and legacy scratch index 499 never escapes this adapter.
+  !! pairs.  Intake's historical extra tangent segment is exposed separately.
   type, public :: neutral_panel_2d
     integer :: panel_index = -1
     integer :: lower_rib_index = -1
@@ -220,8 +216,7 @@ module leparagliding_domain_model
   !! outward comparison edge.  It is deliberately not a panel: no geometry is
   !! invented beyond the final physical rib, and `source_panel_index` records
   !! the real panel whose higher edge supplies every coordinate.  Intake keeps
-  !! its historical following-segment support explicit; scratch index 499 is
-  !! not part of this representation.
+  !! its historical following-segment support explicit.
   type, public :: neutral_boundary_edge_2d
     integer :: boundary_rib_index = -1
     integer :: source_panel_index = -1
@@ -272,6 +267,7 @@ module leparagliding_domain_model
   public :: copy_legacy_neutral_panel_from_counts
   public :: write_legacy_extrados_panel
   public :: write_legacy_intake_panel
+  public :: write_legacy_intrados_panel
   public :: derive_neutral_boundary_edge
   public :: polyline_length_2d
   public :: neutral_panel_lower_edge_length
@@ -835,11 +831,6 @@ contains
       message = 'legacy total point count disagrees with surface counts'
       return
     end if
-    if (legacy_np(rib_index, 1) > legacy_neutral_scratch_index) then
-      message = 'profile point count collides with neutral scratch index 499'
-      return
-    end if
-
     candidate%point_count = legacy_np(rib_index, 1)
     candidate%extrados = index_range(1, extrados_count)
     candidate%intake = index_range(extrados_count, expected_intake_end)
@@ -1283,8 +1274,8 @@ contains
   !! Each legacy row stores segment endpoints as `pl1/pl2` for the
   !! lower-index rib and `pr1/pr2` for the higher-index rib. This adapter
   !! reconstructs point views, preserves exact segment endpoints, records the
-  !! legacy triangulation's join gaps, hides scratch index 499, and keeps the
-  !! intake-only support tangent explicit.
+  !! legacy triangulation's join gaps, and keeps the intake-only support tangent
+  !! explicit.
   subroutine copy_legacy_neutral_panel(legacy_pl1_u, legacy_pl1_v, &
       legacy_pl2_u, legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, &
       legacy_pr2_u, legacy_pr2_v, panel_index, lower_topology, &
@@ -1332,10 +1323,6 @@ contains
     case (surface_intrados)
       contour_range = lower_topology%intrados
       higher_contour_range = higher_topology%intrados
-      if (size(legacy_pl1_u, 2) < legacy_neutral_scratch_index) then
-        message = 'legacy neutral-panel array has no intrados scratch segment'
-        return
-      end if
     case default
       message = 'unknown neutral-panel surface'
       return
@@ -1373,9 +1360,6 @@ contains
     do segment_index = contour_range%first, contour_range%last - 1
       local_index = segment_index - contour_range%first + 1
       source_index = segment_index
-      if (surface == surface_intrados .and. &
-          segment_index == contour_range%first) &
-          source_index = legacy_neutral_scratch_index
 
       lower_start_u = legacy_pl1_u(panel_index, source_index)
       lower_start_v = legacy_pl1_v(panel_index, source_index)
@@ -1463,8 +1447,7 @@ contains
   !! precondition is checked before the first assignment, so a rejected panel
   !! leaves all eight destination arrays unchanged.  Only the extrados segment
   !! indices `contour_first_index:contour_last_index-1` are written; intake,
-  !! intrados, support, and scratch coordinates remain owned by their existing
-  !! producers.
+  !! intrados, and support coordinates remain owned by their existing producers.
   !!
   !! The eight destination arrays must be distinct actual arguments.
   !!
@@ -1498,9 +1481,9 @@ contains
   !> Write one validated typed intake panel and its explicit support segment.
   !!
   !! Exact intake segments are written at `first:last-1`; the separately owned
-  !! post-intake support quadrilateral is written at `last`.  The reserved
-  !! scratch index 499 and every other surface remain untouched.  As with the
-  !! extrados wrapper, the eight destination arrays must be distinct actuals.
+  !! post-intake support quadrilateral is written at `last`. Every other surface
+  !! remains untouched. As with the extrados wrapper, the eight destination
+  !! arrays must be distinct actuals.
   pure subroutine write_legacy_intake_panel(panel, lower_topology, &
       higher_topology, legacy_pl1_u, legacy_pl1_v, legacy_pl2_u, &
       legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
@@ -1519,6 +1502,31 @@ contains
         legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
         legacy_pr2_v, valid, message)
   end subroutine write_legacy_intake_panel
+
+  !> Write one validated typed intrados panel to its exact legacy segment range.
+  !!
+  !! This wrapper is used only after vent consumers no longer need intake's
+  !! post-surface support at the shared intake/intrados index. Publication is
+  !! transactional and may use segment index 499 when a 500-point profile makes
+  !! that index part of the real intrados contour.
+  pure subroutine write_legacy_intrados_panel(panel, lower_topology, &
+      higher_topology, legacy_pl1_u, legacy_pl1_v, legacy_pl2_u, &
+      legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
+      legacy_pr2_v, valid, message)
+    type(neutral_panel_2d), intent(in) :: panel
+    type(profile_topology), intent(in) :: lower_topology, higher_topology
+    real(real64), intent(inout) :: legacy_pl1_u(0:,:), legacy_pl1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pl2_u(0:,:), legacy_pl2_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr1_u(0:,:), legacy_pr1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr2_u(0:,:), legacy_pr2_v(0:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    call write_legacy_surface_panel(panel, lower_topology, higher_topology, &
+        surface_intrados, legacy_pl1_u, legacy_pl1_v, legacy_pl2_u, &
+        legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
+        legacy_pr2_v, valid, message)
+  end subroutine write_legacy_intrados_panel
 
   !> Shared transactional compatibility writer for regular neutral surfaces.
   pure subroutine write_legacy_surface_panel(panel, lower_topology, &
@@ -1569,6 +1577,9 @@ contains
       lower_range = lower_topology%intake
       higher_range = higher_topology%intake
       writes_post_surface_support = .true.
+    case (surface_intrados)
+      lower_range = lower_topology%intrados
+      higher_range = higher_topology%intrados
     case default
       message = 'neutral write-back does not support this surface'
       return
@@ -1595,11 +1606,6 @@ contains
       message = 'surface segments exceed neutral-panel point capacity'
       return
     end if
-    if (write_last_index >= legacy_neutral_scratch_index) then
-      message = 'surface range collides with legacy neutral scratch storage'
-      return
-    end if
-
     segment_count = panel%contour_last_index - panel%contour_first_index
     do local_index = 1, segment_count
       source_index = panel%contour_first_index + local_index - 1

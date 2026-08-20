@@ -360,7 +360,7 @@ c      Iteration
 
 c      Dual-run every final extrados panel through the pure typed developer.
 c      Compare all exact 2D endpoints and the six independent source distances
-c      before intrados reuses the legacy scratch variables.  After agreement,
+c      before intrados reuses the legacy work variables. After agreement,
 c      publish the typed exact segments back through the checked compatibility
 c      adapter.  The typed producer then owns regular panel rows 0:nribss-1 at
 c      the exact extrados segment indices first:last-1.
@@ -522,24 +522,87 @@ c      Quadrilater coordinates
        
        end do
 
+c      Retain every real intrados panel before intake's explicit support
+c      temporarily occupies the shared first-intrados segment.  The exact
+c      endpoint and source-distance comparisons make the typed panels
+c      authoritative without publishing them until vent processing is done.
+       allocate(neutral_intrados_panels(0:nribss-1))
+       do i=0,nribss-1
+       call develop_intrados_panel(wing_spatial_ribs(i),
+     + wing_spatial_ribs(i+1),wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),neutral_intrados_panels(i),
+     + typed_intrados_source_distances,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed intrados panel ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+
+       do j=wing_profile_topologies(i)%intrados%first,
+     + wing_profile_topologies(i)%intrados%last-1
+       k=j-wing_profile_topologies(i)%intrados%first+1
+       typed_coordinates_match=geometry_values_are_close(
+     + neutral_intrados_panels(i)%lower_segment_start_u(k),pl1x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intrados_panels(i)%lower_segment_start_v(k),pl1y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intrados_panels(i)%lower_segment_end_u(k),pl2x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intrados_panels(i)%lower_segment_end_v(k),pl2y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intrados_panels(i)%higher_segment_start_u(k),pr1x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intrados_panels(i)%higher_segment_start_v(k),pr1y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intrados_panels(i)%higher_segment_end_u(k),pr2x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intrados_panels(i)%higher_segment_end_v(k),pr2y(i,j))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,2(I0,A))') 'ERROR: typed/legacy intrados endpoint at ',
+     + i,', point ',j,''
+       stop 1
+       end if
+
+c      Keep the distance oracle independent of the pure developer.
+       pa=dsqrt((x(i+1,j)-x(i,j))**2.+(y(i+1,j)-y(i,j))**2.+
+     + (z(i+1,j)-z(i,j))**2.)
+       pb=dsqrt((x(i+1,j+1)-x(i,j))**2.+
+     + (y(i+1,j+1)-y(i,j))**2.+(z(i+1,j+1)-z(i,j))**2.)
+       pc=dsqrt((x(i+1,j+1)-x(i+1,j))**2.+
+     + (y(i+1,j+1)-y(i+1,j))**2.+
+     + (z(i+1,j+1)-z(i+1,j))**2.)
+       pd=dsqrt((x(i+1,j)-x(i,j+1))**2.+
+     + (y(i+1,j)-y(i,j+1))**2.+(z(i+1,j)-z(i,j+1))**2.)
+       pe=dsqrt((x(i,j+1)-x(i,j))**2.+(y(i,j+1)-y(i,j))**2.+
+     + (z(i,j+1)-z(i,j))**2.)
+       pf=dsqrt((x(i+1,j+1)-x(i,j+1))**2.+
+     + (y(i+1,j+1)-y(i,j+1))**2.+
+     + (z(i+1,j+1)-z(i,j+1))**2.)
+
+       if (.not.geometry_values_are_close(
+     + typed_intrados_source_distances(k)%start_cross_edge,pa).or.
+     + .not.geometry_values_are_close(typed_intrados_source_distances(k)%
+     + lower_start_to_higher_end,pb).or.
+     + .not.geometry_values_are_close(typed_intrados_source_distances(k)%
+     + higher_contour_edge,pc).or.
+     + .not.geometry_values_are_close(typed_intrados_source_distances(k)%
+     + higher_start_to_lower_end,pd).or.
+     + .not.geometry_values_are_close(typed_intrados_source_distances(k)%
+     + lower_contour_edge,pe).or.
+     + .not.geometry_values_are_close(typed_intrados_source_distances(k)%
+     + end_cross_edge,pf)) then
+       write (*,'(A,2(I0,A))') 'ERROR: typed/legacy intrados distance at ',
+     + i,', point ',j,''
+       stop 1
+       end if
+       end do
+       end do
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc       
 c     7.4.2 Air intakes (vents) panels calculus and drawing
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        
-c      Salva un vector per evitar interferencia vents-intrados
-       do i=0,nribss
-       npx=np(i,2)+np(i,3)-1
-       pl1x(i,499)=pl1x(i,npx)
-       pl1y(i,499)=pl1y(i,npx)
-       pl2x(i,499)=pl2x(i,npx)
-       pl2y(i,499)=pl2y(i,npx)
-       pr1x(i,499)=pr1x(i,npx)
-       pr1y(i,499)=pr1y(i,npx)
-       pr2x(i,499)=pr2x(i,npx)
-       pr2y(i,499)=pr2y(i,npx)
-       end do
-
-
        do i=0,nribss-1 ! panel i
 
        px0=0.
@@ -595,8 +658,7 @@ c      Quadrilater coordinates
 
 c      Dual-run the final regular intake rows.  The typed panel owns the exact
 c      intake segments first:last-1 and the separate post-intake support at
-c      last.  Scratch 499 stays legacy-owned; row nribss is an unresolved
-c      terminal-boundary compatibility row, not a regular panel.
+c      last. Row nribss is not a regular panel and remains untouched.
        do i=0,nribss-1
        call develop_intake_panel(wing_spatial_ribs(i),
      + wing_spatial_ribs(i+1),wing_profile_topologies(i),

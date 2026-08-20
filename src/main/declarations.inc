@@ -278,10 +278,12 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
        type(profile_topology), allocatable :: wing_profile_topologies(:)
        type(spatial_rib_geometry_3d), allocatable :: wing_spatial_ribs(:)
        type(neutral_panel_2d) :: neutral_extrados_panel,neutral_intake_panel
+       type(neutral_panel_2d), allocatable :: neutral_intrados_panels(:)
        type(neutral_boundary_edge_2d) :: terminal_extrados_edge,
      + terminal_intake_edge,terminal_intrados_edge
        type(quadrilateral_distances_3d), allocatable ::
-     + typed_extrados_source_distances(:),typed_intake_source_distances(:)
+     + typed_extrados_source_distances(:),typed_intake_source_distances(:),
+     + typed_intrados_source_distances(:)
        logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
      + neutral_gap_valid,typed_coordinates_match
        character(len=256) :: domain_model_message

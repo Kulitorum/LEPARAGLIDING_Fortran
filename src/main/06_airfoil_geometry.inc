@@ -32,6 +32,16 @@ c      6.1 Read global points
        read (24,*) np(i,3) ! intake points
        read (24,*) np(i,4) ! intrados points
 
+c      Reject oversized legacy .txt profiles before their coordinates can
+c      index the fixed-capacity arrays. The .dat reader enforces the same bound.
+       if (np(i,1).lt.2.or.np(i,1).gt.ubound(u,2)) then
+       write (*,*) "ERROR: profile has",np(i,1),"points; capacity is",
+     + ubound(u,2)
+       write (50,*) "ERROR: profile has",np(i,1),"points; capacity is",
+     + ubound(u,2)
+       stop 1
+       end if
+
 c      6.2 Read airfoil coordinates
        do j=1,np(i,1)
        read (24,*) u(i,j,1),v(i,j,1)
@@ -82,8 +92,8 @@ c      This keeps mixed .txt/.dat inputs from copying uninitialized counts.
        end do
 
 c      Freeze the authoritative stage-6 topology as named snapshots.  This
-c      validates every physical and generated profile before stage 7 can use
-c      its counts or collide with the legacy point-499 scratch convention.
+c      validates every physical and generated profile before stage 7 uses its
+c      named surface ranges; both input paths have already enforced capacity.
        allocate(wing_profile_topologies(0:nribss+1))
        do i=0,nribss+1
        call copy_legacy_profile_topology(np,i,wing_profile_topologies(i),

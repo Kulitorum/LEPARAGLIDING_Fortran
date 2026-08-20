@@ -8,15 +8,21 @@ program test_neutral_development
   type(spatial_rib_geometry_3d) :: lower_rib, higher_rib
   type(spatial_rib_geometry_3d) :: intake_lower_rib, intake_higher_rib
   type(spatial_rib_geometry_3d) :: short_higher_rib, bad_support_higher_rib
+  type(spatial_rib_geometry_3d) :: intrados_lower_rib, intrados_higher_rib
+  type(spatial_rib_geometry_3d) :: nonadjacent_intrados_rib
   type(profile_topology) :: topology, different_intrados_topology
   type(profile_topology) :: mismatched_topology, intake_topology
   type(profile_topology) :: mismatched_intake_topology
-  type(neutral_panel_2d) :: panel
+  type(profile_topology) :: intrados_topology, mismatched_intrados_topology
+  type(profile_topology) :: oversized_intrados_topology
+  type(neutral_panel_2d) :: panel, intrados_panel
   type(quadrilateral_distances_3d), allocatable :: source_distances(:)
+  type(quadrilateral_distances_3d), allocatable :: intrados_distances(:)
   character(len=160) :: message
   logical :: valid
   real(real64) :: saved_higher_gap, developed_end_width
   real(real64) :: saved_support_end_v
+  real(real64) :: saved_intrados_end_v
 
   ! One planar 4-by-3 rectangle exercises all six spatial distances and the
   ! canonical zero-angle initial join state.
@@ -262,6 +268,108 @@ program test_neutral_development
       'intake support failure changed the previous panel')
   call require(size(source_distances) == 3, &
       'intake support failure changed the previous traces')
+
+  ! Intrados starts at the shared intake endpoint F=np2+np3-1=5 and owns
+  ! exactly F:L-1. Its local development does not require any legacy scratch
+  ! storage for the first segment.
+  intrados_topology%point_count = 7
+  intrados_topology%extrados = index_range(1, 3)
+  intrados_topology%intake = index_range(3, 5)
+  intrados_topology%intrados = index_range(5, 7)
+  intrados_topology%leading_edge_index = 3
+  call require(intrados_topology%is_valid(), 'intrados topology is invalid')
+
+  intrados_lower_rib%rib_index = 0
+  intrados_lower_rib%x = [0.0_real64, 0.0_real64, 0.0_real64, &
+      0.0_real64, 0.0_real64, 0.0_real64, 0.0_real64]
+  intrados_lower_rib%y = [99.0_real64, 98.0_real64, 97.0_real64, &
+      96.0_real64, 0.0_real64, 2.0_real64, 5.0_real64]
+  intrados_lower_rib%z = 0.0_real64*intrados_lower_rib%x
+  intrados_higher_rib%rib_index = 1
+  intrados_higher_rib%x = [4.0_real64, 4.0_real64, 4.0_real64, &
+      4.0_real64, 4.0_real64, 4.0_real64, 4.0_real64]
+  intrados_higher_rib%y = intrados_lower_rib%y
+  intrados_higher_rib%z = 0.0_real64*intrados_higher_rib%x
+
+  call develop_intrados_panel(intrados_lower_rib, intrados_higher_rib, &
+      intrados_topology, intrados_topology, intrados_panel, &
+      intrados_distances, valid, message)
+  call require(valid, 'planar intrados rejected: '//trim(message))
+  call require(intrados_panel%is_valid(), &
+      'typed intrados is not a valid neutral panel')
+  call require(intrados_panel%surface == surface_intrados, &
+      'typed intrados surface identity')
+  call require(intrados_panel%contour_first_index == 5 .and. &
+      intrados_panel%contour_last_index == 7, 'typed intrados contour range')
+  call require(size(intrados_panel%lower_segment_start_u) == 2, &
+      'typed intrados segment count')
+  call require(size(intrados_distances) == 2, &
+      'typed intrados trace count')
+  call require(.not. intrados_panel%has_post_surface_support, &
+      'intrados unexpectedly exposed a post-surface support segment')
+  call require_close(intrados_panel%lower_segment_start_v(1), 0.0_real64, &
+      'intrados did not reset its local development origin')
+  call require_close(intrados_panel%lower_segment_end_v(1), 2.0_real64, &
+      'first intrados segment endpoint')
+  call require_close(intrados_panel%lower_segment_end_v(2), 5.0_real64, &
+      'last intrados segment endpoint')
+  call require_close(intrados_panel%higher_segment_start_u(1), 4.0_real64, &
+      'first higher intrados segment start')
+  call require_close(intrados_distances(1)%lower_contour_edge, &
+      2.0_real64, 'first intrados source distance')
+  call require_close(intrados_distances(2)%lower_contour_edge, &
+      3.0_real64, 'second intrados source distance')
+
+  ! Intrados topology, identity, capacity, and geometry failures are all
+  ! transactional: neither the previous exact panel nor its traces may change.
+  saved_intrados_end_v = intrados_panel%lower_segment_end_v(2)
+  mismatched_intrados_topology%point_count = 7
+  mismatched_intrados_topology%extrados = index_range(1, 2)
+  mismatched_intrados_topology%intake = index_range(2, 4)
+  mismatched_intrados_topology%intrados = index_range(4, 7)
+  mismatched_intrados_topology%leading_edge_index = 2
+  call develop_intrados_panel(intrados_lower_rib, intrados_higher_rib, &
+      intrados_topology, mismatched_intrados_topology, intrados_panel, &
+      intrados_distances, valid, message)
+  call require(.not. valid, 'mismatched intrados indices were accepted')
+  call require_close(intrados_panel%lower_segment_end_v(2), &
+      saved_intrados_end_v, 'intrados topology failure changed the panel')
+  call require(size(intrados_distances) == 2, &
+      'intrados topology failure changed the traces')
+
+  nonadjacent_intrados_rib = intrados_higher_rib
+  nonadjacent_intrados_rib%rib_index = 2
+  call develop_intrados_panel(intrados_lower_rib, nonadjacent_intrados_rib, &
+      intrados_topology, intrados_topology, intrados_panel, &
+      intrados_distances, valid, message)
+  call require(.not. valid, 'non-adjacent intrados ribs were accepted')
+  call require_close(intrados_panel%lower_segment_end_v(2), &
+      saved_intrados_end_v, 'intrados identity failure changed the panel')
+
+  oversized_intrados_topology%point_count = 8
+  oversized_intrados_topology%extrados = index_range(1, 3)
+  oversized_intrados_topology%intake = index_range(3, 6)
+  oversized_intrados_topology%intrados = index_range(6, 8)
+  oversized_intrados_topology%leading_edge_index = 3
+  call develop_intrados_panel(intrados_lower_rib, intrados_higher_rib, &
+      oversized_intrados_topology, oversized_intrados_topology, &
+      intrados_panel, intrados_distances, valid, message)
+  call require(.not. valid, 'uncovered intrados range was accepted')
+  call require_close(intrados_panel%lower_segment_end_v(2), &
+      saved_intrados_end_v, 'intrados capacity failure changed the panel')
+
+  nonadjacent_intrados_rib = intrados_higher_rib
+  nonadjacent_intrados_rib%x(5) = intrados_lower_rib%x(5)
+  nonadjacent_intrados_rib%y(5) = intrados_lower_rib%y(5)
+  nonadjacent_intrados_rib%z(5) = intrados_lower_rib%z(5)
+  call develop_intrados_panel(intrados_lower_rib, nonadjacent_intrados_rib, &
+      intrados_topology, intrados_topology, intrados_panel, &
+      intrados_distances, valid, message)
+  call require(.not. valid, 'degenerate first intrados segment was accepted')
+  call require_close(intrados_panel%lower_segment_end_v(2), &
+      saved_intrados_end_v, 'intrados geometry failure changed the panel')
+  call require(size(intrados_distances) == 2, &
+      'intrados geometry failure changed the traces')
 
   write (*, '(A)') 'PASS: pure neutral surface development'
 

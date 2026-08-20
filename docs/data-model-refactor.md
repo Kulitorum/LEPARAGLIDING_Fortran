@@ -1,8 +1,10 @@
 # Data-model refactor: inventory and migration design
 
-Status: implementation in progress; phases 0--1 and staged phase-2/3 migration
+Status: implementation in progress; phases 0--1 complete, phase 2 staged, and
+the phase-3 real-panel neutral-authority boundary complete
 
-Evidence baseline: typed adapter/color and topology/neutral-panel checkpoints
+Evidence baseline: typed adapter/color, topology, terminal-boundary, and
+authoritative extrados/intake/intrados checkpoints
 
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
@@ -59,8 +61,8 @@ The next migration boundary is now implemented and dual-running:
   remains authoritative for central-panel activity; declared cell parity is a
   diagnostic, while source and placement stations are validated after stage 4.
 - `neutral_panel_2d` owns exact lower/higher segment starts and ends for one
-  surface, hides the point-499 intake/intrados scratch convention, and exposes
-  the intake-only support segment explicitly.
+  surface and exposes the intake-only support segment separately from the
+  intrados segment that shares its legacy array index.
 - Stage 8 initially dual-ran extrados lengths and widths through the
   neutral-panel model and stopped on disagreement while retaining the legacy
   assignments as the numerical authority.
@@ -105,7 +107,9 @@ slice:
   succeeds, `write_legacy_extrados_panel` publishes the typed exact segment
   starts and ends into the corresponding `pl*/pr*` slice. The adapter validates
   panel ownership, both adjacent extrados topologies, array shapes and bounds,
-  and the reserved scratch index before making any write.
+  and, at that checkpoint, separation from the reserved scratch index before
+  making any write. The reservation was removed by the later intrados
+  checkpoint.
 - The pure typed extrados developer is therefore the final writer for the
   segment indices it owns. The legacy calculation remains a comparison oracle
   during this migration, rather than the final source of those values.
@@ -133,15 +137,15 @@ ownership:
 - Stage 7 dual-runs every endpoint and all six independent source distances for
   both the contour and support. `write_legacy_intake_panel` then publishes the
   agreeing typed values for rows `0:nribss-1`, after validating shapes, bounds,
-  topology, ownership, and separation from scratch index 499.
+  topology, ownership, and the distinct contour/support ranges.
 - The support at intake `first=np(i,2)` supplies the new-skin-tension extrados
   look-ahead; the support at intake `last` supplies the intake/intrados tangent.
   Both are explicit cross-surface dependencies rather than extrados ownership.
 - Stage-8 lower and wingtip-higher intake lengths are assigned from exact typed
   segments after agreement with the legacy sums.
 
-Intrados and scratch index 499 remain outside this boundary. No typed panel is
-created for row `nribss`.
+At this checkpoint, intrados and scratch index 499 remained outside the intake
+boundary. No typed panel was created for row `nribss`.
 
 ### Sixth checkpoint: physical terminal comparison edges
 
@@ -161,8 +165,33 @@ inventing a panel beyond the wingtip:
   `nribss-1`; row `nribss` is not interpreted as a panel and no outward geometry
   is fabricated.
 
-Intrados panel retention across intake processing and removal of scratch index
-499 are still the next neutral-development checkpoint.
+### Seventh checkpoint: authoritative retained intrados
+
+The last regular neutral surface now crosses the typed producer boundary
+without inventing a terminal panel:
+
+- `develop_intrados_panel` reuses the pure quadrilateral engine for the exact
+  intrados segment range `first:last-1`. It starts in the intrados coordinate
+  frame and has no dependency on a reserved legacy point.
+- Stage 7 develops and dual-compares every real panel `0:nribss-1` before intake
+  publishes its post-surface support over the shared legacy index. All eight
+  endpoint scalars and the six independent source distances must agree.
+- The agreeing typed intrados panels are retained across vent processing.
+  After the vent consumers release intake support, stage 8 transactionally
+  publishes each retained panel through `write_legacy_intrados_panel` and then
+  runs the existing shaping paths.
+- Stage-8 intrados lower/higher lengths and widths are assigned from typed
+  panels or the typed terminal boundary after comparison with the legacy
+  calculations.
+- The point-499 save/restore and the associated topology collision restriction
+  are removed. Unit coverage accepts a 500-point topology and proves that its
+  real final intrados segment can occupy index 499. This establishes capacity
+  for the typed topology and neutral adapters only; it does not certify every
+  later legacy algorithm for arbitrary 500-point profiles.
+
+Typed intrados ownership stops at `nribss-1`. Row `nribss` remains a physical
+terminal boundary/non-panel and is deliberately untouched by regular-panel
+write-back.
 
 ## Terminology used in this plan
 
@@ -448,9 +477,12 @@ point-oriented view and measured maximum join gaps. A future authoritative
 stage-7 algorithm may choose a continuous representation, but that would be an
 approved numerical change rather than a storage-only refactor.
 
-Index 499 is used as a hidden save location for the intake/intrados junction
-(`src/main/07_panel_development.inc:423-434`). That is scratch state and must
-become a named local endpoint, not a reserved point in a new polyline.
+Index 499 was historically used as a hidden save location for the
+intake/intrados junction. Retaining typed intrados panels across vent processing
+removed that scratch state and its save/restore loops. Index 499 is now ordinary
+segment capacity and can hold real neutral geometry when a 500-point topology
+requires it; the downstream legacy pipeline still needs separate capacity
+audits before arbitrary maximum-size inputs can be claimed as supported.
 
 Stage 7 accesses both ribs using one loop topology and `np(i,*)`
 (`src/main/07_panel_development.inc:300-322`, `368-388`). This proves the current
@@ -729,9 +761,10 @@ and production panel compare exactly with their legacy source arrays.
 ### Phase 2 — Migrate read-only production consumers first
 
 Implementation status: color construction uses typed production panels.
-Stage-8 extrados length/width calculations dual-run through exact typed neutral
-segments, then assign the agreeing typed values as authoritative. Panel drawing,
-mark routines, and the remaining surface metrics still use legacy storage.
+Stage-8 extrados, intake, and intrados length/width calculations dual-run
+through exact typed neutral geometry, then assign the agreeing typed values as
+authoritative. Panel drawing, mark routines, and production shaping still use
+legacy storage.
 
 1. Change color construction to accept a typed normalized-profile pair and
    `production_panel_2d` rather than full `np/u/v` arrays.
@@ -749,28 +782,38 @@ references.
 
 ### Phase 3 — Own neutral 2D development
 
-Implementation status: the pure shared quadrilateral developer, exact dual-run,
-and checked write-back exist for regular extrados and intake geometry. Intake's
-post-surface support is explicit, and physical terminal extrados/intake edges
-are derived from the final real panel. Intrados retention and point 499 are not
-yet migrated.
+Implementation status: complete at the real-panel neutral-authority boundary.
+The pure shared quadrilateral developer, exact dual-run, and checked write-back
+cover regular extrados, intake, and intrados geometry. Intake's post-surface
+support is explicit; retained typed intrados panels survive that support's vent
+consumers; physical terminal edges are derived from the final real panel; and
+the point-499 scratch convention is gone.
 
 1. Extract one pure `develop_panel_strip(spatial_left, spatial_right, topology)`
-   routine from stage 7. **Complete for regular extrados and intake panels.**
+   routine from stage 7. **Complete through the shared engine for all three
+   regular surfaces.**
 2. Return exact lower/higher segment chains in `neutral_panel_2d`; decide
    explicitly whether closing measured legacy join gaps is an approved change.
+   **Complete; exact starts/ends and measured gaps are retained without closing
+   them.**
 3. Dual-run it beside the legacy `pl*/pr*` calculation and compare every point
-   plus the six source distances for every quadrilateral. **Complete for regular
-   extrados and intake panels, including intake support.**
+   plus the six source distances for every quadrilateral. **Complete for all
+   real extrados, intake, and intrados panels, including intake support.**
 4. Initially write the typed result back through an adapter so stage 8 and
-   stage 16 continue unchanged. **Complete for the exact regular extrados and
-   intake slices.**
+   stage 16 continue unchanged. **Complete for every exact regular surface
+   slice; intrados publication is intentionally deferred until after vents.**
 5. Replace the special `xx/yy/zz` path with an explicit symmetry-virtual spatial
-   rib.
+   rib. **Complete at the typed producer boundary; the old calculation remains
+   only as the dual-run comparison oracle.**
 
 Exit criterion: typed neutral development is authoritative, legacy `pl*/pr*`
-is adapter output only, and no point-499 scratch convention remains in the new
-routine.
+is adapter output only, and no point-499 scratch convention remains in the
+neutral-development pipeline.
+
+The next functional migration is Phase 4: move skin-tension evaluation and
+side shaping from numbered `u/v` slots into typed production-panel geometry.
+Retiring the duplicate stage-7 comparison oracle can follow once that downstream
+boundary has equivalent semantic regression coverage.
 
 ### Phase 4 — Own production panel shaping
 
@@ -929,11 +972,17 @@ The producer-authority checkpoints completed:
    shaping-table lookups against invalid group indices; and
 4. make typed intake contour segments and explicit post-intake support the
    final regular-row values after exact dual-run agreement; and
-5. represent physical terminal extrados/intake comparison edges as the higher
-   side of the last real panel, with no fabricated row-`nribss` panel.
+5. represent physical terminal surface comparison edges as the higher side of
+   the last real panel, with no fabricated row-`nribss` panel; and
+6. retain dual-compared typed intrados panels across vent processing, publish
+   them after intake support is released, make their stage-8 metrics
+   authoritative, and remove the magic point-499 save/restore and collision
+   rule without modifying terminal row `nribss`.
 
-The next slice can retain typed intrados panels across vent processing, write
-them back after the support segment is no longer needed, and eliminate magic
-point 499.
+The next slice should begin Phase 4 with a typed skin-tension law and one
+side-shaping boundary that cleanly separates contour points from segments. As a
+prerequisite, the new-tension intrados accumulator now stops at the final real
+segment (`last-1`) rather than reading a nonexistent segment at the last contour
+point; checked-build and full-output regression coverage preserve its output.
 Later shaping-cut bounds exposed by the Chooca-15 preset still need a
 mixed-profile full-output fixture.

@@ -65,6 +65,25 @@ c      8.1.2 Intrados longitud cella extrema
      + (pr2y(i-1,j)-pr1y(i-1,j))**2)
        end do
 
+       call derive_neutral_boundary_edge(
+     + neutral_intrados_panels(nribss-1),terminal_intrados_edge,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid terminal intrados edge: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_boundary_edge_length(
+     + terminal_intrados_edge)
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + rib(nribss,25))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy intrados length differs at rib ',nribss,
+     + typed_geometry_metric,rib(nribss,25)
+       stop 1
+       end if
+       rib(nribss,25)=typed_geometry_metric
+
 c      8.1.2+ Inlet longitud cella extrema       
        i=nribss
        rib(nribss,26)=0.
@@ -139,6 +158,17 @@ c      8.1.4 Longitud intrados
      + (pl2y(i,j)-pl1y(i,j))**2)
        end do
 
+       typed_geometry_metric=neutral_panel_lower_edge_length(
+     + neutral_intrados_panels(i))
+       if (.not.geometry_values_are_close(typed_geometry_metric,rib(i,25)))
+     + then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy intrados length differs at rib ',i,
+     + typed_geometry_metric,rib(i,25)
+       stop 1
+       end if
+       rib(i,25)=typed_geometry_metric
+
 c      8.1.5 Longitud inlet
        do j=np(i,2),np(i,2)+np(i,3)-2
        rib(i,26)=rib(i,26)+sqrt((pl2x(i,j)-pl1x(i,j))**2+
@@ -189,6 +219,18 @@ c      Calcula punts je ji per definir ample celles, calcula ample
        rib(i,24)=dsqrt((pr1x(i,ji)-pl1x(i,ji))**2.+(pr1y(i,ji)
      + -pl1y(i,ji))**2.)
 
+       typed_geometry_metric=neutral_panel_edge_gap(
+     + neutral_intrados_panels(i),ji,neutral_gap_valid)
+       if (.not.neutral_gap_valid.or.
+     + .not.geometry_values_are_close(typed_geometry_metric,rib(i,24)))
+     + then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy intrados width differs at panel ',i,
+     + typed_geometry_metric,rib(i,24)
+       stop 1
+       end if
+       rib(i,24)=typed_geometry_metric
+
 c      Print linia esquerra
 c       do j=1,np(i,2)-1
 c       call line(pl1x(i,j),-pl1y(i,j),pl2x(i,j),-pl2y(i,j),1)
@@ -226,6 +268,18 @@ c      Ample celles extremes
        ji=int((np(i,2)+np(i,3)-1+np(i,1))/2)
        rib(i,24)=dsqrt((pr1x(i-1,ji)-pl1x(i-1,ji))**2.+(pr1y(i-1,ji)
      + -pl1y(i-1,ji))**2.)
+
+       typed_geometry_metric=neutral_panel_edge_gap(
+     + neutral_intrados_panels(i-1),ji,neutral_gap_valid)
+       if (.not.neutral_gap_valid.or.
+     + .not.geometry_values_are_close(typed_geometry_metric,rib(i,24)))
+     + then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy intrados width differs at rib ',i,
+     + typed_geometry_metric,rib(i,24)
+       stop 1
+       end if
+       rib(i,24)=typed_geometry_metric
 
 c      WARNING 20190624: Ample inlet not defined here!
 
@@ -1796,20 +1850,19 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      8.4 SOBREAMPLES INTRADOS
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-c      Artifici 2:
-c      Recupera un vector per evitar interferencia vents-intrados
-c      Veure apartat 7.4.2
-c      Vaja truc!!!
-       do i=0,nribss
-       npx=np(i,2)+np(i,3)-1
-       pl1x(i,npx)=pl1x(i,499)
-       pl1y(i,npx)=pl1y(i,499)
-       pl2x(i,npx)=pl2x(i,499)       
-       pl2y(i,npx)=pl2y(i,499)       
-       pr1x(i,npx)=pr1x(i,499)
-       pr1y(i,npx)=pr1y(i,499)
-       pr2x(i,npx)=pr2x(i,499)
-       pr2y(i,npx)=pr2y(i,499)
+c      Vent consumers are finished. Publish the retained exact intrados panels
+c      over the temporary intake support at their shared boundary. No numbered
+c      scratch point is involved, and the non-panel row nribss is untouched.
+       do i=0,nribss-1
+       call write_legacy_intrados_panel(neutral_intrados_panels(i),
+     + wing_profile_topologies(i),wing_profile_topologies(i+1),
+     + pl1x,pl1y,pl2x,pl2y,pr1x,pr1y,pr2x,pr2y,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed intrados write-back ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
        end do
        
        xcos=xlow/10. ! intrados sewing allowance
@@ -2127,7 +2180,7 @@ c      Assign lengths and sob distances
        u(i,np(i,2)+np(i,3)-1,7)=0.
        u(i,np(i,2)+np(i,3)-1,8)=0.
 
-       do j=np(i,2)+np(i,3)-1,np(i,1)
+       do j=np(i,2)+np(i,3)-1,np(i,1)-1
        do k=1,skinpoints(i)
 
 c      Left side
