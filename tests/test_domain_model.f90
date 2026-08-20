@@ -20,7 +20,8 @@ program test_domain_model
   type(spatial_rib_geometry_3d) :: spatial_rib, zero_based_spatial_rib
   type(production_panel_edges_2d) :: panel
   type(production_panel_2d) :: complete_panel
-  type(neutral_panel_2d) :: neutral_panel
+  type(neutral_panel_2d) :: neutral_panel, extrados_write_panel
+  type(neutral_panel_2d) :: zero_based_neutral_panel
   type(rib_identity), allocatable :: identities(:), saved_identities(:)
   type(color_division) :: division
   character(len=120) :: message
@@ -243,6 +244,13 @@ program test_domain_model
       neutral_topology, surface_extrados, neutral_panel, valid, message)
   call require(valid, 'valid neutral extrados rejected: '//trim(message))
   call require(neutral_panel%is_valid(), 'neutral extrados is invalid')
+  zero_based_neutral_panel = neutral_panel
+  deallocate(zero_based_neutral_panel%lower_start_biased_u)
+  allocate(zero_based_neutral_panel%lower_start_biased_u(0:2))
+  zero_based_neutral_panel%lower_start_biased_u = &
+      neutral_panel%lower_start_biased_u
+  call require(.not. zero_based_neutral_panel%is_valid(), &
+      'zero-based neutral coordinates were accepted')
   call require(size(neutral_panel%lower_start_biased_u) == 3, &
       'neutral extrados point count')
   call require_close(polyline_length_2d( &
@@ -275,6 +283,78 @@ program test_domain_model
   call require(gap_valid, 'gapped internal width index rejected')
   call require_close(gap, sqrt(16.0625_real64), &
       'internal width did not use the following segment starts')
+
+  ! Publishing a typed extrados panel writes exact segments only after every
+  ! destination and panel invariant has passed.
+  extrados_write_panel = neutral_panel
+  pl1_u(0, 1:3) = -101.0_real64
+  pl1_v(0, 1:3) = -102.0_real64
+  pl2_u(0, 1:3) = -103.0_real64
+  pl2_v(0, 1:3) = -104.0_real64
+  pr1_u(0, 1:3) = -105.0_real64
+  pr1_v(0, 1:3) = -106.0_real64
+  pr2_u(0, 1:3) = -107.0_real64
+  pr2_v(0, 1:3) = -108.0_real64
+  pl1_u(0, legacy_neutral_scratch_index) = 4991.0_real64
+  pr2_v(1, 1) = 171.0_real64
+  call write_legacy_extrados_panel(extrados_write_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(valid, 'valid typed extrados write rejected: '//trim(message))
+  do i = 1, 2
+    call require_close(pl1_u(0, i), &
+        extrados_write_panel%lower_segment_start_u(i), &
+        'typed lower start u was not published')
+    call require_close(pl1_v(0, i), &
+        extrados_write_panel%lower_segment_start_v(i), &
+        'typed lower start v was not published')
+    call require_close(pl2_u(0, i), &
+        extrados_write_panel%lower_segment_end_u(i), &
+        'typed lower end u was not published')
+    call require_close(pl2_v(0, i), &
+        extrados_write_panel%lower_segment_end_v(i), &
+        'typed lower end v was not published')
+    call require_close(pr1_u(0, i), &
+        extrados_write_panel%higher_segment_start_u(i), &
+        'typed higher start u was not published')
+    call require_close(pr1_v(0, i), &
+        extrados_write_panel%higher_segment_start_v(i), &
+        'typed higher start v was not published')
+    call require_close(pr2_u(0, i), &
+        extrados_write_panel%higher_segment_end_u(i), &
+        'typed higher end u was not published')
+    call require_close(pr2_v(0, i), &
+        extrados_write_panel%higher_segment_end_v(i), &
+        'typed higher end v was not published')
+  end do
+  call require_close(pl1_u(0, 3), -101.0_real64, &
+      'write-back changed the post-extrados index')
+  call require_close(pl1_u(0, legacy_neutral_scratch_index), &
+      4991.0_real64, 'write-back changed legacy scratch storage')
+  call require_close(pr2_v(1, 1), 171.0_real64, &
+      'write-back changed another panel row')
+
+  pl1_u(0, 1) = 213.0_real64
+  call write_legacy_extrados_panel(extrados_write_panel, neutral_topology, &
+      saved_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(.not. valid, 'incompatible write-back topology was accepted')
+  call require_close(pl1_u(0, 1), 213.0_real64, &
+      'topology failure changed its destination')
+
+  pl1_u(0, 1) = 321.0_real64
+  extrados_write_panel%panel_index = 3
+  call write_legacy_extrados_panel(extrados_write_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(.not. valid, 'invalid typed extrados write was accepted')
+  call require_close(pl1_u(0, 1), 321.0_real64, &
+      'failed write-back changed its destination')
+  extrados_write_panel = neutral_panel
+  call write_legacy_extrados_panel(extrados_write_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(valid, 'typed extrados restore failed: '//trim(message))
 
   test_topology%point_count = 7
   test_topology%extrados = index_range(1, 3)

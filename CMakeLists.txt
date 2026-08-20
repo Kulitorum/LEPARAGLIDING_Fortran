@@ -205,6 +205,23 @@ if(BUILD_TESTING)
           -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_even_cell_regression.cmake")
 
   add_test(
+      NAME classic_skin_regression
+      COMMAND "${CMAKE_COMMAND}"
+          "-DPROGRAM=$<TARGET_FILE:leparagliding>"
+          "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/classic-skin-gnua"
+          "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/classic-skin-regression"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_classic_skin_regression.cmake")
+
+  add_test(
+      NAME disabled_shaping_regression
+      COMMAND "${CMAKE_COMMAND}"
+          "-DPROGRAM=$<TARGET_FILE:leparagliding>"
+          "-DCASE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/classic-skin-gnua"
+          "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests/disabled-shaping-regression"
+          -DDISABLE_SHAPING=ON
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_classic_skin_regression.cmake")
+
+  add_test(
       NAME profile_capacity_guard
       COMMAND "${CMAKE_COMMAND}"
           "-DPROGRAM=$<TARGET_FILE:leparagliding>"

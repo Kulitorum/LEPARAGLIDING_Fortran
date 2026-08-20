@@ -31,3 +31,25 @@ parity warning or non-finite DXF geometry, and compares all five principal
 text/DXF outputs with reviewed, line-ending-normalized SHA-256 oracles.
 Generated outputs, including the approximately 20 MB main DXF, are deliberately
 omitted from the repository.
+
+## Classic-tension gnuA3 calculation
+
+`classic-skin-gnua/` contains the published gnuA3 preset from the maintained
+LeParagliding `resources/presets/gnuA3` tree. The configuration identifies the
+2021-07-24 gnuA3-25 design; its public source is
+<https://www.laboratoridenvol.com/projects/gnu-A3/leparagliding.txt>. The
+vendored SHA-256 values are:
+
+- `leparagliding.txt`: `d8239309fcbc7cc5a88b174bb69b99f09623dabe78e8e108922a3d76dfc2d380`
+- `gnua.txt`: `dc4548baf611877a7ea5ef9b028450c62f657e37a38d83fcdefd617133d7a9f9`
+- `gnuat.txt`: `11d84f2f34de2bf0260a00c021becb3cb261dbaedf436afdef262425d6f4787b`
+
+The design declares 28 cells and 29 ribs, enables section-29 3D shaping, and
+sets section 31 to zero so the complete run exercises classic skin tension.
+`classic_skin_regression` verifies that mode before execution, rejects
+non-finite DXF geometry, checks the reported counts, and compares all five
+principal outputs with reviewed, line-ending-normalized SHA-256 oracles.
+`disabled_shaping_regression` derives a second input in its isolated build
+directory by replacing section 29 with its documented zero value. It verifies
+the one-based no-cut group and zero-initialized shaping-influence path under
+runtime bounds checking, while leaving the authored fixture immutable.

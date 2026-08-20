@@ -116,7 +116,10 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c       if (k29dd.eq.3) then
 
        do i=1,nribss
-       ng=rib(i,169)
+       ng=int(rib(i,169))
+c      Preserve the historical mapping for real groups without allowing an
+c      incomplete group assignment to index below iupp's one-based dimension.
+       if (ng.ge.lbound(iupp,3).and.ng.le.ubound(iupp,3)) then
        do j=1,np(i,1)-1
 
 c       write (*,*) xiupp(1,2,ng),u(i,j,1)
@@ -142,6 +145,7 @@ c       ilow(1,3,ng)=j
 c       end if
 
        end do
+       end if
        end do
 
 c       end if ! k29dd=3

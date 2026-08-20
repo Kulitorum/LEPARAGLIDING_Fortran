@@ -19,7 +19,7 @@ array and its slot, not by the variable letter alone:
 | `x/y/z(i,j)` | Absolute spatial skin coordinates after scale, arch, wash-in, and rotations |
 | `wing_spatial_ribs(i)` | Validated, independently owned snapshot of physical spatial rib `i` |
 | `pl*/pr*(panel,j)` | Neutral 2D development of the four quadrilateral corners |
-| `neutral_extrados_panel` | Exact typed extrados segments for the panel currently being compared or measured |
+| `neutral_extrados_panel` | Exact typed extrados segments for the current regular panel; after comparison these are written to the owned legacy extrados slice |
 | `u/v(panel,j,9)` | Tensioned/developed left skin edge |
 | `u/v(panel,j,10)` | Tensioned/developed right skin edge |
 | `u/v(panel,j,11:12)` | Left/right sewing-border coordinates |
@@ -39,8 +39,8 @@ a chord percentage at ribs, then mapped onto developed `u/v` panel edges.
 | `04_data_reading.inc` | Parses sections 1--39, validates options, scales geometry, derives placement |
 | `05_graphic_design.inc` | Draws planform/vault references and design annotations |
 | `06_airfoil_geometry.inc` | Loads profiles, constructs normalized plus absolute 3D geometry, then snapshots physical spatial ribs |
-| `07_panel_development.inc` | Flattens consecutive 3D quadrilaterals and dual-runs regular extrados panels through the pure typed developer |
-| `08_skin_tension.inc` | Makes agreeing typed extrados metrics authoritative, then applies shaping and creates edges, borders, vents, and layouts |
+| `07_panel_development.inc` | Flattens consecutive 3D quadrilaterals, exactly compares the legacy and pure typed regular-extrados results, then publishes the typed segments through a checked adapter |
+| `08_skin_tension.inc` | Makes agreeing typed regular-extrados metrics authoritative, then applies legacy shaping and creates edges, borders, vents, and layouts |
 | `09_singular_rib_points.inc` | Resolves anchors, intake limits, and named construction points |
 | `10_calage.inc` | Calculates aerodynamic reference angles and balance geometry |
 | `11_panel_lengths.inc` | Measures corresponding sides and places assembly marks |
@@ -65,6 +65,7 @@ section 1 rib planform + section 2 profiles
   -> validated spatial_rib_geometry_3d snapshots
   -> quadrilateral distances between ribs
   -> pure typed extrados development compared with neutral pl*/pr* coordinates
+  -> checked write-back of typed exact segments to the owned extrados slice
   -> typed-authoritative extrados length/width metrics
   -> tensioned left/right u/v slots 9/10
   -> outer sewing/cutting geometry in slots 11/12 and panel routines
@@ -74,6 +75,20 @@ section 1 rib planform + section 2 profiles
 
 The color stage intentionally runs after skin tension. Moving it earlier would
 map artwork onto the neutral strip instead of the actual production panel.
+
+The typed authority boundary currently ends at those exact regular-extrados
+segments and their agreeing metrics. Stage-8 intake/vent support at
+`j=np(i,2)`, intrados geometry, point 499 used as legacy scratch, and the
+dummy/tip-support row remain legacy-owned; the adapter does not synthesize a
+typed panel for them.
+
+When section 29 shaping is disabled, data reading selects its declared
+one-based no-cut group, validates that every rib has a declared group, and
+zero-initializes no-cut influence values. The stage-6 mapper and
+zone-of-influence routine also validate group bounds before indexing the legacy
+shaping tables. A derived gnuA3 full run covers this disabled mode. Separately,
+the authored gnuA3 classic-tension (`k31d=0`) regression exercises the
+non-single-surface stage-8 path with shaping enabled.
 
 ## Naming rule for new work
 

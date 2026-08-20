@@ -237,6 +237,7 @@ module leparagliding_domain_model
   public :: extrados_topologies_are_index_compatible
   public :: copy_legacy_neutral_panel
   public :: copy_legacy_neutral_panel_from_counts
+  public :: write_legacy_extrados_panel
   public :: polyline_length_2d
   public :: neutral_panel_lower_edge_length
   public :: neutral_panel_higher_edge_length
@@ -485,6 +486,18 @@ contains
     if (.not. allocated(panel%higher_segment_start_v)) return
     if (.not. allocated(panel%higher_segment_end_u)) return
     if (.not. allocated(panel%higher_segment_end_v)) return
+    if (any([lbound(panel%lower_start_biased_u, 1), &
+        lbound(panel%lower_start_biased_v, 1), &
+        lbound(panel%higher_start_biased_u, 1), &
+        lbound(panel%higher_start_biased_v, 1), &
+        lbound(panel%lower_segment_start_u, 1), &
+        lbound(panel%lower_segment_start_v, 1), &
+        lbound(panel%lower_segment_end_u, 1), &
+        lbound(panel%lower_segment_end_v, 1), &
+        lbound(panel%higher_segment_start_u, 1), &
+        lbound(panel%higher_segment_start_v, 1), &
+        lbound(panel%higher_segment_end_u, 1), &
+        lbound(panel%higher_segment_end_v, 1)] /= 1)) return
     if (size(panel%lower_segment_start_u) /= point_count - 1) return
     if (size(panel%lower_segment_start_v) /= point_count - 1) return
     if (size(panel%lower_segment_end_u) /= point_count - 1) return
@@ -1232,6 +1245,103 @@ contains
     panel = candidate
     valid = .true.
   end subroutine copy_legacy_neutral_panel
+
+  !> Write one validated typed extrados panel to legacy corner arrays.
+  !!
+  !! This is the compatibility boundary for the typed stage-7 producer.  Every
+  !! precondition is checked before the first assignment, so a rejected panel
+  !! leaves all eight destination arrays unchanged.  Only the extrados segment
+  !! indices `contour_first_index:contour_last_index-1` are written; intake,
+  !! intrados, support, and scratch coordinates remain owned by their existing
+  !! producers.
+  !!
+  !! The eight destination arrays must be distinct actual arguments.
+  !!
+  !! @param[in] panel Complete typed extrados development to publish.
+  !! @param[in] lower_topology,higher_topology Adjacent source topologies.
+  !! @param[inout] legacy_pl1_u,legacy_pl1_v Lower segment starts.
+  !! @param[inout] legacy_pl2_u,legacy_pl2_v Lower segment ends.
+  !! @param[inout] legacy_pr1_u,legacy_pr1_v Higher segment starts.
+  !! @param[inout] legacy_pr2_u,legacy_pr2_v Higher segment ends.
+  !! @param[out] valid True only after the complete panel was written.
+  !! @param[out] message Empty on success; diagnostic text on failure.
+  pure subroutine write_legacy_extrados_panel(panel, lower_topology, &
+      higher_topology, legacy_pl1_u, legacy_pl1_v, legacy_pl2_u, &
+      legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
+      legacy_pr2_v, valid, message)
+    type(neutral_panel_2d), intent(in) :: panel
+    type(profile_topology), intent(in) :: lower_topology, higher_topology
+    real(real64), intent(inout) :: legacy_pl1_u(0:,:), legacy_pl1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pl2_u(0:,:), legacy_pl2_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr1_u(0:,:), legacy_pr1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr2_u(0:,:), legacy_pr2_v(0:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    integer :: local_index, source_index, segment_count
+
+    valid = .false.
+    message = ''
+    if (.not. neutral_legacy_shapes_match(legacy_pl1_u, legacy_pl1_v, &
+        legacy_pl2_u, legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, &
+        legacy_pr2_u, legacy_pr2_v)) then
+      message = 'legacy neutral-panel destination shapes differ'
+      return
+    end if
+    if (.not. panel%is_valid()) then
+      message = 'cannot write an invalid neutral panel'
+      return
+    end if
+    if (panel%surface /= surface_extrados) then
+      message = 'extrados write-back received another surface'
+      return
+    end if
+    if (.not. extrados_topologies_are_index_compatible(lower_topology, &
+        higher_topology)) then
+      message = 'extrados write-back received incompatible topologies'
+      return
+    end if
+    if (panel%contour_first_index /= lower_topology%extrados%first .or. &
+        panel%contour_last_index /= lower_topology%extrados%last) then
+      message = 'typed panel range differs from source extrados topology'
+      return
+    end if
+    if (panel%panel_index > ubound(legacy_pl1_u, 1)) then
+      message = 'panel index is outside neutral-panel destinations'
+      return
+    end if
+    if (panel%contour_first_index < lbound(legacy_pl1_u, 2) .or. &
+        panel%contour_last_index - 1 > ubound(legacy_pl1_u, 2)) then
+      message = 'extrados segments exceed neutral-panel point capacity'
+      return
+    end if
+    if (panel%contour_last_index > legacy_neutral_scratch_index) then
+      message = 'extrados range collides with legacy neutral scratch storage'
+      return
+    end if
+
+    segment_count = panel%contour_last_index - panel%contour_first_index
+    do local_index = 1, segment_count
+      source_index = panel%contour_first_index + local_index - 1
+      legacy_pl1_u(panel%panel_index, source_index) = &
+          panel%lower_segment_start_u(local_index)
+      legacy_pl1_v(panel%panel_index, source_index) = &
+          panel%lower_segment_start_v(local_index)
+      legacy_pl2_u(panel%panel_index, source_index) = &
+          panel%lower_segment_end_u(local_index)
+      legacy_pl2_v(panel%panel_index, source_index) = &
+          panel%lower_segment_end_v(local_index)
+      legacy_pr1_u(panel%panel_index, source_index) = &
+          panel%higher_segment_start_u(local_index)
+      legacy_pr1_v(panel%panel_index, source_index) = &
+          panel%higher_segment_start_v(local_index)
+      legacy_pr2_u(panel%panel_index, source_index) = &
+          panel%higher_segment_end_u(local_index)
+      legacy_pr2_v(panel%panel_index, source_index) = &
+          panel%higher_segment_end_v(local_index)
+    end do
+    valid = .true.
+  end subroutine write_legacy_extrados_panel
 
   !> Compose topology and neutral-panel adapters from the legacy arrays.
   subroutine copy_legacy_neutral_panel_from_counts(legacy_pl1_u, &

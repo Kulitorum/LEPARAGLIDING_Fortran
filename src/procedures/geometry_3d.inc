@@ -263,6 +263,8 @@ c      print in lep-out.txt
 !! @param[in] u Profile X coordinates, including local slots 53 and 54.
 !! @param[in] v Profile Y coordinates, including local slots 53 and 54.
 !! @param[in] w Profile Z coordinates, including local slots 53 and 54.
+!! An out-of-range panel group is treated as having no shaping cuts; the vent
+!! zone is still measured because it is independent of those cuts.
 !! @param[in] uppcuts Number of upper cuts by panel group.
 !! @param[in] iupp Upper-cut index definitions.
 !! @param[in] kiupp Upper-cut coefficients retained for interface compatibility.
@@ -286,6 +288,7 @@ c      print in lep-out.txt
        integer iupp(10,10,200),ilow(10,10,200)
        real*8 kiupp(10,200),kilow(10,200)
        integer uppcuts(200),lowcuts(200),iflag
+       integer upper_cut_count,lower_cut_count
 
        real*8 punt0(3),punt1(3),punt2(3),punt3(3),punt4(3)
        real*8 aplane,bplane,cplane,dplane,xt,dp0
@@ -296,17 +299,20 @@ c      print in lep-out.txt
 
        real*8 zinf(0:100,10,10)
 
-       ng=rib(i,169)
-
-c      Cases
-       if (uppcuts(ng).eq.0) then
+       zinf(i,:,:)=0.0d0
+       ng=int(rib(i,169))
+       upper_cut_count=0
+       lower_cut_count=0
+       if (ng.ge.lbound(uppcuts,1).and.ng.le.ubound(uppcuts,1)) then
+       upper_cut_count=uppcuts(ng)
+       lower_cut_count=lowcuts(ng)
        end if
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Case 1 cut extrados
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-       if (uppcuts(ng).eq.1) then
+       if (upper_cut_count.eq.1) then
 
 c      Zone 1
        d1=0.0d0
@@ -357,7 +363,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Case 2 cuts extrados
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-       if (uppcuts(ng).eq.2) then
+       if (upper_cut_count.eq.2) then
 
 c      Zone 1
        d1=0.0d0
@@ -443,7 +449,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Case 1 cut intrados
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-       if (lowcuts(ng).eq.1) then
+       if (lower_cut_count.eq.1) then
 
 c      Zone 5
        d1=0.0d0

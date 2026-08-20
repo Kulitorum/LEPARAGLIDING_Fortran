@@ -360,8 +360,10 @@ c      Iteration
 
 c      Dual-run every final extrados panel through the pure typed developer.
 c      Compare all exact 2D endpoints and the six independent source distances
-c      before intrados reuses the legacy scratch variables.  The legacy arrays
-c      remain authoritative during this producer-migration checkpoint.
+c      before intrados reuses the legacy scratch variables.  After agreement,
+c      publish the typed exact segments back through the checked compatibility
+c      adapter.  The typed producer then owns regular panel rows 0:nribss-1 at
+c      the exact extrados segment indices first:last-1.
        do i=0,nribss-1
        call develop_extrados_panel(wing_spatial_ribs(i),
      + wing_spatial_ribs(i+1),wing_profile_topologies(i),
@@ -450,6 +452,16 @@ c      original mirrored xx/yy/zz source, not the typed row-0 snapshot.
        stop 1
        end if
        end do
+
+       call write_legacy_extrados_panel(neutral_extrados_panel,
+     + wing_profile_topologies(i),wing_profile_topologies(i+1),
+     + pl1x,pl1y,pl2x,pl2y,pr1x,pr1y,pr2x,pr2y,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed extrados write-back ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
        end do
 
 

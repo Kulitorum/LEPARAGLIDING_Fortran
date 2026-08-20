@@ -87,17 +87,40 @@ The extrados migration now crosses its first producer boundary:
   arctangent. It requires matching extrados indices, not identical whole-profile
   discretization, so adjacent ribs may use different intake/intrados counts.
 - Stage 7 dual-runs that routine for every regular extrados panel and compares
-  all eight endpoint scalars and six source distances per quadrilateral before
-  stage 8 consumes the legacy arrays.
+  all eight endpoint scalars and six source distances per quadrilateral.
 - Stage-8 extrados contour lengths and widths are now assigned from typed
   neutral panels after the typed and legacy results agree. Its adapter likewise
   validates compatibility per surface rather than across unrelated ranges.
 
 The odd-cell Plan B outputs and Swoop2 geometry/line outputs are unchanged. The
 Swoop2 report oracle changed only to correct its displayed counts from 52/51 to
-the declared 51 ribs and 50 cells. Stage 7 remains the authoritative producer
-until the typed panel is written back through an adapter; intake and intrados
-development are not yet migrated.
+the declared 51 ribs and 50 cells.
+
+### Fourth checkpoint: authoritative extrados write-back and classic tension
+
+The checked producer boundary is now active for the exact regular extrados
+slice:
+
+- After every stage-7 legacy/typed endpoint and source-distance comparison
+  succeeds, `write_legacy_extrados_panel` publishes the typed exact segment
+  starts and ends into the corresponding `pl*/pr*` slice. The adapter validates
+  panel ownership, both adjacent extrados topologies, array shapes and bounds,
+  and the reserved scratch index before making any write.
+- The pure typed extrados developer is therefore the final writer for the
+  segment indices it owns. The legacy calculation remains a comparison oracle
+  during this migration, rather than the final source of those values.
+- A realistic classic-tension (`k31d=0`) full-output fixture now covers the
+  non-single-surface stage-8 path and freezes all five principal outputs.
+- When section 29 shaping is disabled, ribs are assigned to its declared
+  one-based no-cut group. Parsing rejects incomplete or inconsistent group
+  coverage, the stage-6 lookup and 3D shaping consumer check bounds
+  defensively, and a derived full-output gnuA3 run covers the disabled mode.
+
+This authority is intentionally not broader than the adapter's exact extrados
+range. Stage-8 intake/vent support at `j=np(i,2)`, intrados development, the
+point-499 scratch convention, and the dummy/tip-support row remain
+legacy-owned. In particular, no regular typed panel is invented for that
+nonphysical row.
 
 ## Terminology used in this plan
 
@@ -675,8 +698,8 @@ mark routines, and the remaining surface metrics still use legacy storage.
 3. Move panel-side length measurement into pure functions returning
    `panel_side_metrics`; stop using `rib(:,40:45)` as loop scratch.
 
-This phase exercises the model in useful production code while the proven
-legacy stages remain authoritative producers.
+This phase exercises the model in useful production code while producer
+authority changes only at exact, checked compatibility boundaries.
 
 Exit criterion: color entities, panel outlines, marks, and measured lengths
 match the phase-0 oracles; the migrated consumers contain no numeric `u/v` slot
@@ -684,9 +707,10 @@ references.
 
 ### Phase 3 — Own neutral 2D development
 
-Implementation status: the pure extrados developer and dual-run exist. The
-legacy stage-7 loop is still authoritative and intake/intrados are not yet
-migrated.
+Implementation status: the pure extrados developer, exact dual-run, and checked
+write-back exist. After agreement, the typed panel is the final writer for its
+owned regular extrados segment slice. Intake/vent support, intrados, point 499,
+and the dummy/tip-support row are not yet migrated.
 
 1. Extract one pure `develop_panel_strip(spatial_left, spatial_right, topology)`
    routine from stage 7. **Complete for regular extrados panels.**
@@ -696,7 +720,8 @@ migrated.
    plus the six source distances for every quadrilateral. **Complete for regular
    extrados panels.**
 4. Initially write the typed result back through an adapter so stage 8 and
-   stage 16 continue unchanged.
+   stage 16 continue unchanged. **Complete for the exact regular extrados
+   segment slice.**
 5. Replace the special `xx/yy/zz` path with an explicit symmetry-virtual spatial
    rib.
 
@@ -852,13 +877,17 @@ comparison oracle for the deeper stages. The subsequent neutral-panel
 checkpoint dual-ran stage-8 extrados metrics before making the agreeing typed
 values authoritative.
 
-The next implementation slice is:
+The current authority checkpoint completed:
 
 1. write the typed extrados result back through a checked adapter and make the
-   pure developer authoritative;
+   pure developer authoritative for its exact regular extrados segment slice;
 2. add a classic, non-single-surface (`k31d=0`) full-output fixture;
-3. resolve the legacy section-29 disabled-shaping index, stage-8
-   tip-support/shaping-point ownership, and later shaping-cut bounds exposed by
-   the Chooca-15 preset, then add it as a mixed-profile full-output fixture; and
-4. repeat the producer migration for intake and intrados, preserving the intake
-   support segment and eliminating magic point 499 from the new path.
+3. map disabled section-29 shaping to its one-based no-cut group and guard
+   shaping-table lookups against invalid group indices.
+
+The next slice must first resolve stage-8 intake/vent, dummy/tip-support, and
+shaping-point ownership without pretending those values belong to a regular
+extrados panel. It can then repeat the producer migration for intake and
+intrados, preserve the intake support segment explicitly, and eliminate magic
+point 499 from the new path. Later shaping-cut bounds exposed by the Chooca-15
+preset still need a mixed-profile full-output fixture.

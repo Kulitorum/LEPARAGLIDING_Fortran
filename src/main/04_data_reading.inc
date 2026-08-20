@@ -1394,7 +1394,9 @@ c      Set default values for no cuts
        lowcuts(1)=0
        lowtype(1)=1
        do i=1,nribss
-       rib(i,169)=0.
+c      The downstream shaping tables are one-based.  Assign the declared
+c      default no-cut group instead of the invalid group zero.
+       rib(i,169)=1.
        end do
 c      Set default print parameters
        do i=1,5
@@ -1511,6 +1513,20 @@ c      Return to type 1
        k29d=1
 
        end if ! 3D active type 2
+
+c      Every downstream shaping-table access is one-based.  Reject incomplete
+c      or inconsistent group coverage here instead of allowing a later stage
+c      to index group zero or an undeclared group.
+       do i=1,nribss
+       ng=int(rib(i,169))
+       if (ng.lt.1.or.ng.gt.ng29) then
+       write (*,'(A,I0,A,I0)') 'ERROR: rib ',i,
+     + ' has invalid 3D-shaping group ',ng
+       write (50,'(A,I0,A,I0)') 'ERROR: rib ',i,
+     + ' has invalid 3D-shaping group ',ng
+       stop 1
+       end if
+       end do
 
 c      Read print parameters
        if (k29d.ne.0) then

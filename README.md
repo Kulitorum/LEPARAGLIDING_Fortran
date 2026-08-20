@@ -85,7 +85,8 @@ The maintained structure now:
   legacy-array adapters;
 - builds typed spatial-rib snapshots at the stage-6 boundary and dual-runs a
   pure stage-7 extrados developer against every legacy endpoint and source
-  distance;
+  distance, then uses a checked adapter to make the agreeing typed exact
+  extrados segments the final values in their legacy compatibility slice;
 - makes typed stage-8 extrados lengths and widths authoritative only after the
   legacy calculation agrees with them;
 - parses new HVR settings into typed, initialized configuration objects in
@@ -108,7 +109,14 @@ inserted, records the actual output indices when a nearby source point is used,
 and initializes the shared intake/intrados endpoint before any junction or
 typed-topology consumer reads it. The old routine could leave `np(:,5)`
 indeterminate and report the wrong index for a boundary moved to source point
-`j+1`. Even-cell reports now also preserve the declared cell/rib counts.
+`j+1`. Disabled section-29 shaping now maps ribs to the declared one-based
+no-cut group, and shaping consumers defensively bounds-check group indices.
+Even-cell reports now also preserve the declared cell/rib counts.
+
+The stage-7 authority change is deliberately narrow. Intake/vent support at
+`j=np(i,2)`, intrados development, the legacy point-499 scratch value, and the
+dummy/tip-support row used by later stage-8 paths remain legacy-owned. They are
+not fabricated from a regular typed extrados panel.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -153,7 +161,7 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Up to ten isolated tests are registered (eight do not require Python):
+Up to twelve isolated tests are registered (ten do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
@@ -174,9 +182,15 @@ Up to ten isolated tests are registered (eight do not require Python):
 8. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
    design, checks its collapsed center and declared counts, rejects non-finite
    DXF geometry, and compares all five principal outputs.
-9. `profile_capacity_guard` verifies that an oversized 501-point profile is
+9. `classic_skin_regression` runs the realistic gnuA3 design through classic
+   skin tension (`k31d=0`), rejects non-finite DXF geometry, checks its declared
+   counts, and freezes all five principal outputs.
+10. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
+   checks the one-based no-cut group path under runtime bounds checking, and
+   freezes all five principal outputs.
+11. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-10. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+12. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -196,6 +210,7 @@ working directory because output files there are overwritten.
 CMakeLists.txt
 cmake/
   run_color_import_test.cmake      Swoop2-derived DXF import oracle
+  run_classic_skin_regression.cmake realistic classic-tension regression
   run_even_cell_regression.cmake   complete even-cell Swoop2 regression
   run_plan_b_regression.cmake       complete-output regression
   run_profile_capacity_check.cmake oversized-profile rejection
