@@ -117,10 +117,31 @@ slice:
   defensively, and a derived full-output gnuA3 run covers the disabled mode.
 
 This authority is intentionally not broader than the adapter's exact extrados
-range. Stage-8 intake/vent support at `j=np(i,2)`, intrados development, the
-point-499 scratch convention, and the dummy/tip-support row remain
-legacy-owned. In particular, no regular typed panel is invented for that
-nonphysical row.
+range. At this checkpoint, intake/vent support, intrados development, the
+point-499 scratch convention, and the dummy/tip-support row remained
+legacy-owned.
+
+### Fifth checkpoint: authoritative intake and explicit support
+
+The next safe surface boundary is now active without widening regular panel
+ownership:
+
+- `develop_intake_panel` reuses the pure distance-preserving quadrilateral
+  engine for matching intake ranges. Exact contour segments occupy
+  `first:last-1`; the legacy look-ahead quadrilateral at `last` is returned only
+  through the named post-surface support fields.
+- Stage 7 dual-runs every endpoint and all six independent source distances for
+  both the contour and support. `write_legacy_intake_panel` then publishes the
+  agreeing typed values for rows `0:nribss-1`, after validating shapes, bounds,
+  topology, ownership, and separation from scratch index 499.
+- The support at intake `first=np(i,2)` supplies the new-skin-tension extrados
+  look-ahead; the support at intake `last` supplies the intake/intrados tangent.
+  Both are explicit cross-surface dependencies rather than extrados ownership.
+- Stage-8 lower and wingtip-higher intake lengths are assigned from exact typed
+  segments after agreement with the legacy sums.
+
+Intrados, scratch index 499, and the unresolved terminal comparison row remain
+outside this boundary. No typed panel is created for row `nribss`.
 
 ## Terminology used in this plan
 
@@ -707,21 +728,21 @@ references.
 
 ### Phase 3 — Own neutral 2D development
 
-Implementation status: the pure extrados developer, exact dual-run, and checked
-write-back exist. After agreement, the typed panel is the final writer for its
-owned regular extrados segment slice. Intake/vent support, intrados, point 499,
-and the dummy/tip-support row are not yet migrated.
+Implementation status: the pure shared quadrilateral developer, exact dual-run,
+and checked write-back exist for regular extrados and intake geometry. Intake's
+post-surface support is explicit. Intrados, point 499, and the terminal
+comparison row are not yet migrated.
 
 1. Extract one pure `develop_panel_strip(spatial_left, spatial_right, topology)`
-   routine from stage 7. **Complete for regular extrados panels.**
+   routine from stage 7. **Complete for regular extrados and intake panels.**
 2. Return exact lower/higher segment chains in `neutral_panel_2d`; decide
    explicitly whether closing measured legacy join gaps is an approved change.
 3. Dual-run it beside the legacy `pl*/pr*` calculation and compare every point
    plus the six source distances for every quadrilateral. **Complete for regular
-   extrados panels.**
+   extrados and intake panels, including intake support.**
 4. Initially write the typed result back through an adapter so stage 8 and
-   stage 16 continue unchanged. **Complete for the exact regular extrados
-   segment slice.**
+   stage 16 continue unchanged. **Complete for the exact regular extrados and
+   intake slices.**
 5. Replace the special `xx/yy/zz` path with an explicit symmetry-virtual spatial
    rib.
 
@@ -877,17 +898,19 @@ comparison oracle for the deeper stages. The subsequent neutral-panel
 checkpoint dual-ran stage-8 extrados metrics before making the agreeing typed
 values authoritative.
 
-The current authority checkpoint completed:
+The producer-authority checkpoints completed:
 
 1. write the typed extrados result back through a checked adapter and make the
    pure developer authoritative for its exact regular extrados segment slice;
 2. add a classic, non-single-surface (`k31d=0`) full-output fixture;
 3. map disabled section-29 shaping to its one-based no-cut group and guard
-   shaping-table lookups against invalid group indices.
+   shaping-table lookups against invalid group indices; and
+4. make typed intake contour segments and explicit post-intake support the
+   final regular-row values after exact dual-run agreement.
 
-The next slice must first resolve stage-8 intake/vent, dummy/tip-support, and
-shaping-point ownership without pretending those values belong to a regular
-extrados panel. It can then repeat the producer migration for intake and
-intrados, preserve the intake support segment explicitly, and eliminate magic
-point 499 from the new path. Later shaping-cut bounds exposed by the Chooca-15
-preset still need a mixed-profile full-output fixture.
+The next slice must represent the stage-8 terminal comparison edge as the
+higher side of the final real panel, not as a fabricated row-`nribss` panel. It
+can then retain typed intrados panels across vent processing, write them back
+after the support segment is no longer needed, and eliminate magic point 499.
+Later shaping-cut bounds exposed by the Chooca-15 preset still need a
+mixed-profile full-output fixture.

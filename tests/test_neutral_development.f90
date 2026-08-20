@@ -6,13 +6,17 @@ program test_neutral_development
   implicit none
 
   type(spatial_rib_geometry_3d) :: lower_rib, higher_rib
+  type(spatial_rib_geometry_3d) :: intake_lower_rib, intake_higher_rib
+  type(spatial_rib_geometry_3d) :: short_higher_rib, bad_support_higher_rib
   type(profile_topology) :: topology, different_intrados_topology
-  type(profile_topology) :: mismatched_topology
+  type(profile_topology) :: mismatched_topology, intake_topology
+  type(profile_topology) :: mismatched_intake_topology
   type(neutral_panel_2d) :: panel
   type(quadrilateral_distances_3d), allocatable :: source_distances(:)
   character(len=160) :: message
   logical :: valid
   real(real64) :: saved_higher_gap, developed_end_width
+  real(real64) :: saved_support_end_v
 
   ! One planar 4-by-3 rectangle exercises all six spatial distances and the
   ! canonical zero-angle initial join state.
@@ -164,7 +168,102 @@ program test_neutral_development
   call require_close(panel%maximum_higher_join_gap, saved_higher_gap, &
       'degenerate failure changed the previous panel')
 
-  write (*, '(A)') 'PASS: pure neutral extrados development'
+  ! Intake owns its contour segments and exposes the following legacy
+  ! quadrilateral separately as tangent/support geometry.
+  intake_topology%point_count = 6
+  intake_topology%extrados = index_range(1, 3)
+  intake_topology%intake = index_range(3, 5)
+  intake_topology%intrados = index_range(5, 6)
+  intake_topology%leading_edge_index = 3
+  call require(intake_topology%is_valid(), 'intake topology is invalid')
+
+  intake_lower_rib%rib_index = 0
+  intake_lower_rib%x = [0.0_real64, 0.0_real64, 0.0_real64, &
+      0.0_real64, 0.0_real64, 0.0_real64]
+  intake_lower_rib%y = [99.0_real64, 98.0_real64, 0.0_real64, &
+      2.0_real64, 5.0_real64, 9.0_real64]
+  intake_lower_rib%z = 0.0_real64*intake_lower_rib%x
+  intake_higher_rib%rib_index = 1
+  intake_higher_rib%x = [4.0_real64, 4.0_real64, 4.0_real64, &
+      4.0_real64, 4.0_real64, 4.0_real64]
+  intake_higher_rib%y = intake_lower_rib%y
+  intake_higher_rib%z = 0.0_real64*intake_higher_rib%x
+
+  call develop_intake_panel(intake_lower_rib, intake_higher_rib, &
+      intake_topology, intake_topology, panel, source_distances, valid, message)
+  call require(valid, 'planar intake rejected: '//trim(message))
+  call require(panel%is_valid(), 'typed intake is not a valid neutral panel')
+  call require(panel%surface == surface_intake, 'typed intake surface identity')
+  call require(panel%contour_first_index == 3 .and. &
+      panel%contour_last_index == 5, 'typed intake contour range')
+  call require(size(panel%lower_segment_start_u) == 2, &
+      'support leaked into exact intake segments')
+  call require(size(source_distances) == 3, &
+      'intake traces do not include the final support entry')
+  call require(panel%has_post_surface_support, &
+      'typed intake omitted its post-surface support')
+  call require_close(panel%lower_segment_start_v(1), 0.0_real64, &
+      'intake did not reset its local development origin')
+  call require_close(panel%lower_segment_end_v(1), 2.0_real64, &
+      'first intake segment endpoint')
+  call require_close(panel%lower_segment_end_v(2), 5.0_real64, &
+      'last intake contour endpoint')
+  call require_close(panel%support_lower_start_v, 5.0_real64, &
+      'intake support start')
+  call require_close(panel%support_lower_end_v, 9.0_real64, &
+      'intake support end')
+  call require_close(panel%support_higher_start_u, 4.0_real64, &
+      'higher intake support start')
+  call require_close(panel%support_lower_join_gap, 0.0_real64, &
+      'lower intake support join gap')
+  call require_close(panel%support_higher_join_gap, 0.0_real64, &
+      'higher intake support join gap')
+  call require_close(source_distances(1)%lower_contour_edge, 2.0_real64, &
+      'first intake source distance')
+  call require_close(source_distances(2)%lower_contour_edge, 3.0_real64, &
+      'second intake source distance')
+  call require_close(source_distances(3)%lower_contour_edge, 4.0_real64, &
+      'intake support source distance')
+
+  ! Intake range and support failures are transactional.
+  saved_support_end_v = panel%support_lower_end_v
+  mismatched_intake_topology%point_count = 7
+  mismatched_intake_topology%extrados = index_range(1, 3)
+  mismatched_intake_topology%intake = index_range(3, 6)
+  mismatched_intake_topology%intrados = index_range(6, 7)
+  mismatched_intake_topology%leading_edge_index = 3
+  call develop_intake_panel(intake_lower_rib, intake_higher_rib, &
+      intake_topology, mismatched_intake_topology, panel, source_distances, &
+      valid, message)
+  call require(.not. valid, 'mismatched intake indices were accepted')
+  call require_close(panel%support_lower_end_v, saved_support_end_v, &
+      'intake topology failure changed the previous panel')
+  call require(size(source_distances) == 3, &
+      'intake topology failure changed the previous traces')
+
+  short_higher_rib = intake_higher_rib
+  short_higher_rib%x = intake_higher_rib%x(1:5)
+  short_higher_rib%y = intake_higher_rib%y(1:5)
+  short_higher_rib%z = intake_higher_rib%z(1:5)
+  call develop_intake_panel(intake_lower_rib, short_higher_rib, &
+      intake_topology, intake_topology, panel, source_distances, valid, message)
+  call require(.not. valid, 'missing intake support point was accepted')
+  call require_close(panel%support_lower_end_v, saved_support_end_v, &
+      'intake capacity failure changed the previous panel')
+
+  bad_support_higher_rib = intake_higher_rib
+  bad_support_higher_rib%x(5) = intake_lower_rib%x(5)
+  bad_support_higher_rib%y(5) = intake_lower_rib%y(5)
+  bad_support_higher_rib%z(5) = intake_lower_rib%z(5)
+  call develop_intake_panel(intake_lower_rib, bad_support_higher_rib, &
+      intake_topology, intake_topology, panel, source_distances, valid, message)
+  call require(.not. valid, 'degenerate intake support was accepted')
+  call require_close(panel%support_lower_end_v, saved_support_end_v, &
+      'intake support failure changed the previous panel')
+  call require(size(source_distances) == 3, &
+      'intake support failure changed the previous traces')
+
+  write (*, '(A)') 'PASS: pure neutral surface development'
 
 contains
 

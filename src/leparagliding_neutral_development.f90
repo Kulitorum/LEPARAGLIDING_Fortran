@@ -10,8 +10,8 @@ module leparagliding_neutral_development
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
   use leparagliding_domain_model, only : neutral_panel_2d, profile_topology, &
-      spatial_rib_geometry_3d, &
-      surface_extrados, extrados_topologies_are_index_compatible
+      spatial_rib_geometry_3d, surface_extrados, surface_intake, &
+      extrados_topologies_are_index_compatible
   implicit none
   private
 
@@ -48,6 +48,7 @@ module leparagliding_neutral_development
   end type developed_segment_2d
 
   public :: develop_extrados_panel
+  public :: develop_intake_panel
 
 contains
 
@@ -85,43 +86,120 @@ contains
     logical, intent(out) :: valid
     character(len=*), intent(out) :: message
 
-    type(neutral_panel_2d) :: candidate
-    type(quadrilateral_distances_3d), allocatable :: candidate_distances(:)
-    type(development_join_state) :: state, next_state
-    type(developed_segment_2d) :: segment
-    integer :: point_count, segment_count, source_index, local_index
-    logical :: segment_valid
-
     valid = .false.
     message = ''
-    if (.not. lower_rib%is_valid() .or. .not. higher_rib%is_valid()) then
-      message = 'extrados development received invalid spatial rib geometry'
-      return
-    end if
-    if (lower_rib%rib_index < 0 .or. &
-        higher_rib%rib_index /= lower_rib%rib_index + 1) then
-      message = 'extrados development requires adjacent rib identities'
-      return
-    end if
     if (.not. extrados_topologies_are_index_compatible(lower_topology, &
         higher_topology)) then
       message = 'extrados development requires matching extrados indices'
       return
     end if
-    if (size(lower_rib%x) < lower_topology%extrados%last .or. &
-        size(higher_rib%x) < higher_topology%extrados%last) then
-      message = 'spatial rib coordinates do not cover the extrados topology'
+    call develop_surface_panel(lower_rib, higher_rib, &
+        lower_topology%extrados%first, lower_topology%extrados%last, &
+        surface_extrados, .false., panel, source_distances, valid, message)
+  end subroutine develop_extrados_panel
+
+  !> Purely develop the intake contour and its post-intake support segment.
+  !!
+  !! The exact contour arrays cover `intake%first:intake%last-1`. The legacy
+  !! stage-7 loop also develops the quadrilateral at `intake%last`; it is not an
+  !! intake contour segment and is returned through the explicit support fields
+  !! of `neutral_panel_2d`. `source_distances` contains the contour traces
+  !! followed by that support trace as its final entry.
+  !!
+  !! The update is transactional: rejected geometry leaves both outputs
+  !! unchanged. Adjacent intake ranges must match exactly, and both spatial
+  !! ribs must contain the point after the shared intake/intrados endpoint.
+  pure subroutine develop_intake_panel(lower_rib, higher_rib, &
+      lower_topology, higher_topology, panel, source_distances, valid, message)
+    type(spatial_rib_geometry_3d), intent(in) :: lower_rib, higher_rib
+    type(profile_topology), intent(in) :: lower_topology, higher_topology
+    type(neutral_panel_2d), intent(inout) :: panel
+    type(quadrilateral_distances_3d), allocatable, intent(inout) :: &
+        source_distances(:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    valid = .false.
+    message = ''
+    if (.not. lower_topology%is_valid() .or. &
+        .not. higher_topology%is_valid() .or. &
+        lower_topology%intake%first /= higher_topology%intake%first .or. &
+        lower_topology%intake%last /= higher_topology%intake%last) then
+      message = 'intake development requires matching intake indices'
+      return
+    end if
+    if (lower_topology%intake%last + 1 > lower_topology%point_count .or. &
+        higher_topology%intake%last + 1 > higher_topology%point_count) then
+      message = 'profile topology does not cover the intake support point'
+      return
+    end if
+
+    call develop_surface_panel(lower_rib, higher_rib, &
+        lower_topology%intake%first, lower_topology%intake%last, &
+        surface_intake, .true., panel, source_distances, valid, message)
+  end subroutine develop_intake_panel
+
+  !> Develop one matching surface range, optionally retaining its next segment.
+  !!
+  !! `source_distances` has one entry per exact contour segment. When
+  !! `include_post_surface_support` is true, a final entry describes the
+  !! separately stored support segment at `contour_last_index`.
+  pure subroutine develop_surface_panel(lower_rib, higher_rib, &
+      contour_first_index, contour_last_index, surface, &
+      include_post_surface_support, panel, source_distances, valid, message)
+    type(spatial_rib_geometry_3d), intent(in) :: lower_rib, higher_rib
+    integer, intent(in) :: contour_first_index, contour_last_index, surface
+    logical, intent(in) :: include_post_surface_support
+    type(neutral_panel_2d), intent(inout) :: panel
+    type(quadrilateral_distances_3d), allocatable, intent(inout) :: &
+        source_distances(:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(neutral_panel_2d) :: candidate
+    type(quadrilateral_distances_3d), allocatable :: candidate_distances(:)
+    type(development_join_state) :: state, next_state
+    type(developed_segment_2d) :: segment
+    integer :: point_count, segment_count, trace_count
+    integer :: source_index, local_index
+    logical :: segment_valid
+
+    valid = .false.
+    message = ''
+    if (.not. lower_rib%is_valid() .or. .not. higher_rib%is_valid()) then
+      message = 'surface development received invalid spatial rib geometry'
+      return
+    end if
+    if (lower_rib%rib_index < 0 .or. &
+        higher_rib%rib_index /= lower_rib%rib_index + 1) then
+      message = 'surface development requires adjacent rib identities'
+      return
+    end if
+    if (contour_first_index < 1 .or. &
+        contour_last_index <= contour_first_index) then
+      message = 'surface development received an invalid contour range'
+      return
+    end if
+
+    point_count = contour_last_index - contour_first_index + 1
+    segment_count = point_count - 1
+    trace_count = segment_count
+    if (include_post_surface_support) trace_count = trace_count + 1
+    if (size(lower_rib%x) < contour_last_index + &
+        merge(1, 0, include_post_surface_support) .or. &
+        size(higher_rib%x) < contour_last_index + &
+        merge(1, 0, include_post_surface_support)) then
+      message = 'spatial rib coordinates do not cover the surface range'
       return
     end if
 
     candidate%panel_index = lower_rib%rib_index
     candidate%lower_rib_index = lower_rib%rib_index
     candidate%higher_rib_index = higher_rib%rib_index
-    candidate%surface = surface_extrados
-    candidate%contour_first_index = lower_topology%extrados%first
-    candidate%contour_last_index = lower_topology%extrados%last
-    point_count = lower_topology%extrados%size()
-    segment_count = point_count - 1
+    candidate%surface = surface
+    candidate%contour_first_index = contour_first_index
+    candidate%contour_last_index = contour_last_index
+    candidate%has_post_surface_support = include_post_surface_support
 
     allocate(candidate%lower_start_biased_u(point_count), &
         candidate%lower_start_biased_v(point_count), &
@@ -135,12 +213,11 @@ contains
         candidate%higher_segment_start_v(segment_count), &
         candidate%higher_segment_end_u(segment_count), &
         candidate%higher_segment_end_v(segment_count))
-    allocate(candidate_distances(segment_count))
+    allocate(candidate_distances(trace_count))
 
     state = development_join_state()
-    do source_index = lower_topology%extrados%first, &
-        lower_topology%extrados%last - 1
-      local_index = source_index - lower_topology%extrados%first + 1
+    do source_index = contour_first_index, contour_last_index - 1
+      local_index = source_index - contour_first_index + 1
       call measure_spatial_quadrilateral(lower_rib, higher_rib, source_index, &
           candidate_distances(local_index))
       call develop_quadrilateral(candidate_distances(local_index), state, &
@@ -149,49 +226,84 @@ contains
         message = 'spatial quadrilateral cannot be developed safely'
         return
       end if
-
-      if (local_index > 1) then
-        candidate%maximum_lower_join_gap = max( &
-            candidate%maximum_lower_join_gap, sqrt( &
-            (segment%lower_start_u - &
-            candidate%lower_segment_end_u(local_index - 1))**2 + &
-            (segment%lower_start_v - &
-            candidate%lower_segment_end_v(local_index - 1))**2))
-        candidate%maximum_higher_join_gap = max( &
-            candidate%maximum_higher_join_gap, sqrt( &
-            (segment%higher_start_u - &
-            candidate%higher_segment_end_u(local_index - 1))**2 + &
-            (segment%higher_start_v - &
-            candidate%higher_segment_end_v(local_index - 1))**2))
-      end if
-
-      candidate%lower_start_biased_u(local_index) = segment%lower_start_u
-      candidate%lower_start_biased_v(local_index) = segment%lower_start_v
-      candidate%higher_start_biased_u(local_index) = segment%higher_start_u
-      candidate%higher_start_biased_v(local_index) = segment%higher_start_v
-      candidate%lower_start_biased_u(local_index + 1) = segment%lower_end_u
-      candidate%lower_start_biased_v(local_index + 1) = segment%lower_end_v
-      candidate%higher_start_biased_u(local_index + 1) = segment%higher_end_u
-      candidate%higher_start_biased_v(local_index + 1) = segment%higher_end_v
-      candidate%lower_segment_start_u(local_index) = segment%lower_start_u
-      candidate%lower_segment_start_v(local_index) = segment%lower_start_v
-      candidate%lower_segment_end_u(local_index) = segment%lower_end_u
-      candidate%lower_segment_end_v(local_index) = segment%lower_end_v
-      candidate%higher_segment_start_u(local_index) = segment%higher_start_u
-      candidate%higher_segment_start_v(local_index) = segment%higher_start_v
-      candidate%higher_segment_end_u(local_index) = segment%higher_end_u
-      candidate%higher_segment_end_v(local_index) = segment%higher_end_v
+      call store_contour_segment(candidate, local_index, segment)
       state = next_state
     end do
 
+    if (include_post_surface_support) then
+      call measure_spatial_quadrilateral(lower_rib, higher_rib, &
+          contour_last_index, candidate_distances(trace_count))
+      call develop_quadrilateral(candidate_distances(trace_count), state, &
+          segment, next_state, segment_valid)
+      if (.not. segment_valid) then
+        message = 'post-surface support cannot be developed safely'
+        return
+      end if
+      candidate%support_lower_start_u = segment%lower_start_u
+      candidate%support_lower_start_v = segment%lower_start_v
+      candidate%support_lower_end_u = segment%lower_end_u
+      candidate%support_lower_end_v = segment%lower_end_v
+      candidate%support_higher_start_u = segment%higher_start_u
+      candidate%support_higher_start_v = segment%higher_start_v
+      candidate%support_higher_end_u = segment%higher_end_u
+      candidate%support_higher_end_v = segment%higher_end_v
+      candidate%support_lower_join_gap = sqrt( &
+          (segment%lower_start_u - &
+          candidate%lower_start_biased_u(point_count))**2 + &
+          (segment%lower_start_v - &
+          candidate%lower_start_biased_v(point_count))**2)
+      candidate%support_higher_join_gap = sqrt( &
+          (segment%higher_start_u - &
+          candidate%higher_start_biased_u(point_count))**2 + &
+          (segment%higher_start_v - &
+          candidate%higher_start_biased_v(point_count))**2)
+    end if
+
     if (.not. candidate%is_valid()) then
-      message = 'developed extrados panel failed neutral-panel validation'
+      message = 'developed surface failed neutral-panel validation'
       return
     end if
     panel = candidate
     source_distances = candidate_distances
     valid = .true.
-  end subroutine develop_extrados_panel
+  end subroutine develop_surface_panel
+
+  !> Store one exact segment and update the point views and join diagnostics.
+  pure subroutine store_contour_segment(panel, local_index, segment)
+    type(neutral_panel_2d), intent(inout) :: panel
+    integer, intent(in) :: local_index
+    type(developed_segment_2d), intent(in) :: segment
+
+    if (local_index > 1) then
+      panel%maximum_lower_join_gap = max(panel%maximum_lower_join_gap, sqrt( &
+          (segment%lower_start_u - &
+          panel%lower_segment_end_u(local_index - 1))**2 + &
+          (segment%lower_start_v - &
+          panel%lower_segment_end_v(local_index - 1))**2))
+      panel%maximum_higher_join_gap = max(panel%maximum_higher_join_gap, sqrt( &
+          (segment%higher_start_u - &
+          panel%higher_segment_end_u(local_index - 1))**2 + &
+          (segment%higher_start_v - &
+          panel%higher_segment_end_v(local_index - 1))**2))
+    end if
+
+    panel%lower_start_biased_u(local_index) = segment%lower_start_u
+    panel%lower_start_biased_v(local_index) = segment%lower_start_v
+    panel%higher_start_biased_u(local_index) = segment%higher_start_u
+    panel%higher_start_biased_v(local_index) = segment%higher_start_v
+    panel%lower_start_biased_u(local_index + 1) = segment%lower_end_u
+    panel%lower_start_biased_v(local_index + 1) = segment%lower_end_v
+    panel%higher_start_biased_u(local_index + 1) = segment%higher_end_u
+    panel%higher_start_biased_v(local_index + 1) = segment%higher_end_v
+    panel%lower_segment_start_u(local_index) = segment%lower_start_u
+    panel%lower_segment_start_v(local_index) = segment%lower_start_v
+    panel%lower_segment_end_u(local_index) = segment%lower_end_u
+    panel%lower_segment_end_v(local_index) = segment%lower_end_v
+    panel%higher_segment_start_u(local_index) = segment%higher_start_u
+    panel%higher_segment_start_v(local_index) = segment%higher_start_v
+    panel%higher_segment_end_u(local_index) = segment%higher_end_u
+    panel%higher_segment_end_v(local_index) = segment%higher_end_v
+  end subroutine store_contour_segment
 
   !> Measure the legacy six-distance schema for one spatial quadrilateral.
   pure subroutine measure_spatial_quadrilateral(lower_rib, higher_rib, &

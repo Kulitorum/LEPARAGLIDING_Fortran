@@ -66,6 +66,26 @@ c      8.1.2+ Inlet longitud cella extrema
      + (pr2y(i-1,j)-pr1y(i-1,j))**2)
        end do
 
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i-1,wing_profile_topologies(i-1),
+     + wing_profile_topologies(i),surface_intake,
+     + neutral_intake_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid tip neutral intake: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_panel_higher_edge_length(
+     + neutral_intake_panel)
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + rib(nribss,26))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy intake length differs at rib ',nribss,
+     + typed_geometry_metric,rib(nribss,26)
+       stop 1
+       end if
+       rib(nribss,26)=typed_geometry_metric
+
 c      Resta de celles
        do i=0,nribss-1
 
@@ -110,6 +130,26 @@ c      8.1.5 Longitud inlet
        rib(i,26)=rib(i,26)+sqrt((pl2x(i,j)-pl1x(i,j))**2+
      + (pl2y(i,j)-pl1y(i,j))**2)
        end do
+
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i,wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),surface_intake,
+     + neutral_intake_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: invalid neutral intake ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_geometry_metric=neutral_panel_lower_edge_length(
+     + neutral_intake_panel)
+       if (.not.geometry_values_are_close(typed_geometry_metric,rib(i,26)))
+     + then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: neutral/legacy intake length differs at rib ',i,
+     + typed_geometry_metric,rib(i,26)
+       stop 1
+       end if
+       rib(i,26)=typed_geometry_metric
 
 c      8.1.6 Punts de calcul amples de celles
 

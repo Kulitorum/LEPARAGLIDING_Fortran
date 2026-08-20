@@ -208,6 +208,8 @@ module leparagliding_domain_model
     real(real64) :: support_higher_start_v = 0.0_real64
     real(real64) :: support_higher_end_u = 0.0_real64
     real(real64) :: support_higher_end_v = 0.0_real64
+    real(real64) :: support_lower_join_gap = 0.0_real64
+    real(real64) :: support_higher_join_gap = 0.0_real64
   contains
     procedure :: is_valid => neutral_panel_is_valid
   end type neutral_panel_2d
@@ -238,6 +240,7 @@ module leparagliding_domain_model
   public :: copy_legacy_neutral_panel
   public :: copy_legacy_neutral_panel_from_counts
   public :: write_legacy_extrados_panel
+  public :: write_legacy_intake_panel
   public :: polyline_length_2d
   public :: neutral_panel_lower_edge_length
   public :: neutral_panel_higher_edge_length
@@ -459,6 +462,7 @@ contains
     class(neutral_panel_2d), intent(in) :: panel
     integer :: point_count, segment_index
     real(real64) :: expected_lower_join_gap, expected_higher_join_gap
+    real(real64) :: expected_support_lower_gap, expected_support_higher_gap
 
     valid = .false.
     if (panel%panel_index < 0) return
@@ -569,6 +573,27 @@ contains
       if (.not. ieee_is_finite(panel%support_higher_start_v)) return
       if (.not. ieee_is_finite(panel%support_higher_end_u)) return
       if (.not. ieee_is_finite(panel%support_higher_end_v)) return
+      if (.not. ieee_is_finite(panel%support_lower_join_gap)) return
+      if (.not. ieee_is_finite(panel%support_higher_join_gap)) return
+      if (panel%support_lower_join_gap < 0.0_real64) return
+      if (panel%support_higher_join_gap < 0.0_real64) return
+      expected_support_lower_gap = hypot(panel%support_lower_start_u - &
+          panel%lower_start_biased_u(point_count), &
+          panel%support_lower_start_v - &
+          panel%lower_start_biased_v(point_count))
+      expected_support_higher_gap = hypot(panel%support_higher_start_u - &
+          panel%higher_start_biased_u(point_count), &
+          panel%support_higher_start_v - &
+          panel%higher_start_biased_v(point_count))
+      if (.not. geometry_values_are_close(panel%support_lower_join_gap, &
+          expected_support_lower_gap)) return
+      if (.not. geometry_values_are_close(panel%support_higher_join_gap, &
+          expected_support_higher_gap)) return
+    else
+      if (.not. geometry_values_are_close(panel%support_lower_join_gap, &
+          0.0_real64)) return
+      if (.not. geometry_values_are_close(panel%support_higher_join_gap, &
+          0.0_real64)) return
     end if
     valid = .true.
   end function neutral_panel_is_valid
@@ -1236,6 +1261,16 @@ contains
           legacy_pr2_u(panel_index, source_index)
       candidate%support_higher_end_v = &
           legacy_pr2_v(panel_index, source_index)
+      candidate%support_lower_join_gap = hypot( &
+          candidate%support_lower_start_u - &
+          candidate%lower_start_biased_u(point_count), &
+          candidate%support_lower_start_v - &
+          candidate%lower_start_biased_v(point_count))
+      candidate%support_higher_join_gap = hypot( &
+          candidate%support_higher_start_u - &
+          candidate%higher_start_biased_u(point_count), &
+          candidate%support_higher_start_v - &
+          candidate%higher_start_biased_v(point_count))
     end if
     if (.not. candidate%is_valid()) then
       message = 'neutral developed panel contains invalid coordinates'
@@ -1278,7 +1313,55 @@ contains
     logical, intent(out) :: valid
     character(len=*), intent(out) :: message
 
-    integer :: local_index, source_index, segment_count
+    call write_legacy_surface_panel(panel, lower_topology, higher_topology, &
+        surface_extrados, legacy_pl1_u, legacy_pl1_v, legacy_pl2_u, &
+        legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
+        legacy_pr2_v, valid, message)
+  end subroutine write_legacy_extrados_panel
+
+  !> Write one validated typed intake panel and its explicit support segment.
+  !!
+  !! Exact intake segments are written at `first:last-1`; the separately owned
+  !! post-intake support quadrilateral is written at `last`.  The reserved
+  !! scratch index 499 and every other surface remain untouched.  As with the
+  !! extrados wrapper, the eight destination arrays must be distinct actuals.
+  pure subroutine write_legacy_intake_panel(panel, lower_topology, &
+      higher_topology, legacy_pl1_u, legacy_pl1_v, legacy_pl2_u, &
+      legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
+      legacy_pr2_v, valid, message)
+    type(neutral_panel_2d), intent(in) :: panel
+    type(profile_topology), intent(in) :: lower_topology, higher_topology
+    real(real64), intent(inout) :: legacy_pl1_u(0:,:), legacy_pl1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pl2_u(0:,:), legacy_pl2_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr1_u(0:,:), legacy_pr1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr2_u(0:,:), legacy_pr2_v(0:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    call write_legacy_surface_panel(panel, lower_topology, higher_topology, &
+        surface_intake, legacy_pl1_u, legacy_pl1_v, legacy_pl2_u, &
+        legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, legacy_pr2_u, &
+        legacy_pr2_v, valid, message)
+  end subroutine write_legacy_intake_panel
+
+  !> Shared transactional compatibility writer for regular neutral surfaces.
+  pure subroutine write_legacy_surface_panel(panel, lower_topology, &
+      higher_topology, expected_surface, legacy_pl1_u, legacy_pl1_v, &
+      legacy_pl2_u, legacy_pl2_v, legacy_pr1_u, legacy_pr1_v, &
+      legacy_pr2_u, legacy_pr2_v, valid, message)
+    type(neutral_panel_2d), intent(in) :: panel
+    type(profile_topology), intent(in) :: lower_topology, higher_topology
+    integer, intent(in) :: expected_surface
+    real(real64), intent(inout) :: legacy_pl1_u(0:,:), legacy_pl1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pl2_u(0:,:), legacy_pl2_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr1_u(0:,:), legacy_pr1_v(0:,:)
+    real(real64), intent(inout) :: legacy_pr2_u(0:,:), legacy_pr2_v(0:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(index_range) :: lower_range, higher_range
+    integer :: local_index, source_index, segment_count, write_last_index
+    logical :: writes_post_surface_support
 
     valid = .false.
     message = ''
@@ -1292,31 +1375,52 @@ contains
       message = 'cannot write an invalid neutral panel'
       return
     end if
-    if (panel%surface /= surface_extrados) then
-      message = 'extrados write-back received another surface'
+    if (panel%surface /= expected_surface) then
+      message = 'neutral write-back received the wrong surface'
       return
     end if
-    if (.not. extrados_topologies_are_index_compatible(lower_topology, &
-        higher_topology)) then
-      message = 'extrados write-back received incompatible topologies'
+    if (.not. lower_topology%is_valid() .or. &
+        .not. higher_topology%is_valid()) then
+      message = 'neutral write-back received invalid topology'
       return
     end if
-    if (panel%contour_first_index /= lower_topology%extrados%first .or. &
-        panel%contour_last_index /= lower_topology%extrados%last) then
-      message = 'typed panel range differs from source extrados topology'
+    writes_post_surface_support = .false.
+    select case (expected_surface)
+    case (surface_extrados)
+      lower_range = lower_topology%extrados
+      higher_range = higher_topology%extrados
+    case (surface_intake)
+      lower_range = lower_topology%intake
+      higher_range = higher_topology%intake
+      writes_post_surface_support = .true.
+    case default
+      message = 'neutral write-back does not support this surface'
+      return
+    end select
+    if (lower_range%first /= higher_range%first .or. &
+        lower_range%last /= higher_range%last) then
+      message = 'neutral write-back received incompatible surface indices'
+      return
+    end if
+    if (panel%contour_first_index /= lower_range%first .or. &
+        panel%contour_last_index /= lower_range%last) then
+      message = 'typed panel range differs from source surface topology'
       return
     end if
     if (panel%panel_index > ubound(legacy_pl1_u, 1)) then
       message = 'panel index is outside neutral-panel destinations'
       return
     end if
+    write_last_index = panel%contour_last_index - 1
+    if (writes_post_surface_support) &
+        write_last_index = panel%contour_last_index
     if (panel%contour_first_index < lbound(legacy_pl1_u, 2) .or. &
-        panel%contour_last_index - 1 > ubound(legacy_pl1_u, 2)) then
-      message = 'extrados segments exceed neutral-panel point capacity'
+        write_last_index > ubound(legacy_pl1_u, 2)) then
+      message = 'surface segments exceed neutral-panel point capacity'
       return
     end if
-    if (panel%contour_last_index > legacy_neutral_scratch_index) then
-      message = 'extrados range collides with legacy neutral scratch storage'
+    if (write_last_index >= legacy_neutral_scratch_index) then
+      message = 'surface range collides with legacy neutral scratch storage'
       return
     end if
 
@@ -1340,8 +1444,25 @@ contains
       legacy_pr2_v(panel%panel_index, source_index) = &
           panel%higher_segment_end_v(local_index)
     end do
+    if (writes_post_surface_support) then
+      source_index = panel%contour_last_index
+      legacy_pl1_u(panel%panel_index, source_index) = &
+          panel%support_lower_start_u
+      legacy_pl1_v(panel%panel_index, source_index) = &
+          panel%support_lower_start_v
+      legacy_pl2_u(panel%panel_index, source_index) = panel%support_lower_end_u
+      legacy_pl2_v(panel%panel_index, source_index) = panel%support_lower_end_v
+      legacy_pr1_u(panel%panel_index, source_index) = &
+          panel%support_higher_start_u
+      legacy_pr1_v(panel%panel_index, source_index) = &
+          panel%support_higher_start_v
+      legacy_pr2_u(panel%panel_index, source_index) = &
+          panel%support_higher_end_u
+      legacy_pr2_v(panel%panel_index, source_index) = &
+          panel%support_higher_end_v
+    end if
     valid = .true.
-  end subroutine write_legacy_extrados_panel
+  end subroutine write_legacy_surface_panel
 
   !> Compose topology and neutral-panel adapters from the legacy arrays.
   subroutine copy_legacy_neutral_panel_from_counts(legacy_pl1_u, &

@@ -593,6 +593,112 @@ c      Quadrilater coordinates
        
        end do
 
+c      Dual-run the final regular intake rows.  The typed panel owns the exact
+c      intake segments first:last-1 and the separate post-intake support at
+c      last.  Scratch 499 stays legacy-owned; row nribss is an unresolved
+c      terminal-boundary compatibility row, not a regular panel.
+       do i=0,nribss-1
+       call develop_intake_panel(wing_spatial_ribs(i),
+     + wing_spatial_ribs(i+1),wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),neutral_intake_panel,
+     + typed_intake_source_distances,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed intake panel ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+
+       do j=wing_profile_topologies(i)%intake%first,
+     + wing_profile_topologies(i)%intake%last
+       k=j-wing_profile_topologies(i)%intake%first+1
+       typed_coordinates_match=.false.
+       if (j.lt.wing_profile_topologies(i)%intake%last) then
+       typed_coordinates_match=geometry_values_are_close(
+     + neutral_intake_panel%lower_segment_start_u(k),pl1x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%lower_segment_start_v(k),pl1y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%lower_segment_end_u(k),pl2x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%lower_segment_end_v(k),pl2y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%higher_segment_start_u(k),pr1x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%higher_segment_start_v(k),pr1y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%higher_segment_end_u(k),pr2x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%higher_segment_end_v(k),pr2y(i,j))
+       else
+       typed_coordinates_match=geometry_values_are_close(
+     + neutral_intake_panel%support_lower_start_u,pl1x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%support_lower_start_v,pl1y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%support_lower_end_u,pl2x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%support_lower_end_v,pl2y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%support_higher_start_u,pr1x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%support_higher_start_v,pr1y(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%support_higher_end_u,pr2x(i,j)).and.
+     + geometry_values_are_close(
+     + neutral_intake_panel%support_higher_end_v,pr2y(i,j))
+       end if
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,2(I0,A))') 'ERROR: typed/legacy intake endpoint at ',
+     + i,', point ',j,''
+       stop 1
+       end if
+
+c      Keep this oracle independent of the typed distance helper.
+       pa=dsqrt((x(i+1,j)-x(i,j))**2.+(y(i+1,j)-y(i,j))**2.+
+     + (z(i+1,j)-z(i,j))**2.)
+       pb=dsqrt((x(i+1,j+1)-x(i,j))**2.+
+     + (y(i+1,j+1)-y(i,j))**2.+(z(i+1,j+1)-z(i,j))**2.)
+       pc=dsqrt((x(i+1,j+1)-x(i+1,j))**2.+
+     + (y(i+1,j+1)-y(i+1,j))**2.+
+     + (z(i+1,j+1)-z(i+1,j))**2.)
+       pd=dsqrt((x(i+1,j)-x(i,j+1))**2.+
+     + (y(i+1,j)-y(i,j+1))**2.+(z(i+1,j)-z(i,j+1))**2.)
+       pe=dsqrt((x(i,j+1)-x(i,j))**2.+(y(i,j+1)-y(i,j))**2.+
+     + (z(i,j+1)-z(i,j))**2.)
+       pf=dsqrt((x(i+1,j+1)-x(i,j+1))**2.+
+     + (y(i+1,j+1)-y(i,j+1))**2.+
+     + (z(i+1,j+1)-z(i,j+1))**2.)
+
+       if (.not.geometry_values_are_close(
+     + typed_intake_source_distances(k)%start_cross_edge,pa).or.
+     + .not.geometry_values_are_close(typed_intake_source_distances(k)%
+     + lower_start_to_higher_end,pb).or.
+     + .not.geometry_values_are_close(typed_intake_source_distances(k)%
+     + higher_contour_edge,pc).or.
+     + .not.geometry_values_are_close(typed_intake_source_distances(k)%
+     + higher_start_to_lower_end,pd).or.
+     + .not.geometry_values_are_close(typed_intake_source_distances(k)%
+     + lower_contour_edge,pe).or.
+     + .not.geometry_values_are_close(typed_intake_source_distances(k)%
+     + end_cross_edge,pf)) then
+       write (*,'(A,2(I0,A))') 'ERROR: typed/legacy intake distance at ',
+     + i,', point ',j,''
+       stop 1
+       end if
+       end do
+
+       call write_legacy_intake_panel(neutral_intake_panel,
+     + wing_profile_topologies(i),wing_profile_topologies(i+1),
+     + pl1x,pl1y,pl2x,pl2y,pr1x,pr1y,pr2x,pr2y,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed intake write-back ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       end do
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      7.4.3 Vents drawing
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

@@ -16,12 +16,14 @@ program test_domain_model
   type(normalized_profile_2d) :: profile
   type(profile_topology) :: topology, saved_topology, neutral_topology
   type(profile_topology) :: test_topology, mismatched_topology
+  type(profile_topology) :: scratch_collision_topology
   type(profile_topology) :: profile_topologies(0:2)
   type(spatial_rib_geometry_3d) :: spatial_rib, zero_based_spatial_rib
   type(production_panel_edges_2d) :: panel
   type(production_panel_2d) :: complete_panel
   type(neutral_panel_2d) :: neutral_panel, extrados_write_panel
   type(neutral_panel_2d) :: zero_based_neutral_panel
+  type(neutral_panel_2d) :: disconnected_support_panel
   type(rib_identity), allocatable :: identities(:), saved_identities(:)
   type(color_division) :: division
   character(len=120) :: message
@@ -408,6 +410,90 @@ program test_domain_model
       'intake support segment was not exposed')
   call require_close(neutral_panel%support_lower_end_u, 2.0_real64, &
       'intake support endpoint')
+
+  ! Intake publication owns the exact contour segment and the explicit support
+  ! at the following index, while leaving scratch 499 and other rows alone.
+  pl1_u(0, 3:4) = -201.0_real64
+  pl1_v(0, 3:4) = -202.0_real64
+  pl2_u(0, 3:4) = -203.0_real64
+  pl2_v(0, 3:4) = -204.0_real64
+  pr1_u(0, 3:4) = -205.0_real64
+  pr1_v(0, 3:4) = -206.0_real64
+  pr2_u(0, 3:4) = -207.0_real64
+  pr2_v(0, 3:4) = -208.0_real64
+  pl1_u(0, legacy_neutral_scratch_index) = 6499.0_real64
+  call write_legacy_intake_panel(neutral_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(valid, 'valid typed intake write rejected: '//trim(message))
+  call require_close(pl1_u(0, 3), &
+      neutral_panel%lower_segment_start_u(1), 'typed intake segment start')
+  call require_close(pl2_v(0, 3), &
+      neutral_panel%lower_segment_end_v(1), 'typed intake segment end')
+  call require_close(pr1_u(0, 4), neutral_panel%support_higher_start_u, &
+      'typed intake support start')
+  call require_close(pr2_v(0, 4), neutral_panel%support_higher_end_v, &
+      'typed intake support end')
+  call require_close(pl1_u(0, legacy_neutral_scratch_index), &
+      6499.0_real64, 'typed intake write changed scratch storage')
+  pr2_v(1, 4) = 814.0_real64
+  call write_legacy_intake_panel(neutral_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(valid, 'repeated typed intake write failed: '//trim(message))
+  call require_close(pr2_v(1, 4), 814.0_real64, &
+      'typed intake write changed another panel row')
+
+  disconnected_support_panel = neutral_panel
+  disconnected_support_panel%support_lower_start_u = &
+      disconnected_support_panel%support_lower_start_u + 1.0_real64
+  call require(.not. disconnected_support_panel%is_valid(), &
+      'disconnected intake support was accepted without a matching gap')
+  pl1_u(0, 3) = 772.0_real64
+  call write_legacy_intake_panel(disconnected_support_panel, &
+      neutral_topology, neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, &
+      pr1_u, pr1_v, pr2_u, pr2_v, valid, message)
+  call require(.not. valid, 'disconnected typed intake write was accepted')
+  call require_close(pl1_u(0, 3), 772.0_real64, &
+      'disconnected intake failure changed its destination')
+  call write_legacy_intake_panel(neutral_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(valid, 'typed intake rewrite failed: '//trim(message))
+
+  scratch_collision_topology%point_count = 500
+  scratch_collision_topology%extrados = index_range(1, 498)
+  scratch_collision_topology%intake = index_range(498, 499)
+  scratch_collision_topology%intrados = index_range(499, 500)
+  scratch_collision_topology%leading_edge_index = 498
+  call require(scratch_collision_topology%is_valid(), &
+      'scratch-collision topology is invalid')
+  disconnected_support_panel = neutral_panel
+  disconnected_support_panel%contour_first_index = 498
+  disconnected_support_panel%contour_last_index = 499
+  pl1_u(0, 498) = 4981.0_real64
+  pl1_u(0, legacy_neutral_scratch_index) = 4991.0_real64
+  call write_legacy_intake_panel(disconnected_support_panel, &
+      scratch_collision_topology, scratch_collision_topology, pl1_u, pl1_v, &
+      pl2_u, pl2_v, pr1_u, pr1_v, pr2_u, pr2_v, valid, message)
+  call require(.not. valid, 'intake support was allowed to occupy scratch 499')
+  call require_close(pl1_u(0, 498), 4981.0_real64, &
+      'scratch collision changed the preceding destination')
+  call require_close(pl1_u(0, legacy_neutral_scratch_index), &
+      4991.0_real64, 'scratch collision changed scratch storage')
+
+  pl1_u(0, 3) = 771.0_real64
+  call write_legacy_intake_panel(extrados_write_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(.not. valid, 'extrados panel was accepted as typed intake')
+  call require_close(pl1_u(0, 3), 771.0_real64, &
+      'wrong-surface intake write changed its destination')
+  call write_legacy_intake_panel(neutral_panel, neutral_topology, &
+      neutral_topology, pl1_u, pl1_v, pl2_u, pl2_v, pr1_u, pr1_v, &
+      pr2_u, pr2_v, valid, message)
+  call require(valid, 'typed intake restore failed: '//trim(message))
+
   pr2_v(0, 4) = ieee_value(0.0_real64, ieee_quiet_nan)
   call copy_legacy_neutral_panel(pl1_u, pl1_v, pl2_u, pl2_v, &
       pr1_u, pr1_v, pr2_u, pr2_v, 0, neutral_topology, &

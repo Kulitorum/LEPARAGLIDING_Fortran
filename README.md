@@ -84,11 +84,11 @@ The maintained structure now:
   production panels in `leparagliding_domain_model`, with transactional checked
   legacy-array adapters;
 - builds typed spatial-rib snapshots at the stage-6 boundary and dual-runs a
-  pure stage-7 extrados developer against every legacy endpoint and source
-  distance, then uses a checked adapter to make the agreeing typed exact
-  extrados segments the final values in their legacy compatibility slice;
-- makes typed stage-8 extrados lengths and widths authoritative only after the
-  legacy calculation agrees with them;
+  pure stage-7 neutral developer for regular extrados and intake geometry,
+  including the explicit post-intake support quadrilateral, then uses checked
+  adapters to publish only the agreeing typed slices;
+- makes typed stage-8 extrados lengths/widths and intake lengths authoritative
+  only after the legacy calculations agree with them;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -113,10 +113,12 @@ indeterminate and report the wrong index for a boundary moved to source point
 no-cut group, and shaping consumers defensively bounds-check group indices.
 Even-cell reports now also preserve the declared cell/rib counts.
 
-The stage-7 authority change is deliberately narrow. Intake/vent support at
-`j=np(i,2)`, intrados development, the legacy point-499 scratch value, and the
-dummy/tip-support row used by later stage-8 paths remain legacy-owned. They are
-not fabricated from a regular typed extrados panel.
+The stage-7 authority change is deliberately narrow. Regular intake owns its
+exact contour segments plus a separately named post-intake support segment;
+this also supplies the `k31d=1` extrados look-ahead at `j=np(i,2)`. Intrados,
+the legacy point-499 scratch value, and the unresolved terminal comparison row
+used by later stage-8 paths remain outside typed ownership. No nonexistent
+regular panel is fabricated at the wingtip.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -224,7 +226,7 @@ src/
   leparagliding_geometry.f90        vector, plane, rotation, transforms
   leparagliding_mark_types.f90      shared mark drawing configuration
   leparagliding_neutral_development.f90
-                                      pure extrados strip development
+                                      pure neutral-surface development
   main/                             numbered main-program calculation stages
   procedures/                       procedures grouped by responsibility
 tests/
