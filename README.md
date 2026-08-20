@@ -185,3 +185,9 @@ The numbered main files remain includes deliberately. They preserve the
 original scope and calculation order without introducing a huge argument list
 or a new untested global-data object. New independent state should live in a
 focused module or derived type rather than extending `declarations.inc`.
+
+## Future design work
+
+The proposed AutoCAD-based workflow for automatic color-piece division is
+recorded in [`COLORS.md`](COLORS.md). It is research for a future feature, not
+part of the implemented 3.29 update.
