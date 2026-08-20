@@ -2219,6 +2219,28 @@ c      Right side
 
        end do ! j
 
+c      The final contour point has a tension value but no following segment.
+c      Evaluate its offset separately so segment accumulation stops at L-1
+c      without leaving the endpoint consumed by puntslat undefined.
+       j=np(i,1)
+       do k=1,skinpoints(i)
+       if (u(i,j,7).ge.xsobnew(i,k).and.u(i,j,7).le.xsobnew(i,k+1)
+     + *1.001) then
+       xm=(ysobnew(i,k+1)-ysobnew(i,k))/(xsobnew(i,k+1)-xsobnew(i,k))
+       xn=ysobnew(i,k+1)-xm*xsobnew(i,k+1)
+       v(i,j,7)=xm*u(i,j,7)+xn
+       end if
+       if (i.lt.nribss) then
+       if (u(i,j,8).ge.xsobnew(i+1,k).and.u(i,j,8).le.
+     + xsobnew(i+1,k+1)*1.001) then
+       xm=(ysobnew(i+1,k+1)-ysobnew(i+1,k))/
+     +    (xsobnew(i+1,k+1)-xsobnew(i+1,k))
+       xn=ysobnew(i+1,k+1)-xm*xsobnew(i+1,k+1)
+       v(i,j,8)=xm*u(i,j,8)+xn
+       end if
+       end if
+       end do
+
 c      Compute points left side
        call puntslat(i,pl1x,pl1y,pl2x,pl2y,np(i,1)-np(i,4)+1,
      + np(i,1)-1,u,v,xlow,-1)
