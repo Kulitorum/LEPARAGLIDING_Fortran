@@ -13,6 +13,27 @@ module leparagliding_spatial_geometry
   private
 
   real(real64), parameter :: chord_tolerance = 1.0e-10_real64
+  real(real64), parameter :: integer_value_tolerance = 1.0e-10_real64
+  real(real64), parameter :: degrees_to_radians = &
+      4.0_real64 * atan(1.0_real64) / 180.0_real64
+  integer, parameter :: legacy_planform_station_column = 2
+  integer, parameter :: legacy_leading_edge_position_column = 3
+  integer, parameter :: legacy_trailing_edge_position_column = 4
+  integer, parameter :: legacy_chord_length_column = 5
+  integer, parameter :: legacy_spatial_station_column = 6
+  integer, parameter :: legacy_spatial_height_column = 7
+  integer, parameter :: legacy_washin_angle_degrees_column = 8
+  integer, parameter :: legacy_rib_plane_angle_degrees_column = 9
+  integer, parameter :: legacy_washin_pivot_percent_column = 10
+  integer, parameter :: legacy_intake_start_percent_column = 11
+  integer, parameter :: legacy_intake_end_percent_column = 12
+  integer, parameter :: legacy_cell_open_flag_column = 14
+  integer, parameter :: legacy_profile_vertical_displacement_column = 50
+  integer, parameter :: legacy_profile_height_scale_column = 160
+  integer, parameter :: legacy_profile_rotation_z_degrees_column = 250
+  integer, parameter :: legacy_profile_rotation_pivot_percent_column = 251
+  integer, parameter :: required_legacy_rib_column_count = &
+      legacy_profile_rotation_pivot_percent_column
 
   !> One finite point in the legacy model's global spatial coordinate system.
   !!
@@ -49,7 +70,7 @@ module leparagliding_spatial_geometry
   !! Angles are radians and percentages have already become fractions.
   type, public :: rib_definition
     type(rib_identity) :: identity
-    integer :: source_rib_number = 0
+    integer :: source_profile_number = 0
     real(real64) :: planform_station_cm = 0.0_real64
     real(real64) :: leading_edge_position_cm = 0.0_real64
     real(real64) :: trailing_edge_position_cm = 0.0_real64
@@ -70,6 +91,7 @@ module leparagliding_spatial_geometry
     procedure :: is_valid => rib_definition_is_valid
   end type rib_definition
 
+  public :: copy_legacy_rib_definition
   public :: transform_adjusted_rib_local_point
 
 contains
@@ -101,7 +123,9 @@ contains
 
     valid = .false.
     if (.not. definition%identity%is_valid()) return
-    if (definition%source_rib_number < 1) return
+    if (definition%source_profile_number < 1) return
+    if (definition%source_profile_number /= &
+        definition%identity%profile_source_index) return
     if (.not. all(ieee_is_finite([ &
         definition%planform_station_cm, &
         definition%leading_edge_position_cm, &
@@ -128,6 +152,137 @@ contains
         chord_tolerance * scale) return
     valid = .true.
   end function rib_definition_is_valid
+
+  !> Copy one Stage-4 legacy rib row into a named, canonical definition.
+  !!
+  !! The legacy length values have already received the run's `xwf` unit
+  !! conversion before this adapter is called.  This boundary converts degree
+  !! angles to radians and percentage values to fractions exactly once.
+  !! `source_profile_number` is supplied independently because generated rows
+  !! obtain their profile from `rib_identity`, rather than inferring ownership
+  !! from the row index.  Failure leaves `definition` unchanged.
+  !!
+  !! @param[in] legacy_rib Stage-4 legacy rib matrix with a zero-based row.
+  !! @param[in] identity Valid authored or generated identity for that row.
+  !! @param[in] source_profile_number Profile source recorded by the caller.
+  !! @param[inout] definition Transactional typed destination.
+  !! @param[out] valid True only when a complete valid definition was copied.
+  !! @param[out] message Empty on success; validation diagnostic on failure.
+  pure subroutine copy_legacy_rib_definition(legacy_rib, identity, &
+      source_profile_number, definition, valid, message)
+    real(real64), intent(in) :: legacy_rib(0:,:)
+    type(rib_identity), intent(in) :: identity
+    integer, intent(in) :: source_profile_number
+    type(rib_definition), intent(inout) :: definition
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(rib_definition) :: candidate
+    real(real64) :: cell_open_value
+    integer :: cell_open_integer, rib_index
+
+    valid = .false.
+    message = ''
+    if (.not. identity%is_valid()) then
+      message = 'rib identity is invalid'
+      return
+    end if
+    rib_index = identity%legacy_index
+    if (rib_index < 0 .or. rib_index > ubound(legacy_rib, 1)) then
+      message = 'rib identity is outside the legacy row bounds'
+      return
+    end if
+    if (ubound(legacy_rib, 2) < required_legacy_rib_column_count) then
+      message = 'legacy rib row lacks required spatial-definition columns'
+      return
+    end if
+    if (source_profile_number < 1 .or. &
+        source_profile_number /= identity%profile_source_index) then
+      message = 'source profile disagrees with rib identity provenance'
+      return
+    end if
+    if (.not. all(ieee_is_finite([ &
+        legacy_rib(rib_index, legacy_planform_station_column), &
+        legacy_rib(rib_index, legacy_leading_edge_position_column), &
+        legacy_rib(rib_index, legacy_trailing_edge_position_column), &
+        legacy_rib(rib_index, legacy_chord_length_column), &
+        legacy_rib(rib_index, legacy_spatial_station_column), &
+        legacy_rib(rib_index, legacy_spatial_height_column), &
+        legacy_rib(rib_index, legacy_washin_angle_degrees_column), &
+        legacy_rib(rib_index, legacy_rib_plane_angle_degrees_column), &
+        legacy_rib(rib_index, legacy_washin_pivot_percent_column), &
+        legacy_rib(rib_index, legacy_intake_start_percent_column), &
+        legacy_rib(rib_index, legacy_intake_end_percent_column), &
+        legacy_rib(rib_index, legacy_cell_open_flag_column), &
+        legacy_rib(rib_index, &
+            legacy_profile_vertical_displacement_column), &
+        legacy_rib(rib_index, legacy_profile_height_scale_column), &
+        legacy_rib(rib_index, &
+            legacy_profile_rotation_z_degrees_column), &
+        legacy_rib(rib_index, &
+            legacy_profile_rotation_pivot_percent_column)]))) then
+      message = 'legacy rib definition contains a non-finite value'
+      return
+    end if
+
+    cell_open_value = legacy_rib(rib_index, legacy_cell_open_flag_column)
+    cell_open_integer = nint(cell_open_value)
+    if (abs(cell_open_value - real(cell_open_integer, real64)) > &
+        integer_value_tolerance .or. cell_open_integer < 0 .or. &
+        cell_open_integer > 1) then
+      message = 'legacy cell-open flag is not zero or one'
+      return
+    end if
+
+    candidate%identity = identity
+    candidate%source_profile_number = source_profile_number
+    candidate%planform_station_cm = &
+        legacy_rib(rib_index, legacy_planform_station_column)
+    candidate%leading_edge_position_cm = &
+        legacy_rib(rib_index, legacy_leading_edge_position_column)
+    candidate%trailing_edge_position_cm = &
+        legacy_rib(rib_index, legacy_trailing_edge_position_column)
+    candidate%chord_length_cm = &
+        legacy_rib(rib_index, legacy_chord_length_column)
+    candidate%spatial_station_cm = &
+        legacy_rib(rib_index, legacy_spatial_station_column)
+    candidate%spatial_height_cm = &
+        legacy_rib(rib_index, legacy_spatial_height_column)
+    candidate%washin_angle_rad = &
+        legacy_rib(rib_index, legacy_washin_angle_degrees_column) * &
+        degrees_to_radians
+    candidate%rib_plane_angle_rad = &
+        legacy_rib(rib_index, legacy_rib_plane_angle_degrees_column) * &
+        degrees_to_radians
+    candidate%washin_pivot_fraction = &
+        legacy_rib(rib_index, legacy_washin_pivot_percent_column) / &
+        100.0_real64
+    candidate%profile_rotation_z_rad = &
+        legacy_rib(rib_index, &
+            legacy_profile_rotation_z_degrees_column) * degrees_to_radians
+    candidate%profile_rotation_pivot_fraction = &
+        legacy_rib(rib_index, &
+            legacy_profile_rotation_pivot_percent_column) / 100.0_real64
+    candidate%profile_vertical_displacement_cm = &
+        legacy_rib(rib_index, &
+            legacy_profile_vertical_displacement_column)
+    candidate%intake_start_fraction = &
+        legacy_rib(rib_index, legacy_intake_start_percent_column) / &
+        100.0_real64
+    candidate%intake_end_fraction = &
+        legacy_rib(rib_index, legacy_intake_end_percent_column) / &
+        100.0_real64
+    candidate%profile_height_scale = &
+        legacy_rib(rib_index, legacy_profile_height_scale_column)
+    candidate%cell_open = cell_open_integer == 1
+    if (.not. candidate%is_valid()) then
+      message = 'legacy rib values do not form a valid definition'
+      return
+    end if
+
+    definition = candidate
+    valid = .true.
+  end subroutine copy_legacy_rib_definition
 
   !> Transform one displacement-adjusted rib-local point into wing space.
   !!
