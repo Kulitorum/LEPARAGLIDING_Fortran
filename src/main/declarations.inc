@@ -284,6 +284,12 @@ c      writers publish only production boundaries proven bit-exact.
        logical, allocatable :: wing_base_resolved_anchor_available(:)
        type(profile_topology), allocatable :: wing_profile_topologies(:)
        type(normalized_profile_2d) :: typed_normalized_profile
+       type(production_panel_2d), allocatable ::
+     + color_production_panels(:)
+       logical, allocatable :: color_production_panel_available(:)
+       logical :: color_panels_required,color_panel_valid
+       integer :: color_panel_index
+       character(len=160) :: color_panel_message
        type(spatial_rib_geometry_3d), allocatable :: wing_spatial_ribs(:)
        type(spatial_rib_geometry_3d), allocatable ::
      + typed_spatial_rib_candidates(:)
@@ -310,6 +316,7 @@ c      writers publish only production boundaries proven bit-exact.
        type(quadrilateral_distances_3d), allocatable ::
      + typed_extrados_source_distances(:),typed_intake_source_distances(:),
      + typed_intrados_source_distances(:)
+       type(spatial_panel_surface) :: typed_dxf_panel_surface
        logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
      + neutral_gap_valid,typed_coordinates_match,
      + typed_spatial_geometry_exact,typed_base_anchor_spatial_exact

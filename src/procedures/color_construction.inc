@@ -6,8 +6,11 @@
 !! coordinate domain explicitly.  On-rib boundaries are then delegated to
 !! `draw_color_panel_construction`.  The `surface_direction` flag selects the
 !! profile traversal only: 1 walks the extrados toward the leading edge and
-!! -1 walks the intrados in reverse.  Keeping this topology in one subroutine
-!! removes the historical duplicated extrados/intrados implementation.
+!! -1 walks the intrados in reverse.  The caller owns the single checked
+!! conversion from legacy coordinate storage; this routine consumes only the
+!! typed normalized profiles and developed edges.  Keeping this topology in
+!! one subroutine removes the historical duplicated extrados/intrados
+!! implementation.
 !!
 !! @param[in] record_count Number of rib records for this surface.
 !! @param[in] record_rib Rib number owned by each record.
@@ -17,8 +20,10 @@
 !! @param[in] off_rib_offset Historical fractional-rib offset; only zero is
 !!            currently a manufacturable straight division.
 !! @param[in] semiwing_rib_count Number of ribs in the computed semi-wing.
-!! @param[in] profile_topologies Validated named topology snapshots from stage 6.
-!! @param[in] developed_u,developed_v Normalized slot 2 and panel slots 9/10.
+!! @param[in] production_panels Complete typed normalized profiles and
+!!            developed edges, indexed by their lower rib/panel number.
+!! @param[in] panel_available True for each panel that passed the checked
+!!            legacy adapter at the stage boundary.
 !! @param[in] panel_separation Horizontal developed-panel placement by index.
 !! @param[in] surface_layout Surface row placement and orientation.
 !! @param[in] allowance_mm Internal allowance applied to both color pieces.
@@ -27,20 +32,19 @@
 !! @param[in] surface_direction 1 for extrados; -1 for intrados.
        subroutine draw_classic_color_surface(record_count,record_rib,
      + record_boundary_count,record_boundary_id,boundary_percent,
-     + off_rib_offset,semiwing_rib_count,profile_topologies,developed_u,
-     + developed_v,panel_separation,surface_layout,
+     + off_rib_offset,semiwing_rib_count,production_panels,
+     + panel_available,panel_separation,surface_layout,
      + allowance_mm,mark_inset_mm,cad_color,surface_direction)
        implicit none
 
        integer, intent(in) :: record_count,semiwing_rib_count
        integer, intent(in) :: record_rib(100),record_boundary_count(100)
        integer, intent(in) :: record_boundary_id(100,100)
-       type(profile_topology), intent(in) :: profile_topologies(0:)
+       type(production_panel_2d), intent(in) :: production_panels(:)
+       logical, intent(in) :: panel_available(:)
        integer, intent(in) :: cad_color,surface_direction
        real*8, intent(in) :: boundary_percent(100,100)
        real*8, intent(in) :: off_rib_offset(100,100)
-       real*8, intent(in) :: developed_u(0:100,500,99)
-       real*8, intent(in) :: developed_v(0:100,500,99)
        real*8, intent(in) :: panel_separation(0:100)
        real*8, intent(in) :: allowance_mm,mark_inset_mm
        type(layout_transform_2d), intent(in) :: surface_layout
@@ -51,24 +55,19 @@
        integer :: left_first_point,left_last_point
        integer :: right_first_point,right_last_point,point_step
        real*8 :: left_u,left_v,right_u,right_v
-       logical :: left_found,right_found,panel_valid
-       character(len=160) :: panel_message
-       type(production_panel_2d) :: production_panel
+       logical :: left_found,right_found
        type(layout_transform_2d) :: panel_layout
 
        if (record_count.lt.1) return
        if (surface_direction.ne.1.and.surface_direction.ne.-1) return
        if (.not.surface_layout%is_valid()) return
+       if (size(production_panels).lt.semiwing_rib_count-1) return
+       if (size(panel_available).lt.semiwing_rib_count-1) return
 
        do panel_index=1,semiwing_rib_count-1
-       call copy_legacy_production_panel(developed_u,developed_v,
-     + profile_topologies,panel_index,production_panel,panel_valid,
-     + panel_message)
-       if (.not.panel_valid) then
-       write (*,'(A,I0,2A)') 'Warning: skipped color panel ',panel_index,
-     + ': ',trim(panel_message)
-       cycle
-       end if
+       if (.not.panel_available(panel_index)) cycle
+       if (.not.production_panels(panel_index)%is_valid()) cycle
+       if (production_panels(panel_index)%panel_index.ne.panel_index) cycle
 
        do left_record=1,record_count
        if (record_rib(left_record).eq.panel_index) then
@@ -99,34 +98,42 @@
 
        if (right_record.ne.0) then
        if (surface_direction.eq.1) then
-       left_first_point=production_panel%lower_profile%topology%extrados%first
-       left_last_point=production_panel%lower_profile%topology%extrados%last
-       right_first_point=production_panel%higher_profile%topology%extrados%first
-       right_last_point=min(production_panel%higher_profile%topology%extrados%last,
-     + production_panel%lower_profile%topology%extrados%last)
+       left_first_point=production_panels(panel_index)%lower_profile%
+     + topology%extrados%first
+       left_last_point=production_panels(panel_index)%lower_profile%
+     + topology%extrados%last
+       right_first_point=production_panels(panel_index)%higher_profile%
+     + topology%extrados%first
+       right_last_point=min(production_panels(panel_index)%higher_profile%
+     + topology%extrados%last,production_panels(panel_index)%lower_profile%
+     + topology%extrados%last)
        point_step=1
        else
-       left_first_point=production_panel%lower_profile%topology%intrados%last
-       left_last_point=production_panel%lower_profile%topology%intrados%first
-       right_first_point=min(production_panel%higher_profile%topology%intrados%last,
-     + production_panel%lower_profile%topology%intrados%last)
-       right_last_point=max(production_panel%higher_profile%topology%intrados%first,
-     + production_panel%lower_profile%topology%intrados%first)
+       left_first_point=production_panels(panel_index)%lower_profile%
+     + topology%intrados%last
+       left_last_point=production_panels(panel_index)%lower_profile%
+     + topology%intrados%first
+       right_first_point=min(production_panels(panel_index)%higher_profile%
+     + topology%intrados%last,production_panels(panel_index)%lower_profile%
+     + topology%intrados%last)
+       right_last_point=max(production_panels(panel_index)%higher_profile%
+     + topology%intrados%first,production_panels(panel_index)%lower_profile%
+     + topology%intrados%first)
        point_step=-1
        end if
 
        call locate_color_boundary_on_edge(
-     + production_panel%lower_profile%chord_fraction,
-     + production_panel%edges%lower_sewing_u,
-     + production_panel%edges%lower_sewing_v,
+     + production_panels(panel_index)%lower_profile%chord_fraction,
+     + production_panels(panel_index)%edges%lower_sewing_u,
+     + production_panels(panel_index)%edges%lower_sewing_v,
      + left_first_point,left_last_point,point_step,
      + boundary_percent(left_record,left_boundary),left_found,
      + left_u,left_v)
 
        call locate_color_boundary_on_edge(
-     + production_panel%higher_profile%chord_fraction,
-     + production_panel%edges%higher_sewing_u,
-     + production_panel%edges%higher_sewing_v,
+     + production_panels(panel_index)%higher_profile%chord_fraction,
+     + production_panels(panel_index)%edges%higher_sewing_u,
+     + production_panels(panel_index)%edges%higher_sewing_v,
      + right_first_point,right_last_point,point_step,
      + boundary_percent(right_record,right_boundary),right_found,
      + right_u,right_v)

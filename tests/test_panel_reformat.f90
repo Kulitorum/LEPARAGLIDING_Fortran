@@ -3,7 +3,8 @@ program test_panel_reformat
   use, intrinsic :: ieee_arithmetic, only : ieee_quiet_nan, ieee_value
   use leparagliding_domain_model, only : production_boundary_edge_2d, &
       surface_intrados, legacy_production_lower_sewing_slot, &
-      legacy_production_lower_cut_slot
+      legacy_production_higher_sewing_slot, &
+      legacy_production_lower_cut_slot, legacy_production_higher_cut_slot
   use leparagliding_panel_reformat
   implicit none
 
@@ -16,6 +17,10 @@ program test_panel_reformat
   real(real64) :: legacy_v(0:5, 10, 12)
   real(real64) :: expected_u(0:5, 10, 12)
   real(real64) :: expected_v(0:5, 10, 12)
+  real(real64) :: segment_angle(0:10), segment_distance(0:10)
+  real(real64) :: segment_sign_u(0:10), segment_sign_v(0:10)
+  real(real64) :: expected_angle(0:10), expected_distance(0:10)
+  real(real64) :: expected_sign_u(0:10), expected_sign_v(0:10)
   character(len=160) :: message
   logical :: valid
 
@@ -34,8 +39,21 @@ program test_panel_reformat
   expected_v = legacy_v
   expected_u(2, 4:5, legacy_production_lower_sewing_slot) = &
       [4.0_real64, 6.0_real64]
+  segment_angle = -11.0_real64
+  segment_distance = -12.0_real64
+  segment_sign_u = -13.0_real64
+  segment_sign_v = -14.0_real64
+  expected_angle = segment_angle
+  expected_distance = segment_distance
+  expected_sign_u = segment_sign_u
+  expected_sign_v = segment_sign_v
+  expected_angle(3:4) = 0.0_real64
+  expected_distance(3:4) = 1.0_real64
+  expected_sign_u(3:4) = 1.0_real64
+  expected_sign_v(3:4) = -1.0_real64
   call reformat_legacy_regular_lower_extrados_row(2, 5, 3, &
-      4.0_real64, 6.0_real64, 1.0_real64, legacy_u, legacy_v, valid, message)
+      4.0_real64, 6.0_real64, 1.0_real64, legacy_u, legacy_v, segment_angle, &
+      segment_distance, segment_sign_u, segment_sign_v, valid, message)
   call require(valid, 'valid regular-row reformat rejected: '//trim(message))
   call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
       'regular-row publication changed storage outside its sewing contour')
@@ -43,16 +61,64 @@ program test_panel_reformat
       [0.25_real64, 1.25_real64, 2.25_real64, 3.25_real64, 4.25_real64]) &
       .and. all(legacy_v(2, 1:5, legacy_production_lower_cut_slot) == &
       1.5_real64), 'regular-row reformat changed the established cut edge')
+  call require(all(segment_angle == expected_angle) .and. &
+      all(segment_distance == expected_distance) .and. &
+      all(segment_sign_u == expected_sign_u) .and. &
+      all(segment_sign_v == expected_sign_v), &
+      'regular-row reformat changed scratch outside its selected segments')
 
   ! The point after the extrados range belongs to intake support and must not
   ! be claimed by this migration.  Invalid requests are transactional too.
   expected_u = legacy_u
   expected_v = legacy_v
   call reformat_legacy_regular_lower_extrados_row(2, 5, 5, &
-      4.0_real64, 6.0_real64, 1.0_real64, legacy_u, legacy_v, valid, message)
+      4.0_real64, 6.0_real64, 1.0_real64, legacy_u, legacy_v, segment_angle, &
+      segment_distance, segment_sign_u, segment_sign_v, valid, message)
   call require(.not. valid, 'terminal regular-row start index was accepted')
   call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
       'rejected regular-row request changed compatibility storage')
+
+  ! The higher wrapper uses slots 10/12 on the same real panel row.  This also
+  ! covers the ownership used by the final real panel's physical tip edge.
+  legacy_u = -303.0_real64
+  legacy_v = -404.0_real64
+  legacy_u(3, 1:5, legacy_production_higher_sewing_slot) = &
+      [0.0_real64, -1.0_real64, -2.0_real64, -3.0_real64, -4.0_real64]
+  legacy_v(3, 1:5, legacy_production_higher_sewing_slot) = 0.0_real64
+  legacy_u(3, 1:5, legacy_production_higher_cut_slot) = &
+      [0.5_real64, -0.5_real64, -1.5_real64, -2.5_real64, -3.5_real64]
+  legacy_v(3, 1:5, legacy_production_higher_cut_slot) = -2.0_real64
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(3, 3:5, legacy_production_higher_sewing_slot) = &
+      [-3.0_real64, -5.0_real64, -7.0_real64]
+  segment_angle = -21.0_real64
+  segment_distance = -22.0_real64
+  segment_sign_u = -23.0_real64
+  segment_sign_v = -24.0_real64
+  expected_angle = segment_angle
+  expected_distance = segment_distance
+  expected_sign_u = segment_sign_u
+  expected_sign_v = segment_sign_v
+  expected_angle(2:4) = 0.0_real64
+  expected_distance(2:4) = 1.0_real64
+  expected_sign_u(2:4) = -1.0_real64
+  expected_sign_v(2:4) = -1.0_real64
+  call reformat_legacy_regular_higher_extrados_row(3, 5, 2, &
+      4.0_real64, 7.0_real64, 1.0_real64, legacy_u, legacy_v, segment_angle, &
+      segment_distance, segment_sign_u, segment_sign_v, valid, message)
+  call require(valid, 'valid regular higher reformat rejected: '//trim(message))
+  call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
+      'regular higher publication escaped slots 10/12 or its exact contour')
+  call require(all(legacy_u(3, 1:5, legacy_production_higher_cut_slot) == &
+      [0.5_real64, -0.5_real64, -1.5_real64, -2.5_real64, -3.5_real64]) &
+      .and. all(legacy_v(3, 1:5, legacy_production_higher_cut_slot) == &
+      -2.0_real64), 'regular higher reformat changed its established cut edge')
+  call require(all(segment_angle == expected_angle) .and. &
+      all(segment_distance == expected_distance) .and. &
+      all(segment_sign_u == expected_sign_u) .and. &
+      all(segment_sign_v == expected_sign_v), &
+      'regular higher reformat did not preserve exact scratch ownership')
 
   boundary%source_panel_index = 3
   boundary%boundary_rib_index = 4

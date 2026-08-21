@@ -11,7 +11,7 @@ program test_structural_geometry
   real(real64) :: ballooning(0:rib_count, point_capacity)
   type(spatial_panel_surface) :: surface, saved_surface
   type(local_frame_3d) :: frame
-  logical :: valid
+  logical :: valid, matches
   character(len=160) :: message
   integer :: rib_index, point_index, slot_index
 
@@ -53,6 +53,24 @@ program test_structural_geometry
       legacy_v(2, 3, 55), legacy_w(2, 3, 55), 'normal support')
   call require_close(surface%ballooning_height(3), ballooning(2, 3), &
       'ballooning height was not retained')
+  call spatial_panel_surface_matches_legacy(surface, legacy_u, legacy_v, &
+      legacy_w, ballooning, matches, message)
+  call require(matches, 'exact spatial surface comparison failed: '// &
+      trim(message))
+
+  legacy_u(2, 3, 48) = legacy_u(2, 3, 48) + 1.0_real64
+  call spatial_panel_surface_matches_legacy(surface, legacy_u, legacy_v, &
+      legacy_w, ballooning, matches, message)
+  call require(.not. matches .and. index(message, 'neutral median') > 0, &
+      'neutral-median drift was not rejected precisely')
+  legacy_u(2, 3, 48) = surface%neutral_median(3)%x_cm
+
+  ballooning(2, 3) = ballooning(2, 3) + 1.0_real64
+  call spatial_panel_surface_matches_legacy(surface, legacy_u, legacy_v, &
+      legacy_w, ballooning, matches, message)
+  call require(.not. matches .and. index(message, 'ballooning') > 0, &
+      'ballooning-height drift was not rejected precisely')
+  ballooning(2, 3) = surface%ballooning_height(3)
 
   frame%axis_1 = direction_3d(1.0_real64, 0.0_real64, 0.0_real64)
   frame%axis_2 = direction_3d(0.0_real64, 1.0_real64, 0.0_real64)

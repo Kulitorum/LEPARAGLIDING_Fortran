@@ -622,15 +622,49 @@ c      Limite the number of points in single skin
        jfin=np(i,2)+np(i,3)-2
        end if
 
+c      Section 21.9 is the first production consumer of the owned structural
+c      surface.  Construct the panel i-1/i view only when one of its median
+c      profiles is requested, require exact agreement with all retained
+c      panels3d outputs, then draw from named neutral/inflated point arrays.
+c      The checked snapshot keeps the current panels3d producer authoritative
+c      while removing numbered slots 48/49 from this DXF consumer.
+       if ((pp29(1,1).eq.1.and.i.ge.pp29(1,2).and.
+     + i.le.pp29(1,3)).or.(pp29(2,1).eq.1.and.
+     + i.ge.pp29(2,2).and.i.le.pp29(2,3))) then
+       call copy_legacy_spatial_panel_surface(u,v,w,hautok,i-1,np(i,1),
+     + typed_dxf_panel_surface,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: 3D DXF panel surface ',i-1,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       call spatial_panel_surface_matches_legacy(typed_dxf_panel_surface,
+     + u,v,w,hautok,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed/legacy 3D DXF surface mismatch at panel ',i-1,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       end if
+
 c      Intermediate airfoil (48)
        if (pp29(1,1).eq.1) then
        if (i.ge.pp29(1,2).and.i.le.pp29(1,3)) then
        do j=1,jfin
-       call line3d(u(i,j,48),v(i,j,48),w(i,j,48),
-     + u(i,j+1,48),v(i,j+1,48),w(i,j+1,48),7)
+       call line3d(typed_dxf_panel_surface%neutral_median(j)%x_cm,
+     + typed_dxf_panel_surface%neutral_median(j)%y_cm,
+     + typed_dxf_panel_surface%neutral_median(j)%z_cm,
+     + typed_dxf_panel_surface%neutral_median(j+1)%x_cm,
+     + typed_dxf_panel_surface%neutral_median(j+1)%y_cm,
+     + typed_dxf_panel_surface%neutral_median(j+1)%z_cm,7)
        if (pp29(1,4).eq.0) then
-       call line3d(-u(i,j,48),v(i,j,48),w(i,j,48),
-     + -u(i,j+1,48),v(i,j+1,48),w(i,j+1,48),7)
+       call line3d(-typed_dxf_panel_surface%neutral_median(j)%x_cm,
+     + typed_dxf_panel_surface%neutral_median(j)%y_cm,
+     + typed_dxf_panel_surface%neutral_median(j)%z_cm,
+     + -typed_dxf_panel_surface%neutral_median(j+1)%x_cm,
+     + typed_dxf_panel_surface%neutral_median(j+1)%y_cm,
+     + typed_dxf_panel_surface%neutral_median(j+1)%z_cm,7)
        end if
        end do
        end if
@@ -640,11 +674,19 @@ c      Ovalized airfoil (49)
        if (pp29(2,1).eq.1) then
        if (i.ge.pp29(2,2).and.i.le.pp29(2,3)) then
        do j=1,jfin
-       call line3d(u(i,j,49),v(i,j,49),w(i,j,49),u(i,j+1,49),v(i,j+1,49)
-     + ,w(i,j+1,49),4)
+       call line3d(typed_dxf_panel_surface%inflated_median(j)%x_cm,
+     + typed_dxf_panel_surface%inflated_median(j)%y_cm,
+     + typed_dxf_panel_surface%inflated_median(j)%z_cm,
+     + typed_dxf_panel_surface%inflated_median(j+1)%x_cm,
+     + typed_dxf_panel_surface%inflated_median(j+1)%y_cm,
+     + typed_dxf_panel_surface%inflated_median(j+1)%z_cm,4)
        if (pp29(2,4).eq.0) then
-       call line3d(-u(i,j,49),v(i,j,49),w(i,j,49),-u(i,j+1,49),
-     + v(i,j+1,49),w(i,j+1,49),4)
+       call line3d(-typed_dxf_panel_surface%inflated_median(j)%x_cm,
+     + typed_dxf_panel_surface%inflated_median(j)%y_cm,
+     + typed_dxf_panel_surface%inflated_median(j)%z_cm,
+     + -typed_dxf_panel_surface%inflated_median(j+1)%x_cm,
+     + typed_dxf_panel_surface%inflated_median(j+1)%y_cm,
+     + typed_dxf_panel_surface%inflated_median(j+1)%z_cm,4)
        end if
        end do
        end if

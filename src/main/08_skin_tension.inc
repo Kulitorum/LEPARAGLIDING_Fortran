@@ -1282,77 +1282,20 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        do i=1,nribss
 
-c      Calcule length of the reformating polyline
-
-       dist1=0.
-       do j=1,jirl(i)-1
-       dist1=dist1+sqrt((v(i-1,j,10)-v(i-1,j+1,10))**2.+
-     + (u(i-1,j,10)-u(i-1,j+1,10))**2.)
-       end do
-       
-       dist2=0.
-       do j=jirl(i),np(i,2)-1
-       dist2=dist2+sqrt((v(i-1,j,10)-v(i-1,j+1,10))**2.+
-     + (u(i-1,j,10)-u(i-1,j+1,10))**2.)
-       end do
-
-       dist3=dist2+rib(i,90)
-
-       distk=dist3/dist2  ! amplification coefficient
-
-c      Reformat
-      
-       j=jirl(i-1)-1
-       u(i-1,j,30)=u(i-1,j,10)
-       v(i-1,j,30)=v(i-1,j,10)
-
-       dis22=0.
-
-       do j=jirl(i),np(i,2)-1
-
-c      Atention whit angle definition using abs tangents
-c      Make subroutines
-c      Angles and distances, left side
-
-       xdv=(v(i-1,j+1,10)-v(i-1,j,10))
-       xdu=(u(i-1,j+1,10)-u(i-1,j,10))
-       if (xdu.ne.0.) then
-       anglee(j)=abs(datan(xdv/xdu))
-       else
-       anglee(j)=2.*datan(1.0d0)
+c      Row i-1 is the higher edge of real panel i-1, including the physical
+c      tip edge when i=nribss.  The typed routine owns exactly points 1:np;
+c      its internal fixed-form oracle must agree bit for bit before write-back.
+       call reformat_legacy_regular_higher_extrados_row(i-1,np(i,2),
+     + int(jirl(i)),rib(i,30),rib(i,31),xndif,u,v,
+     + anglee,distee,siu,siv,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: regular higher extrados reformat failed at panel ',i-1,
+     + ': ',trim(domain_model_message)
+       stop 1
        end if
 
-       if (xdu.ge.0.and.xdv.ge.0) then ! case 1-I
-       siu(j)=1.
-       siv(j)=1.
-       end if
-       if (xdu.le.0.and.xdv.ge.0) then ! case 1-II
-       siu(j)=-1.
-       siv(j)=1.
-       end if
-       if (xdu.ge.0.and.xdv.le.0) then ! case 1-III
-       siu(j)=1.
-       siv(j)=-1.
-       end if
-       if (xdu.le.0.and.xdv.le.0) then ! case 1-IV
-       siu(j)=-1.
-       siv(j)=-1.
-       end if
-
-       distee(j)=dsqrt((v(i-1,j,10)-v(i-1,j+1,10))**2.+
-     + (u(i-1,j,10)-u(i-1,j+1,10))**2.)
-
-       end do
-
-c      Define
-
-       do j=jirl(i),np(i,2)-1
-       u(i-1,j+1,30)=u(i-1,j,10)+siu(j)*distk*distee(j)*dcos(anglee(j))
-       v(i-1,j+1,30)=v(i-1,j,10)+siv(j)*distk*distee(j)*dsin(anglee(j))
-       u(i-1,j+1,10)=u(i-1,j+1,30)
-       v(i-1,j+1,10)=v(i-1,j+1,30)
-       end do
-
+c      The following point is intake support, not part of the extrados edge.
        j=np(i,2)+1
        u(i-1,j,10)=u(i-1,j-1,10)+u(i-1,j-1,10)-u(i-1,j-2,10)
        v(i-1,j,10)=v(i-1,j-1,10)+v(i-1,j-1,10)-v(i-1,j-2,10)
@@ -1373,7 +1316,8 @@ c      extrapolated after this branch.
        if (i.lt.nribss) then
        call reformat_legacy_regular_lower_extrados_row(i,np(i,2),
      + int(jirr(i)),
-     + rib(i,32),rib(i,31),xndif,u,v,domain_model_valid,
+     + rib(i,32),rib(i,31),xndif,u,v,anglee,distee,siu,siv,
+     + domain_model_valid,
      + domain_model_message)
        if (.not.domain_model_valid) then
        write (*,'(A,I0,2A)')

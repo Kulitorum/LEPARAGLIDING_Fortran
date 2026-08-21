@@ -71,6 +71,7 @@ module leparagliding_structural_geometry
   end type spatial_panel_surface
 
   public :: copy_legacy_spatial_panel_surface
+  public :: spatial_panel_surface_matches_legacy
 
 contains
 
@@ -262,6 +263,105 @@ contains
     surface = candidate
     valid = .true.
   end subroutine copy_legacy_spatial_panel_surface
+
+  !> Require exact agreement with every retained legacy panel value.
+  !!
+  !! This check is intended for narrow production-consumer migrations.  It
+  !! rebuilds a transactional compatibility candidate, compares metadata,
+  !! every named point array, and ballooning heights without a tolerance, and
+  !! permits the caller to consume the owned surface only after all values
+  !! agree.  Failure does not modify `surface` or the legacy arrays.
+  pure subroutine spatial_panel_surface_matches_legacy(surface, legacy_u, &
+      legacy_v, legacy_w, legacy_ballooning_height, matches, message)
+    type(spatial_panel_surface), intent(in) :: surface
+    real(real64), intent(in) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    real(real64), intent(in) :: legacy_w(0:,:,:)
+    real(real64), intent(in) :: legacy_ballooning_height(0:,:)
+    logical, intent(out) :: matches
+    character(len=*), intent(out) :: message
+
+    type(spatial_panel_surface) :: legacy_surface
+    logical :: copied
+    character(len=len(message)) :: copy_message
+
+    matches = .false.
+    message = ''
+    if (.not. surface%is_valid()) then
+      message = 'typed spatial panel surface is invalid'
+      return
+    end if
+    call copy_legacy_spatial_panel_surface(legacy_u, legacy_v, legacy_w, &
+        legacy_ballooning_height, surface%panel_index, &
+        size(surface%neutral_median), legacy_surface, copied, copy_message)
+    if (.not. copied) then
+      message = 'legacy spatial panel comparison failed: '// &
+          trim(copy_message)
+      return
+    end if
+    if (surface%lower_rib_index /= legacy_surface%lower_rib_index .or. &
+        surface%higher_rib_index /= legacy_surface%higher_rib_index) then
+      message = 'typed and legacy panel adjacency differ'
+      return
+    end if
+    if (.not. points_match_exactly(surface%lower_skin, &
+        legacy_surface%lower_skin)) then
+      message = 'typed and legacy lower spatial skins differ'
+      return
+    end if
+    if (.not. points_match_exactly(surface%higher_skin, &
+        legacy_surface%higher_skin)) then
+      message = 'typed and legacy higher spatial skins differ'
+      return
+    end if
+    if (.not. points_match_exactly(surface%neutral_median, &
+        legacy_surface%neutral_median)) then
+      message = 'typed and legacy neutral median surfaces differ'
+      return
+    end if
+    if (.not. points_match_exactly(surface%inflated_median, &
+        legacy_surface%inflated_median)) then
+      message = 'typed and legacy inflated median surfaces differ'
+      return
+    end if
+    if (.not. points_match_exactly(surface%local_neutral, &
+        legacy_surface%local_neutral)) then
+      message = 'typed and legacy local neutral surfaces differ'
+      return
+    end if
+    if (.not. points_match_exactly(surface%local_inflated, &
+        legacy_surface%local_inflated)) then
+      message = 'typed and legacy local inflated surfaces differ'
+      return
+    end if
+    if (.not. points_match_exactly(surface%plane_normal_support, &
+        legacy_surface%plane_normal_support)) then
+      message = 'typed and legacy plane-normal support points differ'
+      return
+    end if
+    if (any(abs(surface%ballooning_height - &
+        legacy_surface%ballooning_height) > 0.0_real64)) then
+      message = 'typed and legacy ballooning heights differ'
+      return
+    end if
+    matches = .true.
+  end subroutine spatial_panel_surface_matches_legacy
+
+  pure logical function points_match_exactly(left, right) result(matches)
+    type(point_3d), intent(in) :: left(:), right(:)
+    integer :: point_index
+
+    matches = .false.
+    if (size(left) /= size(right)) return
+    do point_index = 1, size(left)
+      if (abs(left(point_index)%x_cm - right(point_index)%x_cm) > &
+          0.0_real64 .or. &
+          abs(left(point_index)%y_cm - right(point_index)%y_cm) > &
+          0.0_real64 .or. &
+          abs(left(point_index)%z_cm - right(point_index)%z_cm) > &
+          0.0_real64) return
+    end do
+    matches = .true.
+  end function points_match_exactly
 
   pure subroutine copy_point(legacy_u, legacy_v, legacy_w, rib_index, &
       point_index, slot_index, point)

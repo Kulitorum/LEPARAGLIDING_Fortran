@@ -105,6 +105,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
      + copy_legacy_resolved_rib_anchors,
      + resolved_rib_anchors_match_legacy,
      + write_legacy_resolved_anchor_spatial_points
+       use leparagliding_structural_geometry, only : spatial_panel_surface,
+     + copy_legacy_spatial_panel_surface,
+     + spatial_panel_surface_matches_legacy
        use leparagliding_mark_types
        use leparagliding_hvr_config
 

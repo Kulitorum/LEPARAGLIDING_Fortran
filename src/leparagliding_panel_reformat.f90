@@ -18,7 +18,8 @@ module leparagliding_panel_reformat
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
   use leparagliding_domain_model, only : production_boundary_edge_2d, &
       surface_intrados, legacy_production_lower_sewing_slot, &
-      legacy_production_lower_cut_slot
+      legacy_production_higher_sewing_slot, &
+      legacy_production_lower_cut_slot, legacy_production_higher_cut_slot
   implicit none
   private
 
@@ -67,13 +68,13 @@ module leparagliding_panel_reformat
     procedure :: is_valid => preceding_join_support_is_valid
   end type preceding_join_support_2d
 
-  !> Exact production contour owned by one regular lower extrados row.
+  !> Exact production contour owned by one side of a regular extrados panel.
   !!
   !! Stage 8 stores this edge in legacy slots 9/11 at `panel_index`.  The
   !! point after `contour_last_index` is an intake-side support point and is
   !! deliberately excluded: the historical extrapolation of that point stays
   !! in the fixed-form caller until its cross-surface ownership is modelled.
-  type :: regular_lower_extrados_edge_2d
+  type :: regular_extrados_edge_2d
     integer :: panel_index = -1
     integer :: contour_first_index = 1
     integer :: contour_last_index = -1
@@ -82,24 +83,25 @@ module leparagliding_panel_reformat
     real(real64), allocatable :: cut_u(:)
     real(real64), allocatable :: cut_v(:)
   contains
-    procedure :: is_valid => regular_lower_extrados_edge_is_valid
-  end type regular_lower_extrados_edge_2d
+    procedure :: is_valid => regular_extrados_edge_is_valid
+  end type regular_extrados_edge_2d
 
   public :: reformat_terminal_intrados_boundary
   public :: reformat_legacy_regular_lower_extrados_row
+  public :: reformat_legacy_regular_higher_extrados_row
   public :: copy_legacy_preceding_join_support
   public :: reformat_preceding_join_support
   public :: write_legacy_preceding_join_support
 
 contains
 
-  !> Validate one bounded regular lower-extrados production edge.
-  pure logical function regular_lower_extrados_edge_is_valid(edge)
-    class(regular_lower_extrados_edge_2d), intent(in) :: edge
+  !> Validate one bounded regular extrados production edge.
+  pure logical function regular_extrados_edge_is_valid(edge)
+    class(regular_extrados_edge_2d), intent(in) :: edge
 
     integer :: point_count
 
-    regular_lower_extrados_edge_is_valid = .false.
+    regular_extrados_edge_is_valid = .false.
     if (edge%panel_index < 0) return
     if (edge%contour_first_index /= 1) return
     if (edge%contour_last_index < edge%contour_first_index) return
@@ -115,8 +117,8 @@ contains
         .not. all(ieee_is_finite(edge%sewing_v)) .or. &
         .not. all(ieee_is_finite(edge%cut_u)) .or. &
         .not. all(ieee_is_finite(edge%cut_v))) return
-    regular_lower_extrados_edge_is_valid = .true.
-  end function regular_lower_extrados_edge_is_valid
+    regular_extrados_edge_is_valid = .true.
+  end function regular_extrados_edge_is_valid
 
   !> Reformat one regular lower extrados row through a checked typed boundary.
   !!
@@ -132,17 +134,77 @@ contains
   pure subroutine reformat_legacy_regular_lower_extrados_row(panel_index, &
       contour_last_index, reconstruction_start_index, &
       source_contour_length, target_contour_length, correction_fraction, &
-      legacy_u, legacy_v, valid, message)
+      legacy_u, legacy_v, segment_angle, segment_distance, segment_sign_u, &
+      segment_sign_v, valid, message)
     integer, intent(in) :: panel_index, contour_last_index
     integer, intent(in) :: reconstruction_start_index
     real(real64), intent(in) :: source_contour_length, target_contour_length
     real(real64), intent(in) :: correction_fraction
     real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    real(real64), intent(inout) :: segment_angle(0:), segment_distance(0:)
+    real(real64), intent(inout) :: segment_sign_u(0:), segment_sign_v(0:)
     logical, intent(out) :: valid
     character(len=*), intent(out) :: message
 
-    type(regular_lower_extrados_edge_2d) :: source, typed_candidate
-    type(regular_lower_extrados_edge_2d) :: legacy_oracle
+    call reformat_legacy_regular_extrados_row(panel_index, &
+        contour_last_index, reconstruction_start_index, &
+        source_contour_length, target_contour_length, correction_fraction, &
+        legacy_production_lower_sewing_slot, &
+        legacy_production_lower_cut_slot, legacy_u, legacy_v, segment_angle, &
+        segment_distance, segment_sign_u, segment_sign_v, valid, message)
+  end subroutine reformat_legacy_regular_lower_extrados_row
+
+  !> Reformat the higher edge of one real extrados panel.
+  !!
+  !! The legacy caller stores this edge at the real panel's row in slots
+  !! 10/12.  The physical tip is therefore the higher edge of the final real
+  !! panel, not a fabricated row beyond it.  As on the lower wrapper, the
+  !! following intake-support point remains outside this routine's ownership.
+  pure subroutine reformat_legacy_regular_higher_extrados_row(panel_index, &
+      contour_last_index, reconstruction_start_index, &
+      source_contour_length, target_contour_length, correction_fraction, &
+      legacy_u, legacy_v, segment_angle, segment_distance, segment_sign_u, &
+      segment_sign_v, valid, message)
+    integer, intent(in) :: panel_index, contour_last_index
+    integer, intent(in) :: reconstruction_start_index
+    real(real64), intent(in) :: source_contour_length, target_contour_length
+    real(real64), intent(in) :: correction_fraction
+    real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    real(real64), intent(inout) :: segment_angle(0:), segment_distance(0:)
+    real(real64), intent(inout) :: segment_sign_u(0:), segment_sign_v(0:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    call reformat_legacy_regular_extrados_row(panel_index, &
+        contour_last_index, reconstruction_start_index, &
+        source_contour_length, target_contour_length, correction_fraction, &
+        legacy_production_higher_sewing_slot, &
+        legacy_production_higher_cut_slot, legacy_u, legacy_v, segment_angle, &
+        segment_distance, segment_sign_u, segment_sign_v, valid, message)
+  end subroutine reformat_legacy_regular_higher_extrados_row
+
+  !> Shared typed/oracle boundary for either side of a real extrados panel.
+  pure subroutine reformat_legacy_regular_extrados_row(panel_index, &
+      contour_last_index, reconstruction_start_index, &
+      source_contour_length, target_contour_length, correction_fraction, &
+      sewing_slot, cut_slot, legacy_u, legacy_v, segment_angle, &
+      segment_distance, segment_sign_u, segment_sign_v, valid, message)
+    integer, intent(in) :: panel_index, contour_last_index
+    integer, intent(in) :: reconstruction_start_index, sewing_slot, cut_slot
+    real(real64), intent(in) :: source_contour_length, target_contour_length
+    real(real64), intent(in) :: correction_fraction
+    real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    real(real64), intent(inout) :: segment_angle(0:), segment_distance(0:)
+    real(real64), intent(inout) :: segment_sign_u(0:), segment_sign_v(0:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(regular_extrados_edge_2d) :: source, typed_candidate
+    type(regular_extrados_edge_2d) :: legacy_oracle
+    real(real64), allocatable :: typed_angle(:), typed_distance(:)
+    real(real64), allocatable :: typed_sign_u(:), typed_sign_v(:)
+    real(real64), allocatable :: oracle_angle(:), oracle_distance(:)
+    real(real64), allocatable :: oracle_sign_u(:), oracle_sign_v(:)
     integer :: point_count
 
     valid = .false.
@@ -161,14 +223,22 @@ contains
       message = 'regular-row extrados contour is outside legacy storage'
       return
     end if
-    if (legacy_production_lower_sewing_slot < lbound(legacy_u, 3) .or. &
-        legacy_production_lower_cut_slot > ubound(legacy_u, 3)) then
-      message = 'legacy array has no regular lower production slots'
+    if (sewing_slot < lbound(legacy_u, 3) .or. &
+        sewing_slot > ubound(legacy_u, 3) .or. &
+        cut_slot < lbound(legacy_u, 3) .or. &
+        cut_slot > ubound(legacy_u, 3)) then
+      message = 'legacy array has no selected regular production slots'
       return
     end if
     if (reconstruction_start_index < 1 .or. &
         reconstruction_start_index >= contour_last_index) then
       message = 'regular-row reconstruction start is outside the contour'
+      return
+    end if
+    if (any([ubound(segment_angle, 1), ubound(segment_distance, 1), &
+        ubound(segment_sign_u, 1), ubound(segment_sign_v, 1)] < &
+        contour_last_index - 1)) then
+      message = 'regular-row segment scratch arrays are too small'
       return
     end if
     if (.not. ieee_is_finite(source_contour_length) .or. &
@@ -184,13 +254,13 @@ contains
     source%panel_index = panel_index
     source%contour_last_index = contour_last_index
     source%sewing_u = legacy_u(panel_index, 1:point_count, &
-        legacy_production_lower_sewing_slot)
+        sewing_slot)
     source%sewing_v = legacy_v(panel_index, 1:point_count, &
-        legacy_production_lower_sewing_slot)
+        sewing_slot)
     source%cut_u = legacy_u(panel_index, 1:point_count, &
-        legacy_production_lower_cut_slot)
+        cut_slot)
     source%cut_v = legacy_v(panel_index, 1:point_count, &
-        legacy_production_lower_cut_slot)
+        cut_slot)
     if (.not. source%is_valid()) then
       message = 'legacy regular-row source contains invalid geometry'
       return
@@ -198,43 +268,68 @@ contains
 
     call build_regular_forward_candidate(source, reconstruction_start_index, &
         source_contour_length, target_contour_length, correction_fraction, &
-        typed_candidate, valid, message)
+        typed_candidate, typed_angle, typed_distance, typed_sign_u, &
+        typed_sign_v, valid, message)
     if (.not. valid) return
     call build_legacy_forward_oracle(source, reconstruction_start_index, &
         source_contour_length, target_contour_length, correction_fraction, &
-        legacy_oracle, valid, message)
+        legacy_oracle, oracle_angle, oracle_distance, oracle_sign_u, &
+        oracle_sign_v, valid, message)
     if (.not. valid) return
     if (.not. edges_are_bit_exact(typed_candidate, legacy_oracle)) then
       valid = .false.
       message = 'typed and legacy regular-row reformats differ'
       return
     end if
+    if (.not. scratch_is_bit_exact(typed_angle, oracle_angle, &
+        reconstruction_start_index, point_count - 1) .or. &
+        .not. scratch_is_bit_exact(typed_distance, oracle_distance, &
+        reconstruction_start_index, point_count - 1) .or. &
+        .not. scratch_is_bit_exact(typed_sign_u, oracle_sign_u, &
+        reconstruction_start_index, point_count - 1) .or. &
+        .not. scratch_is_bit_exact(typed_sign_v, oracle_sign_v, &
+        reconstruction_start_index, point_count - 1)) then
+      valid = .false.
+      message = 'typed and legacy regular-row segment scratch differs'
+      return
+    end if
 
     legacy_u(panel_index, 1:point_count, &
-        legacy_production_lower_sewing_slot) = typed_candidate%sewing_u
+        sewing_slot) = typed_candidate%sewing_u
     legacy_v(panel_index, 1:point_count, &
-        legacy_production_lower_sewing_slot) = typed_candidate%sewing_v
+        sewing_slot) = typed_candidate%sewing_v
     legacy_u(panel_index, 1:point_count, &
-        legacy_production_lower_cut_slot) = typed_candidate%cut_u
+        cut_slot) = typed_candidate%cut_u
     legacy_v(panel_index, 1:point_count, &
-        legacy_production_lower_cut_slot) = typed_candidate%cut_v
+        cut_slot) = typed_candidate%cut_v
+    segment_angle(reconstruction_start_index:point_count - 1) = &
+        typed_angle(reconstruction_start_index:point_count - 1)
+    segment_distance(reconstruction_start_index:point_count - 1) = &
+        typed_distance(reconstruction_start_index:point_count - 1)
+    segment_sign_u(reconstruction_start_index:point_count - 1) = &
+        typed_sign_u(reconstruction_start_index:point_count - 1)
+    segment_sign_v(reconstruction_start_index:point_count - 1) = &
+        typed_sign_v(reconstruction_start_index:point_count - 1)
     valid = .true.
-  end subroutine reformat_legacy_regular_lower_extrados_row
+  end subroutine reformat_legacy_regular_extrados_row
 
   !> Construct the typed forward reconstruction used as production authority.
   pure subroutine build_regular_forward_candidate(source, start_index, &
       source_contour_length, target_contour_length, correction_fraction, &
-      candidate, valid, message)
-    type(regular_lower_extrados_edge_2d), intent(in) :: source
+      candidate, segment_angle, segment_distance, segment_sign_u, &
+      segment_sign_v, valid, message)
+    type(regular_extrados_edge_2d), intent(in) :: source
     integer, intent(in) :: start_index
     real(real64), intent(in) :: source_contour_length, target_contour_length
     real(real64), intent(in) :: correction_fraction
-    type(regular_lower_extrados_edge_2d), intent(inout) :: candidate
+    type(regular_extrados_edge_2d), intent(inout) :: candidate
+    real(real64), allocatable, intent(out) :: segment_angle(:)
+    real(real64), allocatable, intent(out) :: segment_distance(:)
+    real(real64), allocatable, intent(out) :: segment_sign_u(:)
+    real(real64), allocatable, intent(out) :: segment_sign_v(:)
     logical, intent(out) :: valid
     character(len=*), intent(out) :: message
 
-    real(real64), allocatable :: segment_angle(:), segment_distance(:)
-    real(real64), allocatable :: segment_sign_u(:), segment_sign_v(:)
     real(real32) :: measured_length, corrected_length, length_scale
     real(real64) :: delta_u, delta_v
     integer :: point_index, point_count
@@ -242,12 +337,12 @@ contains
     valid = .false.
     message = ''
     if (.not. source%is_valid()) then
-      message = 'cannot reformat an invalid regular lower extrados edge'
+      message = 'cannot reformat an invalid regular extrados edge'
       return
     end if
     point_count = size(source%sewing_u)
     if (start_index < 1 .or. start_index >= point_count) then
-      message = 'regular lower extrados start index is outside its contour'
+      message = 'regular extrados start index is outside its contour'
       return
     end if
 
@@ -261,7 +356,7 @@ contains
     end do
     if (.not. ieee_is_finite(measured_length) .or. &
         measured_length <= 0.0_real32) then
-      message = 'regular lower extrados has no measurable reformat run'
+      message = 'regular extrados has no measurable reformat run'
       return
     end if
     corrected_length = measured_length + correction_fraction*( &
@@ -269,7 +364,7 @@ contains
     length_scale = corrected_length/measured_length
     if (.not. ieee_is_finite(length_scale) .or. &
         length_scale <= 0.0_real32) then
-      message = 'regular lower extrados scale is not positive and finite'
+      message = 'regular extrados scale is not positive and finite'
       return
     end if
 
@@ -310,7 +405,7 @@ contains
           segment_distance(point_index)*sin(segment_angle(point_index))
     end do
     if (.not. candidate%is_valid()) then
-      message = 'regular lower extrados reformat produced invalid geometry'
+      message = 'regular extrados reformat produced invalid geometry'
       return
     end if
     valid = .true.
@@ -324,16 +419,17 @@ contains
   !! production algorithms.
   pure subroutine build_legacy_forward_oracle(source, start_index, &
       source_contour_length, target_contour_length, correction_fraction, &
-      oracle, valid, message)
-    type(regular_lower_extrados_edge_2d), intent(in) :: source
+      oracle, anglee, distee, siu, siv, valid, message)
+    type(regular_extrados_edge_2d), intent(in) :: source
     integer, intent(in) :: start_index
     real(real64), intent(in) :: source_contour_length, target_contour_length
     real(real64), intent(in) :: correction_fraction
-    type(regular_lower_extrados_edge_2d), intent(inout) :: oracle
+    type(regular_extrados_edge_2d), intent(inout) :: oracle
+    real(real64), allocatable, intent(out) :: anglee(:), distee(:)
+    real(real64), allocatable, intent(out) :: siu(:), siv(:)
     logical, intent(out) :: valid
     character(len=*), intent(out) :: message
 
-    real(real64), allocatable :: anglee(:), distee(:), siu(:), siv(:)
     real(real32) :: dist2, dist3, distk
     real(real64) :: xdu, xdv
     integer :: j, point_count
@@ -425,7 +521,7 @@ contains
 
   !> Compare all owned coordinates by representation, including signed zero.
   pure logical function edges_are_bit_exact(first, second)
-    type(regular_lower_extrados_edge_2d), intent(in) :: first, second
+    type(regular_extrados_edge_2d), intent(in) :: first, second
 
     integer :: point_index
 
@@ -446,6 +542,26 @@ contains
     end do
     edges_are_bit_exact = .true.
   end function edges_are_bit_exact
+
+  !> Compare the populated part of one migration scratch array bit for bit.
+  pure logical function scratch_is_bit_exact(first, second, first_index, &
+      last_index)
+    real(real64), intent(in) :: first(:), second(:)
+    integer, intent(in) :: first_index, last_index
+
+    integer :: point_index
+
+    scratch_is_bit_exact = .false.
+    if (lbound(first, 1) /= lbound(second, 1) .or. &
+        ubound(first, 1) /= ubound(second, 1)) return
+    if (first_index < lbound(first, 1) .or. &
+        last_index > ubound(first, 1) .or. first_index > last_index) return
+    do point_index = first_index, last_index
+      if (.not. same_real64_bits(first(point_index), &
+          second(point_index))) return
+    end do
+    scratch_is_bit_exact = .true.
+  end function scratch_is_bit_exact
 
   pure logical function same_real64_bits(first, second)
     real(real64), intent(in) :: first, second
