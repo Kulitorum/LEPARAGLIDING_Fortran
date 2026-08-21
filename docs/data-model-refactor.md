@@ -1,15 +1,16 @@
 # Data-model refactor: inventory and migration design
 
-Status: implementation in progress; Phase 0 DXF/CI gates and the typed
-ownership checkpoints documented below are complete. Remaining Phase-0 report
-oracles and Phases 1--7 continue in dependency order. Phase 4 currently owns
-extrados and regular intrados offsets/shaping plus terminal intrados reformat;
-Phase 5 has its validated rib-definition and spatial-transform foundation.
+Status: implementation in progress. Phase 0 and the typed neutral/spatial-wing
+authority boundaries are complete. Phase 4 owns the regular shaping slices and
+length-match checkpoints documented below; Phase 6 owns typed anchor and first
+3D structural boundaries; Phase 7 is retiring executable includes one checked
+module at a time. Final removal of ambiguous legacy stores remains blocked by
+the terminology decisions listed at the end of this document.
 
-Evidence baseline: typed adapter/color, topology, neutral terminal-boundary,
-authoritative extrados/intake/intrados, typed regular-panel extrados offsets,
-typed regular-panel extrados shaping, and typed regular-panel plus
-physical-terminal intrados shaping/reformat checkpoints
+Evidence baseline: original-3.28 compatibility, exact and semantic 3.29 output
+oracles, typed adapter/color/topology, authoritative spatial and neutral wings,
+regular-panel shaping/reformat, physical-terminal intrados, anchors, and first
+structural-surface checkpoints
 
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
@@ -29,13 +30,14 @@ This document records what can be established from the code, marks uncertain
 interpretations as such, proposes the target model, and defines a phased
 migration with objective exit criteria.
 
-## Implementation checkpoint: 2026-08-20
+## Implementation checkpoint: 2026-08-21
 
 The first migration boundary is implemented alongside this plan:
 
 - `src/leparagliding_domain_model.f90` defines validated normalized-profile,
   spatial-rib, production-panel, and color-division types.
-- Named compatibility constants quarantine legacy slots 2 and 9:12.
+- Named compatibility constants quarantine normalized-fraction slot 1 and
+  production slots 9:12.
 - Transactional adapters copy normalized profiles, spatial `x/y/z` ribs, and
   complete production-panel sewing/cut edges without exposing partially valid
   objects.
@@ -235,7 +237,7 @@ existing calculation as a comparison oracle:
   coordinates must agree before the production adapter writes only row
   `nribss` slots 9/11. It cannot represent or write terminal slots 10/12.
 
-The unit suite now contains 15 registered tests, including focused
+The unit suite now contains 22 registered tests, including focused
 `skin_tension` normalization/evaluation coverage and `panel_shaping` coverage
 for all quadrants, axis-aligned segments, endpoint bias, allowance conversion,
 validation, and transactional failure. Full Plan B and even-cell regressions
@@ -274,12 +276,33 @@ failures. Plan B and Swoop2 execute the integrated new-tension path; the runtime
 dual comparison supplies a terminal numeric oracle because downstream drawing
 loops do not expose that row in the reviewed output hashes.
 
+### Ninth checkpoint: spatial, anchor, consumer, and include boundaries
+
+- Slot-1 fraction profiles now drive exact-order whole-rib construction. The
+  complete authored/generated wing becomes `wing_spatial_ribs` authority only
+  when every point is bit-exact; all maintained fixtures cross that gate.
+- Stage 12 reconstructs the active A--E spatial anchors from named definitions
+  and retained Stage-9 profile points. Its separate transform documents the
+  legacy displacement-after-wash-in order and publishes all rows or none.
+- Section 21.9 exact-checks the seven named structural point collections and
+  ballooning heights before drawing typed neutral/inflated median profiles.
+- Stage 15 is the sole legacy adapter for one retained production-panel
+  collection. The color consumer now accepts only typed profiles, sewing edges,
+  and layout transforms.
+- Classic intrados shaping and both regular extrados `ndif=1000` sides now use
+  checked typed boundaries. The final real higher edge is owned; the outward
+  scratch row is not, because Stage 7 never constructs it.
+- Four executable procedure includes have been deleted in favor of documented
+  free-form transformation, cleanup, polyline-interpolation, and 2D-geometry
+  modules with explicit interfaces and focused tests.
+
 ## Terminology used in this plan
 
 The names below describe coordinate domains, not presentation views:
 
-- **Normalized profile**: the signed two-dimensional airfoil contour, initially
-  expressed as fractions of chord and then as percentages.
+- **Normalized profile**: the signed two-dimensional airfoil contour in
+  fractions of chord. Legacy slot 2 is a derived percentage compatibility
+  view, not the typed source model.
 - **Rib-local profile**: the normalized contour scaled to a rib chord, before
   placement in the full spatial wing.
 - **Spatial rib**: one complete profile placed in the wing's three-dimensional
@@ -820,6 +843,13 @@ program runnable.
 
 ### Phase 0 — Protect the numerical baseline
 
+Implementation status: complete for the maintained matrix. Exact normalized
+hashes and independent semantic DXF/text projections cover Plan B, Swoop2,
+classic and disabled shaping, profile capacity, and all 3.29 features. Plan B
+also verifies the immutable original-3.28 archive/source hashes, builds that
+program in isolation, and applies the reviewed cross-version compatibility
+comparison. Release and runtime-checked CI configurations run on every push.
+
 1. Freeze representative inputs and capture semantic output oracles for 3.28
    compatibility, 3.29 features, Swoop2 colors, odd/even central cells,
    open/closed cells, single-surface profiles, miniribs, and H/V/VH ribs.
@@ -857,10 +887,11 @@ and production panel compare exactly with their legacy source arrays.
 
 ### Phase 2 — Migrate read-only production consumers first
 
-Implementation status: color construction builds a checked typed production
-panel internally and now applies a typed surface layout transform, but its
-outer interface still accepts legacy `u/v` storage. Stage-8 extrados, intake,
-and intrados length/width calculations dual-run through exact typed neutral
+Implementation status: Stage 15 now owns the sole checked `u/v` adapter for a
+retained `production_panel_2d` collection shared by both color surfaces. The
+color consumer accepts only typed profiles/edges and a typed layout transform;
+it contains no raw coordinate-slot references. Stage-8 extrados, intake, and
+intrados length/width calculations dual-run through exact typed neutral
 geometry, then assign the agreeing typed values as authoritative.
 Lower-intrados `k31d=1` offsets and slots 9/11 now pass through a typed Phase-4
 authority boundary; remaining panel drawing, mark routines, surfaces, sides,
@@ -910,10 +941,10 @@ Exit criterion: typed neutral development is authoritative, legacy `pl*/pr*`
 is adapter output only, and no point-499 scratch convention remains in the
 neutral-development pipeline.
 
-Phase 4 now owns new-law extrados and intrados offsets and sewing/cut shaping on
-both regular-panel sides plus the separate physical terminal intrados production
-edge through its exact-range `ndif=1000` length match. Broader regular-row
-reformat, distortion, intake shaping, vent, and special-path migration follows.
+Phase 4 now owns new-law extrados/intrados and classic intrados sewing/cut
+shaping on both regular-panel sides, both real extrados `ndif=1000` reformat
+edges, plus the separate physical terminal intrados production edge and length
+match. Distortion, intake shaping, vent, and special-path migration follows.
 Retiring the duplicate stage-7 comparison oracle can follow once downstream
 boundaries have equivalent semantic regression coverage.
 
@@ -921,15 +952,19 @@ boundaries have equivalent semantic regression coverage.
 
 Implementation status: `k31d=1` offsets and sewing/cut shaping on both extrados
 and intrados sides are typed-authoritative for real panels `0:nribss-1`,
-including each final contour point. The distinct physical
+including each final contour point. Classic `k31d=0` intrados shaping is also
+typed on both sides, with its preceding-intake first-normal policy explicit.
+The distinct physical
 terminal boundary at row `nribss` is typed-authoritative through the initial
 production handoff and the exact-range `ndif=1000` length match: it owns
 intrados offsets and slots 9/11 without inventing a panel or terminal slots
 10/12. Section-31 laws, shaped sewing/cut sides, extrados exact-range
 publication, terminal length matching, and the preceding join support are owned
 by focused pure modules; stage 8 compares them with the old calculations before
-publishing compatibility slots. Regular-row reformats, distortion, and intake
-production shaping remain to be migrated.
+publishing compatibility slots. Both sides of every real extrados panel now
+cross the bit-exact `ndif=1000` boundary, including the final real higher/tip
+edge; the unseeded outward scratch row and intake-support point remain outside
+that ownership. Distortion and intake production shaping remain to be migrated.
 
 1. Extract `skin_tension_law` parsing and evaluation from slots 7/8.
    **Complete for Section-31 extrados and intrados laws on both sides of every
@@ -945,9 +980,10 @@ production shaping remain to be migrated.
    production panel remains.**
 4. Model vents, end extensions, and special reformat paths as named optional
    features; delete `ufa/ufb/ufc/uft` workspaces as each path migrates.
-   **In progress: exact-range terminal intrados `ndif=1000` length matching and
-   its separate preceding join support are typed and authoritative; regular
-   rows and distortion remain.**
+   **In progress: exact-range terminal intrados and both regular extrados
+   `ndif=1000` length matches are typed and authoritative; the separate
+   preceding join support is owned, while distortion and other special paths
+   remain.**
 5. Keep a write-back adapter for remaining internal-rib consumers.
 
 Exit criterion: stage 8 no longer writes slots 7:12 for migrated surfaces;
@@ -956,36 +992,49 @@ semantically unchanged.
 
 ### Phase 5 — Own spatial profile construction
 
-Implementation status: the focused `leparagliding_spatial_geometry` module now
-owns named, validated rib definitions and a pure transactional transform for a
-displacement-adjusted rib-local point. Focused tests freeze identity, each
-rotation and pivot, the explicit displacement policy, a compound numeric oracle,
-and generated-rib provenance. A checked legacy adapter now copies one Stage-4
-row, verifies identity and source-profile provenance, and converts degrees and
-percentages exactly once. Stage 4 retains every complete authored definition in
-a collection aligned with the full rib-role index range. Generated row 0 and the
-tip-support row remain explicitly unavailable there because their legacy rows
-never receive every late-scaled field; named symmetry/tip constructors must
-supply them from explicit provenance. Complete-profile construction and dual-run
-authority remain.
+Implementation status: complete at the Stage-6/7 authority boundary. The
+focused `leparagliding_spatial_geometry` module owns named, validated rib
+definitions, exact-order point/profile transforms, and generated symmetry/tip
+constructors. The normalized type now reads authored slot-1 fractions directly,
+avoiding the lossy fraction-to-percentage round trip. Stage 6 constructs the
+complete candidate wing, compares every coordinate, and publishes it only when
+the whole wing is bit-exact; otherwise an all-or-none legacy snapshot remains
+authoritative for that unproved input. All maintained fixtures select typed
+authority, and Stage 7 consumes `wing_spatial_ribs`.
 
 1. Parse section-1/2 values into `rib_definition` and
    `normalized_profile_2d`, converting units at the boundary. **The validated
    destination type, transactional Stage-4 row adapter, and role-aligned
-   retained main-stage collection are complete for authored physical ribs;
-   incomplete generated rows are deliberately deferred to named constructors.**
+   retained main-stage collection are complete. Generated rows are supplied by
+   named constructors with explicit provenance.**
 2. Replace the chained numbered slots 3/4/5 and duplicated `xyzt` path with one
    explicit transformation from a normalized profile and rib definition to
-   `spatial_rib_3d`. **The exact-order single-point transform is complete and
-   tested; profile aggregation and main-stage integration remain.**
+   `spatial_rib_3d`. **Complete, aggregated, integrated, and bit-exact on all
+   maintained fixtures.**
 3. Generate symmetry and extrapolated virtual ribs through named constructors.
+   **Complete.**
 4. Dual-run against `x/y/z` and compare each spatial point before stage 7.
+   **Complete with an all-or-none exact publication gate.**
 
 Exit criterion: the typed spatial wing is authoritative and `x/y/z` plus slots
 3:5 are compatibility output only. The duplicate `xx/yy/zz` storage has already
 been removed.
 
 ### Phase 6 — Migrate 3D shaping, anchors, and structural features
+
+Implementation status: the first neutral structural and anchor boundaries are
+active. `spatial_panel_surface` and `local_frame_3d` name the legacy 47--55
+surface/frame domain and provide checked adapters. Section 21.9 now checks the
+complete adjacent structural slice before its intermediate/ovalized DXF
+consumer reads typed `neutral_median` and `inflated_median` points instead of
+slots 48/49. `rib_anchor_definition` and
+`resolved_rib_anchors` retain A--E definitions and Stage-9 profile points;
+Stage 12 independently reconstructs their absolute points with its historically
+distinct displacement-after-wash-in ordering, mirrors row 0, and publishes
+slot 19 for all physical rows only after bit-exact agreement. Tip support stays
+excluded because Stage 9 never defines its local anchor point. Remaining intake
+singular points, line/brake mutation, and Stage-16 feature families still use
+compatibility storage.
 
 1. Replace slots 47:55 and 69:72 with `spatial_panel_surface` and local-frame
    objects.
@@ -1000,6 +1049,13 @@ Exit criterion: no active calculation outside the compatibility module accepts
 the raw `rib/np/u/v/w/pl*/pr*/uf*` stores.
 
 ### Phase 7 — Remove compatibility storage and includes
+
+Implementation status: incremental include retirement is active. Local/global
+2D transformations, generated-file cleanup, arc-length interpolation, and the
+six-routine 2D geometry group now live in documented free-form modules with
+explicit interfaces and focused tests. Their old executable includes have been
+deleted; the procedure facade temporarily re-exports compatibility entry
+points. The numbered main includes and larger procedure groups remain.
 
 1. Replace `declarations.inc` with an owning `wing_model` plus run/output
    configuration.
@@ -1094,8 +1150,8 @@ complete. It has a deliberately narrow numerical surface:
 1. Introduce validated `profile_topology`, `normalized_profile_2d`,
    `spatial_rib_3d`, and `production_panel_2d` snapshots.
 2. Support physical and virtual rib roles and allow panel index zero.
-3. Copy normalized slot 2, spatial `x/y/z`, and production slots 9:12 through
-   checked adapters.
+3. Copy normalized-fraction slot 1, spatial `x/y/z`, and production slots 9:12
+   through checked adapters.
 4. Pass typed profiles and production edges into the already robust color
    interpolation and construction code.
 5. Add adapter and semantic-DXF tests before changing stage-6/7/8 producers.

@@ -143,6 +143,13 @@ boundaries after moving or inserting intake endpoints, including the shared
 intake/intrados endpoint. This matters for Swoop2, whose reference profiles use
 the `.dat` path.
 
+Stage 15 now performs the legacy-array conversion once and retains a checked
+`production_panel_2d` collection for both surfaces. The color drawing routine
+accepts only those typed profiles and developed sewing edges; it contains no
+raw `u/v` arguments or numbered coordinate-slot references. This makes the
+flattened production panel—not the spatially inflated wing—the explicit
+artwork boundary requested by the designer.
+
 ## Validation
 
 Four focused tests accompany the existing end-to-end suite:

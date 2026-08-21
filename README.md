@@ -80,11 +80,14 @@ The maintained structure now:
 - owns robust color-edge interpolation and seam offsets in
   `leparagliding_color_geometry`;
 - separates named profile topology, central-panel-aware rib identities,
-  normalized/spatial ribs, exact neutral-development segments, and flattened
-  production panels in `leparagliding_domain_model`, with transactional checked
-  legacy-array adapters;
-- builds typed spatial-rib snapshots at the stage-6 boundary and dual-runs a
-  pure stage-7 neutral developer for every real extrados, intake, and intrados
+  fraction-normalized/spatial ribs, exact neutral-development segments, and
+  flattened production panels in `leparagliding_domain_model`, with
+  transactional checked legacy-array adapters;
+- constructs the complete typed spatial wing from named rib definitions and
+  slot-1 profile fractions, requires bit-exact whole-wing agreement, then uses
+  it as the stage-7 authority while `x/y/z` remain compatibility output;
+- dual-runs a pure stage-7 neutral developer for every real extrados, intake,
+  and intrados
   panel, including the explicit post-intake support quadrilateral, then uses
   checked adapters to publish only the agreeing typed slices;
 - retains typed intrados panels across vent processing, publishes them after
@@ -104,13 +107,28 @@ The maintained structure now:
   moving the terminal sewing and cut contours together, including the
   separately owned intake/intrados join-support point immediately before the
   terminal surface range;
+- resolves named Stage-6/9 anchor definitions and makes the bit-exact A--E
+  Stage-12 spatial points typed-authoritative through an anchor-specific
+  transform that preserves displacement-after-wash-in ordering;
+- owns the first named 3D panel surfaces/local frames in
+  `leparagliding_structural_geometry`; Section 21.9 exact-checks the complete
+  adjacent surface before drawing intermediate and ovalized profiles from its
+  typed neutral/inflated medians rather than slots 48/49;
+- has moved local/global transforms, generated-file cleanup, polyline
+  interpolation, and six legacy-compatible 2D geometry routines out of
+  executable includes and into documented free-form modules with focused
+  tests;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
   legacy numerical sequence remains fixed-form.
 
-The historical `leparagliding3.28.f.zip` and
-`build-baseline-src/leparagliding.f` sources remain comparison references.
+The tracked `leparagliding3.28.f.zip` is immutable compatibility input: its
+archive and extracted-source hashes are verified before the original program is
+built and run in isolation. Plan B then compares its 3D drawing, line schedule,
+and report against the maintained 3.29 output through a reviewed compatibility
+allowlist. A locally extracted `build-baseline-src/leparagliding.f` may still be
+used for direct source inspection, but is not required by the test suite.
 
 ## Safety repairs retained from 3.28
 
@@ -148,10 +166,12 @@ input direction into increasing developed-contour percentages, validated over
 the complete 0--100 percent interval, and stored with their overwidth values in
 a named per-boundary, per-surface law. For `k31d=1`, the typed evaluator owns
 both sides' offsets on extrados and intrados for panels `0:nribss-1`, including
-each final contour point. Typed shaping results own slots 9/11 and 10/12 on both
-surfaces. The exact-range, side-selecting adapter publishes both extrados sides
-and the higher intrados side only after every coordinate agrees with the
-retained legacy calculation; the lower intrados side retains its checked path.
+each final contour point. Classic `k31d=0` intrados shaping is also typed on
+both sides of every real panel; its explicit normal policy records the unusual
+lower first-point dependency on the preceding intake segment. Typed shaping
+results own slots 9/11 and 10/12 on both surfaces. The exact-range,
+side-selecting adapter publishes each migrated side only after every coordinate
+agrees with the retained legacy calculation.
 Historical inclusive interval overlap, last-matching-interval selection,
 default-REAL promotion, normal direction, incoming-segment endpoint bias, and
 millimetre allowance conversion are preserved deliberately. The `k31d=1`
@@ -168,8 +188,13 @@ edge. Its slot-11 cut edge receives the same point displacement so the
 established allowance vectors remain attached. The historical extrapolated
 intake join immediately before the intrados range is represented independently,
 dual-compared, and publishes its slot-9/11 pair transactionally. Regular-row
-reformats, five-pass distortion correction, and intake shaping are later
-Phase-4 boundaries. Two dead slot-29 copies with no active reader were removed.
+extrados `ndif=1000` length matching now has the same all-or-none typed
+authority on both sides of every real panel, including the final panel's real
+higher/tip edge. It excludes the unseeded outward scratch row and each following
+intake-support point, and deliberately preserves established cut contours.
+Five-pass distortion correction, intake shaping, and remaining special paths
+are later Phase-4 boundaries. Two dead slot-29 copies with no active reader were
+removed.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -219,7 +244,7 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Sixteen isolated tests are registered (fourteen do not require Python):
+Twenty-two isolated tests are registered (twenty do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
@@ -230,40 +255,55 @@ Sixteen isolated tests are registered (fourteen do not require Python):
    local-to-spatial transform, including each rotation, pivots, compound
    transforms, explicit displacement policy, generated-rib provenance, and
    transactional failure.
-3. `neutral_development` checks the pure quadrilateral developer, exact source
+3. `anchor_geometry` checks typed anchor definitions, local and spatial A--E
+   points, generated center provenance, anchor-specific displacement ordering,
+   exact legacy publication, and transactional failure.
+4. `structural_geometry` checks named spatial panel surfaces and local frames,
+   exact legacy comparisons, median/ballooning drift diagnostics, finite
+   geometry, and transactional failure.
+5. `transformations` checks the explicit local-to-global 2D transform moved out
+   of its former executable include.
+6. `file_cleanup` checks generated-file replacement and NaN cleanup behavior.
+7. `geometry_2d` freezes redistribution, line intersection, flattening, axis
+   copying, disabled angle helper behavior, and H/V-rib hole ellipses.
+8. `polyline_interpolation` checks arc-length interpolation, following-segment
+   ownership at a shared vertex, vertical and duplicate segments, and the
+   compatibility wrapper.
+9. `neutral_development` checks the pure quadrilateral developer, exact source
    distances, start-biased joins, all three neutral surfaces, panel zero, and
    transactional failure.
-4. `skin_tension` checks Section-31 direction normalization, column selection,
+10. `skin_tension` checks Section-31 direction normalization, column selection,
    validation, inclusive interval overlap, last-match selection, endpoints,
    and transactional failure.
-5. `panel_shaping` checks lower/higher normal conventions in every quadrant,
-   horizontal and vertical compatibility cases, incoming-segment endpoint
-   ownership, allowance conversion, and transactional failure.
-6. `panel_reformat` checks terminal expand/shrink behavior, distinct measurement
-   and reconstruction indices, quadrant reconstruction, cut-vector retention,
-   provenance, and transactional failure.
-7. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
+11. `panel_shaping` checks lower/higher and classic-intrados normal conventions,
+   horizontal and vertical compatibility cases, incoming-segment ownership,
+   allowance conversion, and transactional failure.
+12. `panel_reformat` checks regular and terminal expand/shrink behavior,
+   distinct indices, quadrant reconstruction, cut ownership, provenance,
+   bit-exact gating, and transactional failure.
+13. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
    and verifies the rebuilt contour's topology identities.
-8. `color_geometry` checks robust color-edge interpolation, repeated profile
+14. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-9. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+15. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
    comparator (registered when Python 3 is available).
-10. `color_division_import` compares DXF import with a Swoop2-derived section-16
+16. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-11. `plan_b_regression` compares all five principal outputs with the reviewed
-   3.29 baseline, after normalizing line endings.
-12. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
+17. `plan_b_regression` compares all five principal outputs with the reviewed
+   3.29 baseline and, when Python is available, builds/runs the immutable
+   original 3.28 program for its compatibility oracle.
+18. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
    design, checks its collapsed center and declared counts, rejects non-finite
    DXF geometry, and compares all five principal outputs.
-13. `classic_skin_regression` runs the realistic gnuA3 design through classic
+19. `classic_skin_regression` runs the realistic gnuA3 design through classic
    skin tension (`k31d=0`), rejects non-finite DXF geometry, checks its declared
    counts, and freezes all five principal outputs.
-14. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
+20. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
    checks the one-based no-cut group path under runtime bounds checking, and
    freezes all five principal outputs.
-15. `profile_capacity_guard` verifies that an oversized 501-point profile is
+21. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-16. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+22. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -290,8 +330,11 @@ cmake/
   run_329_features.cmake           focused 3.29 feature coverage
 src/
   leparagliding.f                   main program and ordered section includes
+  leparagliding_anchor_geometry.f90  typed rib-anchor definitions and placement
   leparagliding_color_geometry.f90  color-edge interpolation and seam offsets
   leparagliding_domain_model.f90    typed wing domains and legacy adapters
+  leparagliding_file_cleanup.f90    generated-file compatibility cleanup
+  leparagliding_geometry_2d.f90     legacy-compatible focused 2D routines
   leparagliding_hvr_config.f90      typed sections 38/39 parser and lookup
   leparagliding_procedures.f        explicit interface facade
   leparagliding_geometry.f90        vector, plane, rotation, transforms
@@ -300,8 +343,11 @@ src/
                                       pure neutral-surface development
   leparagliding_panel_reformat.f90   typed terminal length matching
   leparagliding_panel_shaping.f90  typed sewing/cut side-shaping kernel
+  leparagliding_polyline_interpolation.f90 checked arc-length interpolation
   leparagliding_skin_tension.f90   normalized Section-31 laws and evaluator
   leparagliding_spatial_geometry.f90 named rib definitions and spatial transform
+  leparagliding_structural_geometry.f90 named 3D surfaces and local frames
+  leparagliding_transformations.f90 checked 2D local/global transforms
   main/                             numbered main-program calculation stages
   procedures/                       procedures grouped by responsibility
 tests/
@@ -319,7 +365,6 @@ Important procedure groups:
 |---|---|
 | `dxf_output.inc` | DXF primitives, ellipses, UTF-8 text, start/end records |
 | `color_construction.inc` | internal color seams, allowances, and inset marks |
-| `geometry_2d.inc` | redistribution, intersections, flattening, HVR holes |
 | `panel_edges.inc` | panel boundaries, arcs, vents, panel variants |
 | `junctions.inc` | junction and longitudinal nylon-rod geometry |
 | `offsets_reinforcements.inc` | offsets, straps, mylars, interpolation |
@@ -327,9 +372,11 @@ Important procedure groups:
 | `pattern_marks.inc` | print, alignment, and Romano marks |
 | `profile_data.inc` | profile reading, remapping, coordinate transforms |
 | `geometry_utilities.inc` | distances, arcs, interpolation, tessellation |
-| `interpolation.inc` | equal-distance polyline interpolation |
-| `file_cleanup.inc` | generated-file text post-processing |
-| `transformations.inc` | 2D local-to-global transformation |
+
+The former `geometry_2d.inc`, `interpolation.inc`, `file_cleanup.inc`, and
+`transformations.inc` groups are free-form modules listed in the source map;
+the procedure facade re-exports their compatibility entry points while legacy
+callers migrate.
 
 ## Maintenance rules
 
