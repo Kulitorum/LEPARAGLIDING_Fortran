@@ -8,7 +8,7 @@ program test_color_geometry
   real(real64) :: plx, ply, prx, pry, mlx, mly, mrx, mry
   logical :: found, valid
 
-  profile_x = [100.0_real64, 75.0_real64, 25.0_real64, 0.0_real64]
+  profile_x = [1.0_real64, 0.75_real64, 0.25_real64, 0.0_real64]
   edge_u = [0.0_real64, 1.0_real64, 3.0_real64, 4.0_real64]
   edge_v = [0.0_real64, 2.0_real64, 6.0_real64, 8.0_real64]
 
@@ -19,7 +19,7 @@ program test_color_geometry
   call require_close(boundary_v, 4.0_real64, 'boundary V')
 
   ! A repeated profile coordinate formerly caused a 0/0 slope path.
-  profile_x = [100.0_real64, 50.0_real64, 50.0_real64, 0.0_real64]
+  profile_x = [1.0_real64, 0.5_real64, 0.5_real64, 0.0_real64]
   call locate_color_boundary_on_edge(profile_x, edge_u, edge_v, 1, 4, &
       1, 50.0_real64, found, boundary_u, boundary_v)
   call require(found, 'repeated-coordinate boundary was not located')

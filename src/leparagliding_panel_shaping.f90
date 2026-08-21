@@ -38,6 +38,8 @@ module leparagliding_panel_shaping
       real(0.1, real64)
   real(real64), parameter :: half_pi = &
       2.0_real64*atan(1.0_real64)
+  integer, parameter :: normal_policy_puntslat = 1
+  integer, parameter :: normal_policy_classic_intrados = 2
 
   !> Sewing and cut contours for one side of one developed panel.
   !!
@@ -60,6 +62,7 @@ module leparagliding_panel_shaping
   end type shaped_panel_side_2d
 
   public :: shape_neutral_panel_side
+  public :: shape_classic_intrados_panel_side
   public :: shape_neutral_boundary_edge
   public :: write_legacy_shaped_panel_side
 
@@ -140,6 +143,93 @@ contains
 
     shaped_side = candidate
   end subroutine shape_neutral_panel_side
+
+  !> Build one classic intrados side with its fixed historical normal policy.
+  !!
+  !! The classic (`k31d=0`) intrados blocks predate `puntslat` and always use
+  !! `(-sin(angle), +cos(angle))` on the lower side and the opposite vector on
+  !! the higher side, independent of segment quadrant.  They also select the
+  !! first point's normal separately: the lower side uses the preceding intake
+  !! segment while the higher side uses its first intrados segment.  The caller
+  !! supplies that exact initial vector so the cross-surface lower convention
+  !! is visible rather than hidden in a numeric-slot lookup.
+  pure subroutine shape_classic_intrados_panel_side(panel, side, &
+      shaping_offset, allowance_mm, initial_normal_delta_u, &
+      initial_normal_delta_v, shaped_side, valid, message)
+    type(neutral_panel_2d), intent(in) :: panel
+    integer, intent(in) :: side
+    real(real64), intent(in) :: shaping_offset(:)
+    real(real64), intent(in) :: allowance_mm
+    real(real64), intent(in) :: initial_normal_delta_u
+    real(real64), intent(in) :: initial_normal_delta_v
+    type(shaped_panel_side_2d), intent(inout) :: shaped_side
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(shaped_panel_side_2d) :: candidate
+    integer :: point_count
+
+    valid = .false.
+    message = ''
+    if (.not. panel%is_valid() .or. panel%surface /= surface_intrados) then
+      message = 'classic intrados shaping needs a valid intrados panel'
+      return
+    end if
+    if (side /= panel_side_lower .and. side /= panel_side_higher) then
+      message = 'unknown classic intrados panel side'
+      return
+    end if
+    point_count = panel%contour_last_index - panel%contour_first_index + 1
+    if (size(shaping_offset) /= point_count) then
+      message = 'classic intrados offset count differs from panel point count'
+      return
+    end if
+    if (.not. all(ieee_is_finite(shaping_offset))) then
+      message = 'classic intrados shaping offsets must be finite'
+      return
+    end if
+    if (.not. ieee_is_finite(allowance_mm)) then
+      message = 'classic intrados sewing allowance must be finite'
+      return
+    end if
+    if (.not. ieee_is_finite(initial_normal_delta_u) .or. &
+        .not. ieee_is_finite(initial_normal_delta_v) .or. &
+        (is_exact_zero(initial_normal_delta_u) .and. &
+        is_exact_zero(initial_normal_delta_v))) then
+      message = 'classic intrados initial normal vector must be finite and nonzero'
+      return
+    end if
+
+    candidate%panel_index = panel%panel_index
+    candidate%surface = panel%surface
+    candidate%side = side
+    candidate%contour_first_index = panel%contour_first_index
+    candidate%contour_last_index = panel%contour_last_index
+    select case (side)
+    case (panel_side_lower)
+      call build_shaped_coordinates(side, shaping_offset, allowance_mm, &
+          panel%lower_segment_start_u, panel%lower_segment_start_v, &
+          panel%lower_segment_end_u, panel%lower_segment_end_v, &
+          candidate%sewing_u, candidate%sewing_v, candidate%cut_u, &
+          candidate%cut_v, valid, message, normal_policy_classic_intrados, &
+          initial_normal_delta_u, initial_normal_delta_v)
+    case (panel_side_higher)
+      call build_shaped_coordinates(side, shaping_offset, allowance_mm, &
+          panel%higher_segment_start_u, panel%higher_segment_start_v, &
+          panel%higher_segment_end_u, panel%higher_segment_end_v, &
+          candidate%sewing_u, candidate%sewing_v, candidate%cut_u, &
+          candidate%cut_v, valid, message, normal_policy_classic_intrados, &
+          initial_normal_delta_u, initial_normal_delta_v)
+    end select
+    if (.not. valid) return
+    if (.not. candidate%is_valid()) then
+      valid = .false.
+      message = 'classic intrados shaping produced invalid geometry'
+      return
+    end if
+
+    shaped_side = candidate
+  end subroutine shape_classic_intrados_panel_side
 
   !> Publish one shaped side through its exact legacy production slots.
   !!
@@ -295,7 +385,8 @@ contains
   !> Apply the legacy normal convention to an already selected exact edge.
   pure subroutine build_shaped_coordinates(side, shaping_offset, allowance_mm, &
       segment_start_u, segment_start_v, segment_end_u, segment_end_v, &
-      sewing_u, sewing_v, cut_u, cut_v, valid, message)
+      sewing_u, sewing_v, cut_u, cut_v, valid, message, normal_policy, &
+      initial_normal_delta_u, initial_normal_delta_v)
     integer, intent(in) :: side
     real(real64), intent(in) :: shaping_offset(:), allowance_mm
     real(real64), intent(in) :: segment_start_u(:), segment_start_v(:)
@@ -304,13 +395,28 @@ contains
     real(real64), allocatable, intent(out) :: cut_u(:), cut_v(:)
     logical, intent(out) :: valid
     character(len=*), intent(out) :: message
+    integer, intent(in), optional :: normal_policy
+    real(real64), intent(in), optional :: initial_normal_delta_u
+    real(real64), intent(in), optional :: initial_normal_delta_v
 
-    integer :: segment_index, point_count
+    integer :: selected_normal_policy, segment_index, point_count
     real(real64) :: delta_u, delta_v, normal_u, normal_v
     real(real64) :: allowance_model
 
     valid = .false.
     message = ''
+    selected_normal_policy = normal_policy_puntslat
+    if (present(normal_policy)) selected_normal_policy = normal_policy
+    if (selected_normal_policy /= normal_policy_puntslat .and. &
+        selected_normal_policy /= normal_policy_classic_intrados) then
+      message = 'unknown panel-shaping normal policy'
+      return
+    end if
+    if (present(initial_normal_delta_u) .neqv. &
+        present(initial_normal_delta_v)) then
+      message = 'initial normal override needs both vector components'
+      return
+    end if
     point_count = size(shaping_offset)
     if (point_count < 2) then
       message = 'shaped edge needs at least two contour points'
@@ -346,7 +452,12 @@ contains
     ! the horizontal-segment special case used for all segment endpoints.
     delta_u = segment_end_u(1) - segment_start_u(1)
     delta_v = segment_end_v(1) - segment_start_v(1)
-    call legacy_normal(delta_u, delta_v, side, .true., normal_u, normal_v)
+    if (present(initial_normal_delta_u)) then
+      delta_u = initial_normal_delta_u
+      delta_v = initial_normal_delta_v
+    end if
+    call shaping_normal(selected_normal_policy, delta_u, delta_v, side, &
+        .true., normal_u, normal_v)
     sewing_u(1) = segment_start_u(1) + &
         shaping_offset(1)*normal_u
     sewing_v(1) = segment_start_v(1) + &
@@ -361,7 +472,8 @@ contains
           segment_start_u(segment_index)
       delta_v = segment_end_v(segment_index) - &
           segment_start_v(segment_index)
-      call legacy_normal(delta_u, delta_v, side, .false., normal_u, normal_v)
+      call shaping_normal(selected_normal_policy, delta_u, delta_v, side, &
+          .false., normal_u, normal_v)
 
       ! Deliberately use the incoming segment endpoint.  At a triangulation
       ! join this can differ from the next segment start and is the exact
@@ -389,6 +501,42 @@ contains
     end if
     valid = .true.
   end subroutine build_shaped_coordinates
+
+  !> Select the named historical normal convention for one contour segment.
+  pure subroutine shaping_normal(normal_policy, delta_u, delta_v, side, &
+      initial_point, normal_u, normal_v)
+    integer, intent(in) :: normal_policy
+    real(real64), intent(in) :: delta_u, delta_v
+    integer, intent(in) :: side
+    logical, intent(in) :: initial_point
+    real(real64), intent(out) :: normal_u, normal_v
+
+    select case (normal_policy)
+    case (normal_policy_puntslat)
+      call legacy_normal(delta_u, delta_v, side, initial_point, normal_u, &
+          normal_v)
+    case (normal_policy_classic_intrados)
+      call classic_intrados_normal(delta_u, delta_v, side, normal_u, normal_v)
+    end select
+  end subroutine shaping_normal
+
+  !> Return the quadrant-independent normal used by classic intrados shaping.
+  pure subroutine classic_intrados_normal(delta_u, delta_v, side, normal_u, &
+      normal_v)
+    real(real64), intent(in) :: delta_u, delta_v
+    integer, intent(in) :: side
+    real(real64), intent(out) :: normal_u, normal_v
+
+    real(real64) :: angle
+
+    angle = abs(atan(delta_v/delta_u))
+    normal_u = -sin(angle)
+    normal_v = cos(angle)
+    if (side == panel_side_higher) then
+      normal_u = -normal_u
+      normal_v = -normal_v
+    end if
+  end subroutine classic_intrados_normal
 
   !> Return the unit normal encoded by the branch order in `puntslat`.
   pure subroutine legacy_normal(delta_u, delta_v, side, initial_point, &

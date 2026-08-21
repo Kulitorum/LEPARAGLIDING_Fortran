@@ -2160,10 +2160,10 @@ c      scratch point is involved, and the non-panel row nribss is untouched.
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Case classic skin tension k31d=0
 c      Includes 8.4.1 and 8.4.2
-c      NOTE: The first intrados point intentionally uses the preceding intake
-c      segment (npx-1).  The general pure side kernel uses the intrados segment
-c      itself, so this whole surface remains legacy-owned until that boundary
-c      convention is represented by an explicit shaping policy.
+c      NOTE: The first lower intrados point intentionally uses the preceding
+c      intake segment (npx-1), while the higher side uses its own first
+c      intrados segment.  Both are typed below through an explicit classic
+c      normal policy rather than silently changing the general pure kernel.
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        if (k31d.eq.0) then
 
@@ -2292,6 +2292,73 @@ c      pl2x(i,npx-1) no correcte
 
        u(i,npx,11)=u(i,npx,9)-xlow*0.1*dsin(alpl)
        v(i,npx,11)=v(i,npx,9)+xlow*0.1*dcos(alpl)
+
+c      Dual-run the complete lower offset contour through the named classic
+c      intrados law.  This side retains panel i's own contour length and width.
+       if (i.lt.nribss) then
+       do j=npx,np(i,1)
+       call evaluate_classic_skin_tension_offset(
+     + classic_intrados_tension_law,rib(i,25),rib(i,24),u(i,j,7),
+     + typed_skin_tension_offset,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: classic lower intrados tension failed at panel ',i,
+     + ', point ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,7))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: classic lower intrados tension differs at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,7)
+       stop 1
+       end if
+       v(i,j,7)=typed_skin_tension_offset
+       end do
+
+c      The classic lower initial normal comes from the preceding intake
+c      segment even though its anchor is the first intrados point.  Pass that
+c      exact vector to the explicit classic policy, compare every coordinate,
+c      and publish only lower production slots 9/11 after agreement.
+       call shape_classic_intrados_panel_side(neutral_intrados_panels(i),
+     + panel_side_lower,v(i,npx:np(i,1),7),xlow,
+     + pl2x(i,npx-1)-pl1x(i,npx-1),
+     + pl2y(i,npx-1)-pl1y(i,npx-1),typed_intrados_lower_side,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic lower intrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=npx,np(i,1)
+       k=j-npx+1
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_intrados_lower_side%sewing_u(k),
+     + u(i,j,9)).and.
+     + geometry_values_are_close(typed_intrados_lower_side%sewing_v(k),
+     + v(i,j,9)).and.
+     + geometry_values_are_close(typed_intrados_lower_side%cut_u(k),
+     + u(i,j,11)).and.
+     + geometry_values_are_close(typed_intrados_lower_side%cut_v(k),
+     + v(i,j,11))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: classic lower intrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_shaped_panel_side(typed_intrados_lower_side,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic lower intrados publication failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end if
 
 c       u(i,npx,14)=u(i,npx,9)-xlowle*0.1*dcos(alpl)
 c       v(i,npx,14)=v(i,npx,9)-xlowle*0.1*dsin(alpl)
@@ -2426,6 +2493,75 @@ c      Initial point not definined in previous bucle
        
        u(i,npx,12)=u(i,npx,10)+xlow*0.1*dsin(alpr)
        v(i,npx,12)=v(i,npx,10)-xlow*0.1*dcos(alpr)
+
+c      The classic higher boundary changes to rib i+1's contour length while
+c      retaining panel i's measured width.  Dual-run its complete offset range
+c      through the named law before any typed production geometry consumes it.
+       if (i.lt.nribss) then
+       do j=npx,np(i,1)
+       call evaluate_classic_skin_tension_offset(
+     + classic_intrados_tension_law,rib(i+1,25),rib(i,24),u(i,j,8),
+     + typed_skin_tension_offset,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: classic higher intrados tension failed at panel ',i,
+     + ', point ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,8))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: classic higher intrados tension differs at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,8)
+       stop 1
+       end if
+       v(i,j,8)=typed_skin_tension_offset
+       end do
+
+c      Pass its first intrados segment to the explicit classic normal policy.
+c      Compare the complete legacy sewing/cut oracle, then let the checked
+c      writer publish only higher slots 10/12.
+       call shape_classic_intrados_panel_side(neutral_intrados_panels(i),
+     + panel_side_higher,v(i,npx:np(i,1),8),xlow,
+     + neutral_intrados_panels(i)%higher_segment_end_u(1)-
+     + neutral_intrados_panels(i)%higher_segment_start_u(1),
+     + neutral_intrados_panels(i)%higher_segment_end_v(1)-
+     + neutral_intrados_panels(i)%higher_segment_start_v(1),
+     + typed_intrados_higher_side,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic higher intrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=npx,np(i,1)
+       k=j-npx+1
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_intrados_higher_side%sewing_u(k),
+     + u(i,j,10)).and.
+     + geometry_values_are_close(typed_intrados_higher_side%sewing_v(k),
+     + v(i,j,10)).and.
+     + geometry_values_are_close(typed_intrados_higher_side%cut_u(k),
+     + u(i,j,12)).and.
+     + geometry_values_are_close(typed_intrados_higher_side%cut_v(k),
+     + v(i,j,12))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: classic higher intrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_shaped_panel_side(typed_intrados_higher_side,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic higher intrados publication failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end if
 
 c      Leading edge segment unformated rib(i,98) intra
 

@@ -17,15 +17,16 @@ contains
 
   !> Locate a chordwise color boundary on one developed panel edge.
   !!
-  !! `profile_x_percent` contains LEP's normalized airfoil X coordinates.  The
+  !! `profile_x_fraction` contains LEP's slot-1 airfoil X coordinates.  The
   !! section-15/16 convention measures the requested boundary in the opposite
-  !! direction, so a profile point has color coordinate `100 - X`.  The same
-  !! interpolation fraction is applied directly to the developed edge.  This
+  !! direction and in percent, so a profile point has color coordinate
+  !! `100 - 100*X`.  The same interpolation fraction is applied directly to
+  !! the developed edge.  This
   !! avoids the slope divisions used by the historical code, including the
   !! vertical-segment 0/0 that produced NaNs in the Swoop2 project.
   !!
-  !! @param[in] profile_x_percent Normalized airfoil X values, normally
-  !!            `u(rib,1:n,2)`.
+  !! @param[in] profile_x_fraction Normalized airfoil X fractions, normally
+  !!            `u(rib,1:n,1)`.
   !! @param[in] edge_u Developed-panel U coordinates for the selected edge.
   !! @param[in] edge_v Developed-panel V coordinates for the selected edge.
   !! @param[in] first_point First profile point to examine.
@@ -35,10 +36,10 @@ contains
   !! @param[out] found True when a finite containing segment was found.
   !! @param[out] boundary_u Developed U coordinate of the intersection.
   !! @param[out] boundary_v Developed V coordinate of the intersection.
-  subroutine locate_color_boundary_on_edge(profile_x_percent, edge_u, &
+  subroutine locate_color_boundary_on_edge(profile_x_fraction, edge_u, &
       edge_v, first_point, last_point, point_step, boundary_percent, &
       found, boundary_u, boundary_v)
-    real(real64), intent(in) :: profile_x_percent(:)
+    real(real64), intent(in) :: profile_x_fraction(:)
     real(real64), intent(in) :: edge_u(:)
     real(real64), intent(in) :: edge_v(:)
     integer, intent(in) :: first_point, last_point, point_step
@@ -55,7 +56,7 @@ contains
     boundary_u = 0.0_real64
     boundary_v = 0.0_real64
 
-    available_points = min(size(profile_x_percent), size(edge_u), &
+    available_points = min(size(profile_x_fraction), size(edge_u), &
         size(edge_v))
     if (available_points < 2 .or. point_step == 0) return
     if (first_point < 1 .or. first_point > available_points) return
@@ -67,8 +68,10 @@ contains
       next_point = point_index + point_step
       if (next_point < 1 .or. next_point > available_points) return
 
-      coordinate_a = 100.0_real64 - profile_x_percent(point_index)
-      coordinate_b = 100.0_real64 - profile_x_percent(next_point)
+      coordinate_a = 100.0_real64 - &
+          100.0_real64 * profile_x_fraction(point_index)
+      coordinate_b = 100.0_real64 - &
+          100.0_real64 * profile_x_fraction(next_point)
       if (.not. ieee_is_finite(coordinate_a) .or. &
           .not. ieee_is_finite(coordinate_b)) then
         point_index = next_point

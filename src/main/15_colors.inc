@@ -19,7 +19,7 @@ c     Extrados overlay entities retain ACI 4; intrados entities retain ACI 30.
 c
 c     Coordinate flow
 c     ---------------
-c       u/v(rib,:,2)    normalized profile used to locate a chord percentage
+c       u/v(rib,:,1)    normalized profile fractions used for chord location
 c       u/v(panel,:,9)  developed left panel edge (rib panel)
 c       u/v(panel,:,10) developed right panel edge (rib panel+1)
 c       seppix(panel)   horizontal placement of the developed panel

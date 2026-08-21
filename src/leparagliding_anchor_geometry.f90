@@ -381,9 +381,9 @@ contains
     allocate(local_chord(profile%topology%point_count), &
         local_height(profile%topology%point_count))
     local_chord = spatial_definition%chord_length_cm * &
-        profile%chord_percent / 100.0_real64
+        profile%chord_fraction
     local_height = spatial_definition%chord_length_cm * &
-        profile%height_percent / 100.0_real64
+        profile%height_fraction
     intrados_first = profile%topology%intrados%first
     intrados_last = profile%topology%intrados%last
 

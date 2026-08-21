@@ -421,9 +421,9 @@ c      their current downstream consumers.
        end do
 
 c      Publish all rows or none: partial typed authority would leave adjacent
-c      panels in mixed numerical domains.  If normalized-percent round trips
-c      change even one bit, the retained typed collection remains the checked
-c      dual-run oracle and compatibility X/Y/Z stay authoritative for now.
+c      panels in mixed numerical domains.  Slot-1 profile fractions preserve
+c      the legacy multiplication path; the retained fallback still prevents a
+c      non-exact candidate from becoming authoritative on an unproved input.
        allocate(wing_spatial_ribs(0:nribss+1))
        if (typed_spatial_geometry_exact) then
        wing_spatial_ribs=typed_spatial_rib_candidates

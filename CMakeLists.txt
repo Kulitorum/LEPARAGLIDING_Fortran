@@ -40,8 +40,7 @@ set(LEPARAGLIDING_PROCEDURE_FRAGMENTS
     src/procedures/geometry_3d.inc
     src/procedures/pattern_marks.inc
     src/procedures/profile_data.inc
-    src/procedures/geometry_utilities.inc
-    src/procedures/interpolation.inc)
+    src/procedures/geometry_utilities.inc)
 
 set_source_files_properties(
     ${LEPARAGLIDING_MAIN_FRAGMENTS}
@@ -63,6 +62,7 @@ add_executable(leparagliding
     src/leparagliding_color_geometry.f90
     src/leparagliding_transformations.f90
     src/leparagliding_file_cleanup.f90
+    src/leparagliding_polyline_interpolation.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
     ${LEPARAGLIDING_MAIN_FRAGMENTS}
@@ -216,6 +216,27 @@ if(BUILD_TESTING)
 
   add_test(NAME file_cleanup COMMAND test_file_cleanup)
 
+  add_executable(test_polyline_interpolation
+      tests/test_polyline_interpolation.f90
+      src/leparagliding_polyline_interpolation.f90)
+
+  set_target_properties(test_polyline_interpolation PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-polyline-interpolation-modules")
+  target_include_directories(test_polyline_interpolation PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-polyline-interpolation-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_polyline_interpolation PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_polyline_interpolation PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME polyline_interpolation COMMAND test_polyline_interpolation)
+
   add_executable(test_neutral_development
       tests/test_neutral_development.f90
       src/leparagliding_domain_model.f90
@@ -313,6 +334,7 @@ if(BUILD_TESTING)
       src/leparagliding_color_geometry.f90
       src/leparagliding_transformations.f90
       src/leparagliding_file_cleanup.f90
+      src/leparagliding_polyline_interpolation.f90
       src/leparagliding_procedures.f
       ${LEPARAGLIDING_PROCEDURE_FRAGMENTS})
 

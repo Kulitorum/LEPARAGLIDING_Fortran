@@ -17,6 +17,7 @@ c***********************************************************************
        use leparagliding_transformations, only : loc2glo2d
        use leparagliding_file_cleanup, only : nonan,fix_dxf_nan,
      + replace_in_string
+       use leparagliding_polyline_interpolation, only : interpseg
 
        private :: typm1, typm2, typm3, typm4, typm5, typm6
        private :: dxf_point_entity, dxf_circle_entity
@@ -38,6 +39,5 @@ c***********************************************************************
        include 'procedures/pattern_marks.inc'
        include 'procedures/profile_data.inc'
        include 'procedures/geometry_utilities.inc'
-       include 'procedures/interpolation.inc'
 
        end module leparagliding_procedures

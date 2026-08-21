@@ -116,7 +116,7 @@
        end if
 
        call locate_color_boundary_on_edge(
-     + production_panel%lower_profile%chord_percent,
+     + production_panel%lower_profile%chord_fraction,
      + production_panel%edges%lower_sewing_u,
      + production_panel%edges%lower_sewing_v,
      + left_first_point,left_last_point,point_step,
@@ -124,7 +124,7 @@
      + left_u,left_v)
 
        call locate_color_boundary_on_edge(
-     + production_panel%higher_profile%chord_percent,
+     + production_panel%higher_profile%chord_fraction,
      + production_panel%edges%higher_sewing_u,
      + production_panel%edges%higher_sewing_v,
      + right_first_point,right_last_point,point_step,

@@ -355,10 +355,10 @@ contains
     profile%topology%intake = index_range(3, 4)
     profile%topology%intrados = index_range(4, 6)
     profile%topology%leading_edge_index = 3
-    profile%chord_percent = [100.0_real64, 50.0_real64, 0.0_real64, &
-        10.0_real64, 50.0_real64, 100.0_real64]
-    profile%height_percent = [0.0_real64, 5.0_real64, 0.0_real64, &
-        -2.0_real64, -4.0_real64, 0.0_real64]
+    profile%chord_fraction = [1.0_real64, 0.5_real64, 0.0_real64, &
+        0.1_real64, 0.5_real64, 1.0_real64]
+    profile%height_fraction = [0.0_real64, 0.05_real64, 0.0_real64, &
+        -0.02_real64, -0.04_real64, 0.0_real64]
   end function make_normalized_profile
 
   subroutine test_complete_profile_construction()

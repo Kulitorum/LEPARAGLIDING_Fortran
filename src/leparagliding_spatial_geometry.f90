@@ -501,10 +501,10 @@ contains
 
   !> Construct one complete spatial rib from a normalized source profile.
   !!
-  !! `normalized_profile_2d` is the Stage-6 slot-2 boundary: its percentages
+  !! `normalized_profile_2d` is the Stage-6 slot-1 boundary: its fractions
   !! already include any profile-file-specific height modification made while
-  !! reading slot 1.  The routine therefore converts percentages to local
-  !! chord lengths exactly once, subtracts the named vertical displacement,
+  !! reading the profile.  The routine scales those fractions with the same
+  !! multiplication order as legacy Stage 6, subtracts the named displacement,
   !! and applies `transform_adjusted_rib_local_point` point by point.  The
   !! candidate owns newly allocated one-based arrays and is published only
   !! after every point and the complete geometry validate.
@@ -544,9 +544,9 @@ contains
         candidate%z(profile%topology%point_count))
     do point_index = 1, profile%topology%point_count
       local_point%chordwise_cm = definition%chord_length_cm * &
-          (profile%chord_percent(point_index) / 100.0_real64)
+          profile%chord_fraction(point_index)
       local_point%height_cm = definition%chord_length_cm * &
-          (profile%height_percent(point_index) / 100.0_real64) - &
+          profile%height_fraction(point_index) - &
           definition%profile_vertical_displacement_cm
       call transform_adjusted_rib_local_point(definition, local_point, &
           spatial_point, point_valid, point_message)

@@ -14,8 +14,8 @@ module leparagliding_domain_model
   implicit none
   private
 
-  !> Legacy `u/v` slot holding airfoil coordinates as percentages of chord.
-  integer, parameter, public :: legacy_normalized_profile_slot = 2
+  !> Legacy `u/v` slot holding chord-normalized airfoil coordinate fractions.
+  integer, parameter, public :: legacy_normalized_profile_fraction_slot = 1
   !> Legacy `u/v` slot holding the lower-index production sewing edge.
   integer, parameter, public :: legacy_production_lower_sewing_slot = 9
   !> Legacy `u/v` slot holding the higher-index production sewing edge.
@@ -42,6 +42,7 @@ module leparagliding_domain_model
   integer, parameter, public :: rib_role_tip_extrapolated_support = 7
 
   real(real64), parameter :: percent_tolerance = 1.0e-10_real64
+  real(real64), parameter :: fraction_tolerance = 1.0e-12_real64
   real(real64), parameter :: geometry_tolerance = 1.0e-9_real64
   ! Preserve the default-REAL representation used by legacy `cencell >= 0.01`
   ! before the implicit REAL(4) value is promoted into this REAL(8) module.
@@ -114,13 +115,13 @@ module leparagliding_domain_model
   !!
   !! Invariants: `rib_index >= 0`; both arrays are allocated with the same
   !! extent of at least two points; every coordinate is finite; and
-  !! `chord_percent` lies in [0, 100].  `height_percent` is signed and is not
+  !! `chord_fraction` lies in [0, 1].  `height_fraction` is signed and is not
   !! range-limited because reflex and thick profiles are valid inputs.
   type, public :: normalized_profile_2d
     integer :: rib_index = -1
     type(profile_topology) :: topology
-    real(real64), allocatable :: chord_percent(:)
-    real(real64), allocatable :: height_percent(:)
+    real(real64), allocatable :: chord_fraction(:)
+    real(real64), allocatable :: height_fraction(:)
   contains
     procedure :: is_valid => normalized_profile_is_valid
   end type normalized_profile_2d
@@ -492,24 +493,24 @@ contains
     valid = .false.
     if (profile%rib_index < 0) return
     if (.not. profile%topology%is_valid()) return
-    if (.not. allocated(profile%chord_percent)) return
-    if (.not. allocated(profile%height_percent)) return
-    if (size(profile%chord_percent) < 2) return
-    if (size(profile%height_percent) /= size(profile%chord_percent)) return
-    if (size(profile%chord_percent) /= profile%topology%point_count) return
-    if (.not. all(ieee_is_finite(profile%chord_percent))) return
-    if (.not. all(ieee_is_finite(profile%height_percent))) return
-    if (any(profile%chord_percent < -percent_tolerance)) return
-    if (any(profile%chord_percent > 100.0_real64 + percent_tolerance)) return
+    if (.not. allocated(profile%chord_fraction)) return
+    if (.not. allocated(profile%height_fraction)) return
+    if (size(profile%chord_fraction) < 2) return
+    if (size(profile%height_fraction) /= size(profile%chord_fraction)) return
+    if (size(profile%chord_fraction) /= profile%topology%point_count) return
+    if (.not. all(ieee_is_finite(profile%chord_fraction))) return
+    if (.not. all(ieee_is_finite(profile%height_fraction))) return
+    if (any(profile%chord_fraction < -fraction_tolerance)) return
+    if (any(profile%chord_fraction > 1.0_real64 + fraction_tolerance)) return
     minimum_distance_sq = huge(0.0_real64)
-    do point_index = 1, size(profile%chord_percent)
-      distance_sq = profile%chord_percent(point_index)**2 + &
-          profile%height_percent(point_index)**2
+    do point_index = 1, size(profile%chord_fraction)
+      distance_sq = profile%chord_fraction(point_index)**2 + &
+          profile%height_fraction(point_index)**2
       minimum_distance_sq = min(minimum_distance_sq, distance_sq)
     end do
     point_index = profile%topology%leading_edge_index
-    distance_sq = profile%chord_percent(point_index)**2 + &
-        profile%height_percent(point_index)**2
+    distance_sq = profile%chord_fraction(point_index)**2 + &
+        profile%height_fraction(point_index)**2
     if (distance_sq > minimum_distance_sq + geometry_tolerance) return
     valid = .true.
   end function normalized_profile_is_valid
@@ -1148,9 +1149,12 @@ contains
     valid = .true.
   end subroutine infer_legacy_rib_identities
 
-  !> Copy one normalized rib profile out of the legacy `u/v` slot arrays.
+  !> Copy one fraction-normalized rib profile from legacy `u/v` slot 1.
   !!
-  !! The first legacy dimension must use the historical zero-based rib bound.
+  !! Slot 1 is the authored chord-fraction domain used directly by the legacy
+  !! Stage-6 scaling expressions.  Reading it avoids the lossy slot-2
+  !! fraction-to-percent round trip.  The first legacy dimension must use the
+  !! historical zero-based rib bound.
   !! On success `profile` is replaced atomically with an independent copy.  On
   !! failure `profile` is unchanged, `valid` is false, and `message` explains
   !! the rejected invariant.
@@ -1190,17 +1194,17 @@ contains
       message = 'profile point count is outside the legacy array'
       return
     end if
-    if (legacy_normalized_profile_slot > size(legacy_u, 3)) then
-      message = 'legacy array has no normalized-profile slot'
+    if (legacy_normalized_profile_fraction_slot > size(legacy_u, 3)) then
+      message = 'legacy array has no normalized-profile fraction slot'
       return
     end if
 
     candidate%rib_index = rib_index
     candidate%topology = topology
-    candidate%chord_percent = legacy_u(rib_index, &
-        1:topology%point_count, legacy_normalized_profile_slot)
-    candidate%height_percent = legacy_v(rib_index, &
-        1:topology%point_count, legacy_normalized_profile_slot)
+    candidate%chord_fraction = legacy_u(rib_index, &
+        1:topology%point_count, legacy_normalized_profile_fraction_slot)
+    candidate%height_fraction = legacy_v(rib_index, &
+        1:topology%point_count, legacy_normalized_profile_fraction_slot)
     if (.not. candidate%is_valid()) then
       message = 'normalized profile contains invalid coordinates'
       return

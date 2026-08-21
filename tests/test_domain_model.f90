@@ -99,25 +99,25 @@ program test_domain_model
   call require(valid, '500-point topology rejected after scratch removal')
   legacy_np(1, 1:6) = [4, 2, 2, 2, 3, 3]
 
-  legacy_u(1, 1:4, legacy_normalized_profile_slot) = &
-      [100.0_real64, 50.0_real64, 0.0_real64, 100.0_real64]
-  legacy_v(1, 1:4, legacy_normalized_profile_slot) = &
-      [0.0_real64, 12.0_real64, 0.0_real64, -5.0_real64]
+  legacy_u(1, 1:4, legacy_normalized_profile_fraction_slot) = &
+      [1.0_real64, 0.5_real64, 0.0_real64, 1.0_real64]
+  legacy_v(1, 1:4, legacy_normalized_profile_fraction_slot) = &
+      [0.0_real64, 0.12_real64, 0.0_real64, -0.05_real64]
 
   call copy_legacy_normalized_profile(legacy_u, legacy_v, 1, topology, &
       profile, valid, message)
   call require(valid, 'valid normalized profile rejected: '//trim(message))
   call require(profile%is_valid(), 'copied normalized profile is invalid')
   call require(profile%rib_index == 1, 'normalized rib index')
-  call require(size(profile%chord_percent) == 4, 'normalized point count')
-  call require_close(profile%chord_percent(2), 50.0_real64, &
+  call require(size(profile%chord_fraction) == 4, 'normalized point count')
+  call require_close(profile%chord_fraction(2), 0.5_real64, &
       'normalized chord coordinate')
-  call require_close(profile%height_percent(2), 12.0_real64, &
+  call require_close(profile%height_fraction(2), 0.12_real64, &
       'normalized height coordinate')
 
   ! The typed profile owns its copy rather than aliasing mutable legacy state.
-  legacy_u(1, 2, legacy_normalized_profile_slot) = 75.0_real64
-  call require_close(profile%chord_percent(2), 50.0_real64, &
+  legacy_u(1, 2, legacy_normalized_profile_fraction_slot) = 0.75_real64
+  call require_close(profile%chord_fraction(2), 0.5_real64, &
       'normalized profile must own copied data')
   test_topology = topology
   test_topology%leading_edge_index = 2
@@ -125,7 +125,7 @@ program test_domain_model
       profile, valid, message)
   call require(.not. valid, &
       'profile accepted a named leading edge away from the closest sample')
-  call require_close(profile%chord_percent(2), 50.0_real64, &
+  call require_close(profile%chord_fraction(2), 0.5_real64, &
       'failed leading-edge validation changed the normalized profile')
 
   legacy_u(1, 1:4, legacy_production_lower_sewing_slot) = &
@@ -144,10 +144,10 @@ program test_domain_model
       [10.1_real64, 12.1_real64, 14.1_real64, 16.1_real64]
   legacy_v(1, 1:4, legacy_production_higher_cut_slot) = &
       [1.0_real64, 5.0_real64, 9.0_real64, 13.0_real64]
-  legacy_u(2, 1:5, legacy_normalized_profile_slot) = &
-      [100.0_real64, 50.0_real64, 0.0_real64, 40.0_real64, 100.0_real64]
-  legacy_v(2, 1:5, legacy_normalized_profile_slot) = &
-      [0.0_real64, 8.0_real64, 0.0_real64, -8.0_real64, 0.0_real64]
+  legacy_u(2, 1:5, legacy_normalized_profile_fraction_slot) = &
+      [1.0_real64, 0.5_real64, 0.0_real64, 0.4_real64, 1.0_real64]
+  legacy_v(2, 1:5, legacy_normalized_profile_fraction_slot) = &
+      [0.0_real64, 0.08_real64, 0.0_real64, -0.08_real64, 0.0_real64]
 
   call copy_legacy_production_panel_edges(legacy_u, legacy_v, 1, 4, 3, &
       panel, valid, message)
@@ -165,16 +165,16 @@ program test_domain_model
       'lower cut edge coordinate')
 
   ! The composite adapter exposes exactly one integration object per panel.
-  legacy_u(1, 2, legacy_normalized_profile_slot) = 50.0_real64
+  legacy_u(1, 2, legacy_normalized_profile_fraction_slot) = 0.5_real64
   call copy_legacy_production_panel(legacy_u, legacy_v, profile_topologies, 1, &
       complete_panel, valid, message)
   call require(valid, 'complete developed panel rejected: '//trim(message))
   call require(complete_panel%is_valid(), 'complete panel is invalid')
-  call require_close(complete_panel%lower_profile%chord_percent(2), &
-      50.0_real64, 'complete panel lower profile')
+  call require_close(complete_panel%lower_profile%chord_fraction(2), &
+      0.5_real64, 'complete panel lower profile')
   call require_close(complete_panel%edges%higher_sewing_v(2), 5.0_real64, &
       'complete panel higher developed edge')
-  call require(size(complete_panel%higher_profile%chord_percent) == 5, &
+  call require(size(complete_panel%higher_profile%chord_fraction) == 5, &
       'higher profile point count')
   call require(size(complete_panel%edges%higher_sewing_u) == 4, &
       'independent higher edge point count')
@@ -253,14 +253,14 @@ program test_domain_model
       'failed sheet-layout map changed destination V')
 
   ! A failed adapter call is transactional: it preserves the previous object.
-  legacy_u(1, 2, legacy_normalized_profile_slot) = &
+  legacy_u(1, 2, legacy_normalized_profile_fraction_slot) = &
       ieee_value(0.0_real64, ieee_quiet_nan)
   call copy_legacy_normalized_profile(legacy_u, legacy_v, 1, topology, &
       profile, valid, message)
   call require(.not. valid, 'non-finite normalized profile accepted')
   call require(len_trim(message) > 0, 'adapter failure has no diagnostic')
   call require(profile%is_valid(), 'failed copy damaged existing profile')
-  call require_close(profile%chord_percent(2), 50.0_real64, &
+  call require_close(profile%chord_fraction(2), 0.5_real64, &
       'failed copy changed existing profile')
 
   legacy_v(1, 2, legacy_production_higher_sewing_slot) = &

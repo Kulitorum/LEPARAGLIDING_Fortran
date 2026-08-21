@@ -144,6 +144,48 @@ program test_panel_shaping
   call require_close_strict(shaped%cut_u(2) - shaped%sewing_u(2), &
       -0.8_real64*allowance_model, 'endpoint allowance conversion U')
 
+  ! Classic intrados predates the quadrant-aware kernel.  Its lower side uses
+  ! a separately supplied first normal (the preceding intake segment in
+  ! production), then fixed outward normals for incoming intrados segments.
+  call initialize_one_segment_panel(panel, -3.0_real64, 4.0_real64)
+  call shape_classic_intrados_panel_side(panel, panel_side_lower, &
+      [2.0_real64, 3.0_real64], 10.0_real64, 4.0_real64, 3.0_real64, &
+      shaped, valid, message)
+  call require(valid, 'classic lower intrados rejected: '//trim(message))
+  call require_close(shaped%sewing_u(1), 8.8_real64, &
+      'classic lower intake-derived initial U')
+  call require_close(shaped%sewing_v(1), 21.6_real64, &
+      'classic lower intake-derived initial V')
+  call require_close(shaped%sewing_u(2), 4.6_real64, &
+      'classic lower fixed endpoint U')
+  call require_close(shaped%sewing_v(2), 25.8_real64, &
+      'classic lower fixed endpoint V')
+  call require_close_strict(shaped%cut_u(2)-shaped%sewing_u(2), &
+      -0.8_real64*real(0.1, real64)*10.0_real64, &
+      'classic lower cut normal')
+
+  ! The higher side uses its first intrados segment for the initial normal and
+  ! the exact opposite fixed direction for sewing and cut coordinates.
+  call shape_classic_intrados_panel_side(panel, panel_side_higher, &
+      [2.0_real64, 3.0_real64], 10.0_real64, -3.0_real64, 4.0_real64, &
+      shaped, valid, message)
+  call require(valid, 'classic higher intrados rejected: '//trim(message))
+  call require_close(shaped%sewing_u(1), 111.6_real64, &
+      'classic higher initial U')
+  call require_close(shaped%sewing_v(1), 118.8_real64, &
+      'classic higher initial V')
+  call require_close(shaped%sewing_u(2), 109.4_real64, &
+      'classic higher endpoint U')
+  call require_close(shaped%sewing_v(2), 122.2_real64, &
+      'classic higher endpoint V')
+
+  saved = shaped
+  call shape_classic_intrados_panel_side(panel, panel_side_lower, &
+      [2.0_real64, 3.0_real64], 10.0_real64, 0.0_real64, 0.0_real64, &
+      shaped, valid, message)
+  call require_rejected_unchanged(valid, message, shaped, saved, &
+      'degenerate classic initial normal')
+
   ! A complete extrados panel owns two independently shaped production sides.
   ! This locks the surface and side identities plus the opposite cut normals
   ! used by the Stage-8 slot-9/11 and slot-10/12 transactions.
