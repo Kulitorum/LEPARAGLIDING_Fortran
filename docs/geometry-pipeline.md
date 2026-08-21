@@ -28,6 +28,7 @@ array and its slot, not by the variable letter alone:
 | `typed_intrados_lower_side` | Sewing and cut contours shaped from the exact lower side of the current real intrados panel |
 | `typed_terminal_intrados_offsets` | One typed skin-tension offset for each point on the physical terminal intrados contour |
 | `typed_terminal_intrados_production_edge` | Physical wingtip sewing/cut boundary; owns row-`nribss` slots 9/11 only and cannot contain slots 10/12 |
+| `typed_terminal_intrados_reformatted_edge` | The agreeing exact-range terminal `ndif=1000` result after sewing-length matching and paired cut translation |
 | `u/v(panel,j,9)` | Tensioned/developed left skin edge |
 | `u/v(panel,j,10)` | Tensioned/developed right skin edge |
 | `u/v(panel,j,11:12)` | Left/right sewing-border coordinates |
@@ -48,7 +49,7 @@ a chord percentage at ribs, then mapped onto developed `u/v` panel edges.
 | `05_graphic_design.inc` | Draws planform/vault references and design annotations |
 | `06_airfoil_geometry.inc` | Loads profiles, constructs normalized plus absolute 3D geometry, then snapshots physical spatial ribs |
 | `07_panel_development.inc` | Flattens consecutive 3D quadrilaterals, exactly compares legacy and pure typed regular extrados/intake/intrados results, publishes extrados/intake, and retains intrados across vent processing |
-| `08_skin_tension.inc` | Makes agreeing typed surface metrics authoritative, processes vents, checked-writes retained intrados, and makes typed `k31d=1` lower-intrados offsets plus sewing/cut contours authoritative for regular panels and the physical terminal boundary before continuing legacy edges, borders, and layouts |
+| `08_skin_tension.inc` | Makes agreeing typed surface metrics authoritative, processes vents, checked-writes retained intrados, makes typed `k31d=1` lower-intrados offsets plus sewing/cut contours authoritative, and dual-runs the terminal `ndif=1000` length match before continuing legacy edges, borders, and layouts |
 | `09_singular_rib_points.inc` | Resolves anchors, intake limits, and named construction points |
 | `10_calage.inc` | Calculates aerodynamic reference angles and balance geometry |
 | `11_panel_lengths.inc` | Measures corresponding sides and places assembly marks |
@@ -88,6 +89,7 @@ section 1 rib planform + section 2 profiles
   -> typed side shaping from exact neutral segments, compared with legacy shaping
   -> checked write-back of regular-panel offsets and slot-9/11 sewing/cut edges
   -> separately checked physical-terminal offsets and slot-9/11 boundary
+  -> typed terminal ndif length match compared point-for-point with legacy
   -> tensioned left/right u/v slots 9/10
   -> outer sewing/cutting geometry in slots 11/12 and panel routines
   -> section 15/16 chord percentages
@@ -136,9 +138,16 @@ read without a Stage-7 producer. Typed traversal checks every cumulative
 distance and law offset, `shape_neutral_boundary_edge` applies the lower/outward
 normal to the retained higher neutral source, and
 `write_legacy_production_boundary` publishes only exact-range slots 9/11.
-There is no terminal panel and no slots 10/12. The later optional `ndif`
-reformatter still mutates slot 9 as a compatibility consumer; it is a separate
-future ownership boundary.
+There is no terminal panel and no slots 10/12. For `ndif=1000` with new skin
+tension, `leparagliding_panel_reformat` now reproduces the subsequent terminal
+slot-9 prefix reconstruction from the retained typed boundary. Compatibility
+includes distinct measurement and reconstruction indices, real-exponent
+distance expressions, absolute-angle quadrant branches, and the legacy
+implicitly default-REAL accumulator and scale. After point-for-point agreement,
+the typed edge owns the exact intrados range and translates slot 11 by the same
+point displacement. The legacy extrapolation at `intrados_first-1` is an intake
+join support outside this boundary. Regular-row length matching, its five-pass
+distortion correction, and terminal extrados remain future ownership boundaries.
 
 When section 29 shaping is disabled, data reading selects its declared
 one-based no-cut group, validates that every rib has a declared group, and

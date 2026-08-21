@@ -2,11 +2,11 @@
 
 Status: implementation in progress; phases 0--1 complete, phase 2 staged,
 phase 3 complete at the real-panel neutral boundary, and the first Phase-4
-lower-intrados production-shaping checkpoint complete
+lower-intrados production-shaping and terminal-reformat checkpoints complete
 
 Evidence baseline: typed adapter/color, topology, neutral terminal-boundary,
 authoritative extrados/intake/intrados, and typed regular plus physical-terminal
-lower-intrados shaping checkpoints
+lower-intrados shaping/reformat checkpoints
 
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
@@ -230,17 +230,41 @@ oracle:
   coordinates must agree before the production adapter writes only row
   `nribss` slots 9/11. It cannot represent or write terminal slots 10/12.
 
-The unit suite now contains 14 registered tests, including focused
+The unit suite now contains 15 registered tests, including focused
 `skin_tension` normalization/evaluation coverage and `panel_shaping` coverage
 for all quadrants, axis-aligned segments, endpoint bias, allowance conversion,
 validation, and transactional failure. Full Plan B and even-cell regressions
 exercise the integrated `k31d=1` path; the classic fixture continues to protect
 `k31d=0`.
 
-Typed authority for the terminal boundary is intentionally the pre-reformat
-handoff. The optional legacy `ndif` path subsequently mutates terminal slot 9
-without updating slot 11; migrating that named operation and the remaining
-production surfaces/sides is the next slice.
+### Eighth checkpoint: terminal intrados length matching
+
+`leparagliding_panel_reformat` now owns the exact physical-terminal intrados
+range after the optional `ndif=1000` length match for `k31d=1`:
+
+- `boundary_length_match_control` names the original contour length, target rib
+  length, control fraction, and the independently validated measurement and
+  reconstruction indices. Keeping two indices explicitly preserves the legacy
+  `jirr`/`jirl` behavior rather than hiding it behind one ambiguous variable.
+- `reformat_terminal_intrados_boundary` is pure and transactional. It retains
+  the absolute-angle/four-quadrant reconstruction and the real-exponent distance
+  expressions. Its accumulator, corrected length, and scale are explicitly
+  `real32`, documenting the old undeclared `dist2/dist3/distk` variables instead
+  of allowing implicit typing to decide their kind.
+- Stage 8 retains the pre-reformat typed boundary, runs the old calculation as
+  an oracle, compares every exact-range sewing coordinate, and publishes the
+  typed result only after agreement. Each cut point receives the same
+  displacement as its sewing point, preserving the established allowance vector
+  which the old slot-9-only rewrite stranded in slot 11.
+- The legacy `intrados_first-1` extrapolation is deliberately not claimed by an
+  intrados boundary. It is a preceding intake join-support point and remains on
+  the compatibility path until that cross-surface feature has its own type.
+
+Focused unit coverage includes expansion, fractional shrink, distinct start
+indices, all quadrant signs, provenance, cut-vector retention, and transactional
+failures. Plan B and Swoop2 execute the integrated new-tension path; the runtime
+dual comparison supplies a terminal numeric oracle because downstream drawing
+loops do not expose that row in the reviewed output hashes.
 
 ## Terminology used in this plan
 
@@ -692,6 +716,7 @@ The first production-shaping types are now implemented in focused modules:
 
 - `skin_tension_law` in `leparagliding_skin_tension`
 - `shaped_panel_side_2d` in `leparagliding_panel_shaping`
+- `boundary_length_match_control` in `leparagliding_panel_reformat`
 
 Additional focused types should be introduced when their owning stage is
 migrated:
@@ -865,9 +890,9 @@ is adapter output only, and no point-499 scratch convention remains in the
 neutral-development pipeline.
 
 Phase 4 now owns new-law lower-intrados regular panels and the separate physical
-terminal intrados production edge at the pre-reformat handoff. Broader surface,
-side, vent, and special-path migration follows; `ndif` is the next terminal
-ownership boundary.
+terminal intrados production edge through its exact-range `ndif=1000` length
+match. Broader regular-row reformat, distortion, surface, side, vent, and
+special-path migration follows.
 Retiring the duplicate stage-7 comparison oracle can follow once downstream
 boundaries have equivalent semantic regression coverage.
 
@@ -876,11 +901,12 @@ boundaries have equivalent semantic regression coverage.
 Implementation status: the `k31d=1` lower-intrados side is typed-authoritative
 for real panels `0:nribss-1`, including its final contour point. The distinct
 physical terminal boundary at row `nribss` is also typed-authoritative through
-the initial production handoff: it owns exact intrados offsets and slots 9/11
-without inventing a panel or terminal slots 10/12. Section-31 laws and shaped
-sewing/cut sides are owned by focused pure modules; stage 8 compares them with
-the old calculation before publishing compatibility slots. Later reformats and
-all other production surfaces/sides remain to be migrated.
+the initial production handoff and the exact-range `ndif=1000` length match: it
+owns intrados offsets and slots 9/11 without inventing a panel or terminal slots
+10/12. Section-31 laws, shaped sewing/cut sides, and terminal length matching are
+owned by focused pure modules; stage 8 compares them with the old calculations
+before publishing compatibility slots. Regular-row reformats, distortion, join
+support, and all other production surfaces/sides remain to be migrated.
 
 1. Extract `skin_tension_law` parsing and evaluation from slots 7/8.
    **Complete for Section-31 intrados laws and the lower side of every real
@@ -895,6 +921,8 @@ all other production surfaces/sides remain to be migrated.
    into a complete production panel remains.**
 4. Model vents, end extensions, and special reformat paths as named optional
    features; delete `ufa/ufb/ufc/uft` workspaces as each path migrates.
+   **In progress: exact-range terminal intrados `ndif=1000` length matching is
+   typed and authoritative; regular rows, join support, and distortion remain.**
 5. Keep a write-back adapter for remaining internal-rib consumers.
 
 Exit criterion: stage 8 no longer writes slots 7:12 for migrated surfaces;
@@ -1056,10 +1084,14 @@ The producer-authority checkpoints completed:
 8. define `production_boundary_edge_2d`, seed the legacy terminal intrados
    neutral oracle from the final real panel, independently check every terminal
    distance/offset/coordinate, publish only row-`nribss` slots 9/11, and stop
-   the old right-side call from fabricating slots 10/12.
+   the old right-side call from fabricating slots 10/12; and
+9. model the terminal intrados `ndif=1000` length match with explicit source and
+   target lengths plus separate measurement/reconstruction indices, preserve
+   its implicit single-precision scale, dual-compare every exact-range sewing
+   point, and publish the agreeing sewing/cut pair transactionally.
 
-The next slice should migrate the optional terminal `ndif` reformat which takes
-slot-9 ownership back after the typed production handoff but does not update
-slot 11. Terminal extrados and the remaining regular sides/surfaces follow.
+The next slice should type the preceding intake join-support extrapolation or
+begin regular-row `ndif` length matching and five-pass distortion correction.
+Terminal extrados and the remaining regular sides/surfaces follow.
 Later shaping-cut bounds exposed by the Chooca-15 preset still need a
 mixed-profile full-output fixture.

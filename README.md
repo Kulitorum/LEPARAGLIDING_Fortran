@@ -98,6 +98,9 @@ The maintained structure now:
   `leparagliding_panel_shaping` compatibility kernel and publishes the agreeing
   typed geometry for lower-intrados regular panels and their separately modeled
   physical wingtip boundary;
+- applies the terminal `ndif=1000` length match through
+  `leparagliding_panel_reformat`, preserving its historical arithmetic while
+  moving the terminal sewing and cut contours together;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -152,9 +155,15 @@ the final real panel's higher neutral edge without fabricating panel `nribss`.
 A checked adapter first supplies the exact terminal `pl1/pl2` oracle that the
 legacy stage read without constructing; typed offsets and shaping must then
 agree point-for-point before only row-`nribss` slots 9/11 are published. Slots
-10/12 remain deliberately nonexistent beyond the wingtip. The optional `ndif`
-reformatter still takes compatibility ownership afterward; migrating that
-named feature and the remaining surfaces/sides is the next Phase-4 work.
+10/12 remain deliberately nonexistent beyond the wingtip. When `ndif=1000`, a
+typed terminal reformatter now independently reproduces the exact-range slot-9
+length match—including its separate measurement/reconstruction indices and
+implicitly single-precision accumulator—before publishing the agreeing sewing
+edge. Its slot-11 cut edge receives the same point displacement so the
+established allowance vectors remain attached. The historical extrapolated
+intake join immediately before the intrados range, regular-row reformats,
+five-pass distortion correction, and remaining surfaces/sides are later
+Phase-4 boundaries.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -199,7 +208,7 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Up to fourteen isolated tests are registered (twelve do not require Python):
+Up to fifteen isolated tests are registered (thirteen do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
@@ -215,28 +224,31 @@ Up to fourteen isolated tests are registered (twelve do not require Python):
 4. `panel_shaping` checks lower/higher normal conventions in every quadrant,
    horizontal and vertical compatibility cases, incoming-segment endpoint
    ownership, allowance conversion, and transactional failure.
-5. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
+5. `panel_reformat` checks terminal expand/shrink behavior, distinct measurement
+   and reconstruction indices, quadrant reconstruction, cut-vector retention,
+   provenance, and transactional failure.
+6. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
    and verifies the rebuilt contour's topology identities.
-6. `color_geometry` checks robust color-edge interpolation, repeated profile
+7. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-7. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+8. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
    comparator (registered when Python 3 is available).
-8. `color_division_import` compares DXF import with a Swoop2-derived section-16
+9. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-9. `plan_b_regression` compares all five principal outputs with the reviewed
+10. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline, after normalizing line endings.
-10. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
+11. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
    design, checks its collapsed center and declared counts, rejects non-finite
    DXF geometry, and compares all five principal outputs.
-11. `classic_skin_regression` runs the realistic gnuA3 design through classic
+12. `classic_skin_regression` runs the realistic gnuA3 design through classic
    skin tension (`k31d=0`), rejects non-finite DXF geometry, checks its declared
    counts, and freezes all five principal outputs.
-12. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
+13. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
    checks the one-based no-cut group path under runtime bounds checking, and
    freezes all five principal outputs.
-13. `profile_capacity_guard` verifies that an oversized 501-point profile is
+14. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-14. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+15. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -271,6 +283,7 @@ src/
   leparagliding_mark_types.f90      shared mark drawing configuration
   leparagliding_neutral_development.f90
                                       pure neutral-surface development
+  leparagliding_panel_reformat.f90   typed terminal length matching
   leparagliding_panel_shaping.f90  typed sewing/cut side-shaping kernel
   leparagliding_skin_tension.f90   normalized Section-31 laws and evaluator
   main/                             numbered main-program calculation stages

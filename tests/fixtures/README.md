@@ -1,5 +1,15 @@
 # Test fixtures
 
+## Panel-length matching coverage
+
+Plan B, Swoop2, and gnuA3 all retain their authored section-5 `ndif=1000`,
+`xndif=1.0` settings, so every maintained full calculation executes the
+perfect-matching paths. Plan B and Swoop2 cover the typed terminal intrados
+reformatter under new skin tension; gnuA3 protects the unchanged classic path.
+The terminal row is not emitted by the normal panel drawing loops, so its
+numeric sewing oracle is the Stage-8 typed/legacy point comparison and its cut
+translation policy is covered by the focused `panel_reformat` unit test.
+
 ## Color importer
 
 `swoop2-color-overlay-sample.dxf` is a minimal coordinate-only extract created
