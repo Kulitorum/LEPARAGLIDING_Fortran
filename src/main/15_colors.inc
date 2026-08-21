@@ -38,15 +38,20 @@ c     Extrados: profile points run from trailing edge toward leading edge.
        if (npce.ge.1) then
        call draw_classic_color_surface(npce,npc1e,npc2e,npc3e,xpc1e,
      + xpc2e,nribss,wing_profile_topologies,u,v,seppix,
-     + 1970.0d0*xkf,xyshift*xkf,xupp,
+     + layout_transform_2d(translation_u=1970.0d0*xkf,
+     + translation_v=xyshift*xkf,rotation_rad=0.0d0,
+     + u_direction=1,v_direction=-1),xupp,
      + color_mark_inset_mm,4,1)
        end if
 
 c     Intrados: skip single-surface `ss` profiles and traverse in reverse.
        if (atp.ne.'ss'.and.npci.ge.1) then
        call draw_classic_color_surface(npci,npc1i,npc2i,npc3i,xpc1i,
-     + xpc2i,nribss,wing_profile_topologies,u,v,seppix,1970.0d0*xkf,
-     + (890.95d0+xyshift)*xkf,xlow,color_mark_inset_mm,30,-1)
+     + xpc2i,nribss,wing_profile_topologies,u,v,seppix,
+     + layout_transform_2d(translation_u=1970.0d0*xkf,
+     + translation_v=(890.95d0+xyshift)*xkf,
+     + rotation_rad=0.0d0,u_direction=1,v_direction=-1),xlow,
+     + color_mark_inset_mm,30,-1)
        end if
 
 c***********************************************************************

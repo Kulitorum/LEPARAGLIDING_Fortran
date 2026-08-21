@@ -48,6 +48,23 @@ module leparagliding_domain_model
   real(real64), parameter :: legacy_central_panel_threshold = &
       real(0.01, real64)
 
+  !> Placement of local manufacturing geometry on a two-dimensional sheet.
+  !!
+  !! Geometry types remain in local production coordinates. This separate
+  !! value records axis reflection, rotation, and final drawing translation.
+  !! Axis directions are exactly -1 or +1; no implicit scaling or unit
+  !! conversion is permitted at this boundary.
+  type, public :: layout_transform_2d
+    real(real64) :: translation_u = 0.0_real64
+    real(real64) :: translation_v = 0.0_real64
+    real(real64) :: rotation_rad = 0.0_real64
+    integer :: u_direction = 1
+    integer :: v_direction = 1
+  contains
+    procedure :: is_valid => layout_transform_is_valid
+    procedure :: map_point => layout_transform_map_point
+  end type layout_transform_2d
+
   !> Inclusive range in the ordered contour-point array.
   type, public :: index_range
     integer :: first = 0
@@ -269,6 +286,7 @@ module leparagliding_domain_model
   type, public :: color_division
     integer :: boundary_id = 0
     integer :: panel_index = -1
+    integer :: surface = 0
     real(real64) :: lower_chord_percent = 0.0_real64
     real(real64) :: higher_chord_percent = 0.0_real64
   contains
@@ -299,6 +317,52 @@ module leparagliding_domain_model
   public :: geometry_values_are_close
 
 contains
+
+  !> Test whether a sheet-layout transform is finite and orientation-only.
+  pure logical function layout_transform_is_valid(transform) result(valid)
+    class(layout_transform_2d), intent(in) :: transform
+
+    valid = .false.
+    if (.not. ieee_is_finite(transform%translation_u)) return
+    if (.not. ieee_is_finite(transform%translation_v)) return
+    if (.not. ieee_is_finite(transform%rotation_rad)) return
+    if (abs(transform%u_direction) /= 1) return
+    if (abs(transform%v_direction) /= 1) return
+    valid = .true.
+  end function layout_transform_is_valid
+
+  !> Map one local production point into final drawing-sheet coordinates.
+  !!
+  !! Reflection is applied before rotation. Rejected calls leave both output
+  !! coordinates unchanged.
+  pure subroutine layout_transform_map_point(transform, local_u, local_v, &
+      sheet_u, sheet_v, valid)
+    class(layout_transform_2d), intent(in) :: transform
+    real(real64), intent(in) :: local_u, local_v
+    real(real64), intent(inout) :: sheet_u, sheet_v
+    logical, intent(out) :: valid
+
+    real(real64) :: reflected_u, reflected_v, candidate_u, candidate_v
+    real(real64) :: cosine, sine
+
+    valid = .false.
+    if (.not. transform%is_valid()) return
+    if (.not. ieee_is_finite(local_u) .or. &
+        .not. ieee_is_finite(local_v)) return
+    reflected_u = real(transform%u_direction, real64)*local_u
+    reflected_v = real(transform%v_direction, real64)*local_v
+    cosine = cos(transform%rotation_rad)
+    sine = sin(transform%rotation_rad)
+    candidate_u = transform%translation_u + &
+        cosine*reflected_u - sine*reflected_v
+    candidate_v = transform%translation_v + &
+        sine*reflected_u + cosine*reflected_v
+    if (.not. ieee_is_finite(candidate_u) .or. &
+        .not. ieee_is_finite(candidate_v)) return
+    sheet_u = candidate_u
+    sheet_v = candidate_v
+    valid = .true.
+  end subroutine layout_transform_map_point
 
   !> Return true for a non-empty one-based inclusive point range.
   pure logical function index_range_is_valid(range) result(valid)
@@ -422,6 +486,9 @@ contains
   pure logical function normalized_profile_is_valid(profile) result(valid)
     class(normalized_profile_2d), intent(in) :: profile
 
+    integer :: point_index
+    real(real64) :: distance_sq, minimum_distance_sq
+
     valid = .false.
     if (profile%rib_index < 0) return
     if (.not. profile%topology%is_valid()) return
@@ -434,6 +501,16 @@ contains
     if (.not. all(ieee_is_finite(profile%height_percent))) return
     if (any(profile%chord_percent < -percent_tolerance)) return
     if (any(profile%chord_percent > 100.0_real64 + percent_tolerance)) return
+    minimum_distance_sq = huge(0.0_real64)
+    do point_index = 1, size(profile%chord_percent)
+      distance_sq = profile%chord_percent(point_index)**2 + &
+          profile%height_percent(point_index)**2
+      minimum_distance_sq = min(minimum_distance_sq, distance_sq)
+    end do
+    point_index = profile%topology%leading_edge_index
+    distance_sq = profile%chord_percent(point_index)**2 + &
+        profile%height_percent(point_index)**2
+    if (distance_sq > minimum_distance_sq + geometry_tolerance) return
     valid = .true.
   end function normalized_profile_is_valid
 
@@ -830,6 +907,8 @@ contains
     valid = .false.
     if (division%boundary_id < 1) return
     if (division%panel_index < 0) return
+    if (division%surface /= surface_extrados .and. &
+        division%surface /= surface_intrados) return
     if (.not. ieee_is_finite(division%lower_chord_percent)) return
     if (.not. ieee_is_finite(division%higher_chord_percent)) return
     if (division%lower_chord_percent < -percent_tolerance) return

@@ -37,9 +37,10 @@ program test_domain_model
   type(neutral_boundary_edge_2d) :: boundary_edge, invalid_boundary_edge
   type(rib_identity), allocatable :: identities(:), saved_identities(:)
   type(color_division) :: division
+  type(layout_transform_2d) :: layout, invalid_layout
   character(len=120) :: message
   logical :: valid, panel_zero_active, parity_consistent, gap_valid
-  real(real64) :: gap
+  real(real64) :: gap, sheet_u, sheet_v
   integer :: i, j, k
 
   legacy_u = 0.0_real64
@@ -57,8 +58,8 @@ program test_domain_model
   pr2_u = 0.0_real64
   pr2_v = 0.0_real64
 
-  legacy_np(0, 1:6) = [4, 2, 2, 2, 3, 2]
-  legacy_np(1, 1:6) = [4, 2, 2, 2, 3, 2]
+  legacy_np(0, 1:6) = [4, 2, 2, 2, 3, 3]
+  legacy_np(1, 1:6) = [4, 2, 2, 2, 3, 3]
   legacy_np(2, 1:6) = [5, 3, 2, 2, 4, 3]
 
   call copy_legacy_profile_topology(legacy_np, 1, topology, valid, message)
@@ -91,12 +92,12 @@ program test_domain_model
   call copy_legacy_profile_topology(legacy_np, 1, test_topology, valid, &
       message)
   call require(valid, 'global leading-edge index was over-constrained')
-  legacy_np(1, 6) = 2
+  legacy_np(1, 6) = 3
   legacy_np(1, 1:6) = [500, 250, 20, 232, 269, 250]
   call copy_legacy_profile_topology(legacy_np, 1, test_topology, valid, &
       message)
   call require(valid, '500-point topology rejected after scratch removal')
-  legacy_np(1, 1:6) = [4, 2, 2, 2, 3, 2]
+  legacy_np(1, 1:6) = [4, 2, 2, 2, 3, 3]
 
   legacy_u(1, 1:4, legacy_normalized_profile_slot) = &
       [100.0_real64, 50.0_real64, 0.0_real64, 100.0_real64]
@@ -118,6 +119,14 @@ program test_domain_model
   legacy_u(1, 2, legacy_normalized_profile_slot) = 75.0_real64
   call require_close(profile%chord_percent(2), 50.0_real64, &
       'normalized profile must own copied data')
+  test_topology = topology
+  test_topology%leading_edge_index = 2
+  call copy_legacy_normalized_profile(legacy_u, legacy_v, 1, test_topology, &
+      profile, valid, message)
+  call require(.not. valid, &
+      'profile accepted a named leading edge away from the closest sample')
+  call require_close(profile%chord_percent(2), 50.0_real64, &
+      'failed leading-edge validation changed the normalized profile')
 
   legacy_u(1, 1:4, legacy_production_lower_sewing_slot) = &
       [0.0_real64, 1.0_real64, 2.0_real64, 3.0_real64]
@@ -177,6 +186,7 @@ program test_domain_model
   call require(complete_panel%panel_index == 0, 'panel zero index')
   division%boundary_id = 1
   division%panel_index = 0
+  division%surface = surface_extrados
   division%lower_chord_percent = 50.0_real64
   division%higher_chord_percent = 50.0_real64
   call require(division%is_valid(), 'valid panel-zero color division rejected')
@@ -209,11 +219,38 @@ program test_domain_model
 
   division%boundary_id = 7
   division%panel_index = 1
+  division%surface = surface_intrados
   division%lower_chord_percent = 48.0_real64
   division%higher_chord_percent = 54.46_real64
   call require(division%is_valid(), 'valid color division rejected')
   division%higher_chord_percent = 101.0_real64
   call require(.not. division%is_valid(), 'out-of-range color accepted')
+  division%higher_chord_percent = 54.46_real64
+  division%surface = surface_intake
+  call require(.not. division%is_valid(), &
+      'intake color division without a production skin was accepted')
+
+  ! Sheet layout is explicit and remains separate from production geometry.
+  layout%translation_u = 10.0_real64
+  layout%translation_v = -4.0_real64
+  layout%rotation_rad = 0.5_real64*acos(-1.0_real64)
+  layout%u_direction = -1
+  layout%v_direction = 1
+  sheet_u = 901.0_real64
+  sheet_v = 902.0_real64
+  call layout%map_point(2.0_real64, 3.0_real64, sheet_u, sheet_v, valid)
+  call require(valid, 'valid sheet-layout transform rejected')
+  call require_close(sheet_u, 7.0_real64, 'sheet-layout mapped U')
+  call require_close(sheet_v, -6.0_real64, 'sheet-layout mapped V')
+  invalid_layout = layout
+  invalid_layout%u_direction = 0
+  call invalid_layout%map_point(2.0_real64, 3.0_real64, sheet_u, sheet_v, &
+      valid)
+  call require(.not. valid, 'zero sheet-layout direction was accepted')
+  call require_close(sheet_u, 7.0_real64, &
+      'failed sheet-layout map changed destination U')
+  call require_close(sheet_v, -6.0_real64, &
+      'failed sheet-layout map changed destination V')
 
   ! A failed adapter call is transactional: it preserves the previous object.
   legacy_u(1, 2, legacy_normalized_profile_slot) = &

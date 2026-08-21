@@ -20,7 +20,7 @@
 !! @param[in] profile_topologies Validated named topology snapshots from stage 6.
 !! @param[in] developed_u,developed_v Normalized slot 2 and panel slots 9/10.
 !! @param[in] panel_separation Horizontal developed-panel placement by index.
-!! @param[in] layout_origin_x,layout_origin_y Surface row placement.
+!! @param[in] surface_layout Surface row placement and orientation.
 !! @param[in] allowance_mm Internal allowance applied to both color pieces.
 !! @param[in] mark_inset_mm Inward matching-mark offset from both cut edges.
 !! @param[in] cad_color AutoCAD color used for this surface overlay.
@@ -28,7 +28,7 @@
        subroutine draw_classic_color_surface(record_count,record_rib,
      + record_boundary_count,record_boundary_id,boundary_percent,
      + off_rib_offset,semiwing_rib_count,profile_topologies,developed_u,
-     + developed_v,panel_separation,layout_origin_x,layout_origin_y,
+     + developed_v,panel_separation,surface_layout,
      + allowance_mm,mark_inset_mm,cad_color,surface_direction)
        implicit none
 
@@ -42,21 +42,23 @@
        real*8, intent(in) :: developed_u(0:100,500,99)
        real*8, intent(in) :: developed_v(0:100,500,99)
        real*8, intent(in) :: panel_separation(0:100)
-       real*8, intent(in) :: layout_origin_x,layout_origin_y
        real*8, intent(in) :: allowance_mm,mark_inset_mm
+       type(layout_transform_2d), intent(in) :: surface_layout
 
        integer :: panel_index,left_record,left_boundary
        integer :: right_record,right_boundary,candidate_record
        integer :: candidate_boundary,boundary_identifier
        integer :: left_first_point,left_last_point
        integer :: right_first_point,right_last_point,point_step
-       real*8 :: left_u,left_v,right_u,right_v,panel_offset_x
+       real*8 :: left_u,left_v,right_u,right_v
        logical :: left_found,right_found,panel_valid
        character(len=160) :: panel_message
        type(production_panel_2d) :: production_panel
+       type(layout_transform_2d) :: panel_layout
 
        if (record_count.lt.1) return
        if (surface_direction.ne.1.and.surface_direction.ne.-1) return
+       if (.not.surface_layout%is_valid()) return
 
        do panel_index=1,semiwing_rib_count-1
        call copy_legacy_production_panel(developed_u,developed_v,
@@ -130,9 +132,11 @@
      + right_u,right_v)
 
        if (left_found.and.right_found) then
-       panel_offset_x=layout_origin_x+panel_separation(panel_index)
+       panel_layout=surface_layout
+       panel_layout%translation_u=panel_layout%translation_u+
+     + panel_separation(panel_index)
        call draw_color_panel_construction(left_u,left_v,right_u,right_v,
-     + panel_offset_x,layout_origin_y,allowance_mm,mark_inset_mm,
+     + panel_layout,allowance_mm,mark_inset_mm,
      + cad_color)
        end if
        end if
@@ -159,31 +163,33 @@
 !!
 !! @param[in] left_u,left_v Boundary point on the panel's left developed edge.
 !! @param[in] right_u,right_v Boundary point on the right developed edge.
-!! @param[in] panel_offset_x,panel_offset_y Panel placement in the 2D sheet.
+!! @param[in] panel_layout Typed placement in the two-dimensional sheet.
 !! @param[in] allowance_mm Seam allowance for both adjacent color pieces.
 !! @param[in] mark_inset_mm Inward offset from each internal cut edge.
 !! @param[in] cad_color AutoCAD color index identifying the surface.
        subroutine draw_color_panel_construction(left_u,left_v,right_u,
-     + right_v,panel_offset_x,panel_offset_y,allowance_mm,
+     + right_v,panel_layout,allowance_mm,
      + mark_inset_mm,cad_color)
        implicit none
 
        real*8, intent(in) :: left_u,left_v,right_u,right_v
-       real*8, intent(in) :: panel_offset_x,panel_offset_y
        real*8, intent(in) :: allowance_mm,mark_inset_mm
        integer, intent(in) :: cad_color
+       type(layout_transform_2d), intent(in) :: panel_layout
 
        real*8 :: seam_left_x,seam_left_y,seam_right_x,seam_right_y
        real*8 :: plus_left_x,plus_left_y,plus_right_x,plus_right_y
        real*8 :: minus_left_x,minus_left_y,minus_right_x,minus_right_y
        real*8 :: mark_left_x,mark_left_y,mark_right_x,mark_right_y
        real*8 :: allowance_model,mark_inset_model,mark_half_size
-       logical :: valid_offsets,valid_marks
+       logical :: valid_offsets,valid_marks,valid_left_layout
+       logical :: valid_right_layout
 
-       seam_left_x=panel_offset_x+left_u
-       seam_left_y=panel_offset_y-left_v
-       seam_right_x=panel_offset_x+right_u
-       seam_right_y=panel_offset_y-right_v
+       call panel_layout%map_point(left_u,left_v,seam_left_x,seam_left_y,
+     + valid_left_layout)
+       call panel_layout%map_point(right_u,right_v,seam_right_x,
+     + seam_right_y,valid_right_layout)
+       if (.not.valid_left_layout.or..not.valid_right_layout) return
        allowance_model=0.1d0*max(0.0d0,allowance_mm)
        mark_inset_model=0.1d0*max(0.0d0,mark_inset_mm)
        mark_half_size=0.15d0
