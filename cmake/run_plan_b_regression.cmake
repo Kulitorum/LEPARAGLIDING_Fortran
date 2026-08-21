@@ -4,6 +4,8 @@ foreach(required_variable PROGRAM CASE_DIR WORK_DIR)
   endif()
 endforeach()
 
+include("${CMAKE_CURRENT_LIST_DIR}/check_dxf_semantics.cmake")
+
 if(NOT EXISTS "${PROGRAM}")
   message(FATAL_ERROR "LEparagliding executable does not exist: ${PROGRAM}")
 endif()
@@ -73,6 +75,13 @@ foreach(index RANGE 0 ${last_output_index} 2)
 
   if(NOT EXISTS "${output_path}")
     message(FATAL_ERROR "Expected output was not created: ${output_name}")
+  endif()
+
+  if(output_name STREQUAL "leparagliding.dxf")
+    leparagliding_assert_dxf_semantics(
+        "plan-b-leparagliding" "${output_path}")
+  elseif(output_name STREQUAL "lep-3d.dxf")
+    leparagliding_assert_dxf_semantics("plan-b-lep-3d" "${output_path}")
   endif()
 
   file(READ "${output_path}" output_text)

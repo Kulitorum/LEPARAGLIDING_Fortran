@@ -1,0 +1,50 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gnu-fortran:
+    name: GNU Fortran (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: release
+            build_type: Release
+            warnings: "OFF"
+            runtime_checks: "OFF"
+          - name: checked
+            build_type: Debug
+            warnings: "ON"
+            runtime_checks: "ON"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install GNU Fortran toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gfortran ninja-build python3
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DLEPARAGLIDING_ENABLE_WARNINGS=${{ matrix.warnings }}
+          -DLEPARAGLIDING_RUNTIME_CHECKS=${{ matrix.runtime_checks }}
+
+      # A sequential build avoids competing Fortran-module rename operations
+      # in toolchains whose module dependency scanner is incomplete.
+      - name: Build
+        run: cmake --build build -- -j1
+
+      - name: Run unit, semantic-DXF, and full-output regressions
+        run: ctest --test-dir build --output-on-failure

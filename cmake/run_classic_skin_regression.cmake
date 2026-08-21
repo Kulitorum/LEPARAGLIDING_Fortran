@@ -4,6 +4,8 @@ foreach(required_variable PROGRAM CASE_DIR WORK_DIR)
   endif()
 endforeach()
 
+include("${CMAKE_CURRENT_LIST_DIR}/check_dxf_semantics.cmake")
+
 if(NOT EXISTS "${PROGRAM}")
   message(FATAL_ERROR "LEparagliding executable does not exist: ${PROGRAM}")
 endif()
@@ -126,6 +128,19 @@ foreach(index RANGE 0 ${last_output_index} 2)
   if(NOT EXISTS "${output_path}")
     message(FATAL_ERROR
         "Expected classic skin-tension output was not created: ${output_name}")
+  endif()
+
+  if(DISABLE_SHAPING)
+    set(semantic_prefix "disabled-shaping")
+  else()
+    set(semantic_prefix "classic-skin")
+  endif()
+  if(output_name STREQUAL "leparagliding.dxf")
+    leparagliding_assert_dxf_semantics(
+        "${semantic_prefix}-leparagliding" "${output_path}")
+  elseif(output_name STREQUAL "lep-3d.dxf")
+    leparagliding_assert_dxf_semantics(
+        "${semantic_prefix}-lep-3d" "${output_path}")
   endif()
 
   file(READ "${output_path}" output_text)

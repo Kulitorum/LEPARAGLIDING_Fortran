@@ -92,8 +92,9 @@ The maintained structure now:
   surface lengths/widths authoritative after legacy agreement, including
   physical wingtip comparison edges derived from the final real panel;
 - normalizes the authored Section-31 piecewise-linear laws in
-  `leparagliding_skin_tension`, then makes their `k31d=1` lower-intrados
-  offsets authoritative for every real panel after exact legacy agreement;
+  `leparagliding_skin_tension`, then makes their `k31d=1` extrados offsets on
+  both sides and lower-intrados offsets authoritative for every real panel
+  after exact legacy agreement;
 - builds the corresponding sewing and cut contours with the pure
   `leparagliding_panel_shaping` compatibility kernel and publishes the agreeing
   typed geometry for lower-intrados regular panels and their separately modeled
@@ -141,14 +142,15 @@ later legacy algorithm supports arbitrary 500-point inputs.
 Row `nribss` remains a terminal boundary, not another panel, and is untouched
 by regular-panel write-back.
 
-The first Phase-4 production-shaping checkpoint follows the same authority
+The current Phase-4 production-shaping checkpoint follows the same authority
 rule. Section 31 positions are reversed from their trailing-edge-to-leading-edge
 input direction into increasing developed-contour percentages, validated over
 the complete 0--100 percent interval, and stored with their overwidth values in
-a named per-boundary law. For `k31d=1`, the typed evaluator owns lower-intrados
-offsets for panels `0:nribss-1`, including the final contour point, and the
-typed shaping result owns their slot-9 sewing and slot-11 cut coordinates.
-Both are published only after agreement with the retained legacy calculation.
+a named per-boundary, per-surface law. For `k31d=1`, the typed evaluator owns
+both extrados-side offsets and lower-intrados offsets for panels
+`0:nribss-1`, including each final contour point. The typed shaping result owns
+the lower-intrados slot-9 sewing and slot-11 cut coordinates. All are published
+only after agreement with the retained legacy calculation.
 Historical inclusive interval overlap, last-matching-interval selection,
 default-REAL promotion, normal direction, incoming-segment endpoint bias, and
 millimetre allowance conversion are preserved deliberately. The `k31d=1`
@@ -165,8 +167,8 @@ edge. Its slot-11 cut edge receives the same point displacement so the
 established allowance vectors remain attached. The historical extrapolated
 intake join immediately before the intrados range is represented independently,
 dual-compared, and publishes its slot-9/11 pair transactionally. Regular-row
-reformats, five-pass distortion correction, and remaining surfaces/sides are
-later Phase-4 boundaries.
+reformats, five-pass distortion correction, and remaining shaping
+surfaces/sides are later Phase-4 boundaries.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -183,7 +185,12 @@ Requirements:
 - a build tool supported by CMake
 
 Python 3 is optional. When available, CMake enables the DXF color-import and
-semantic-DXF regression tests in addition to the Fortran tests.
+semantic-DXF regression tests in addition to the Fortran tests. Full-output
+fixtures now compare generated drawings twice: normalized hashes freeze exact
+reviewed output, while compact semantic snapshots independently verify every
+entity type, layer, CAD color, group-code topology, polyline vertex, and
+coordinate. GitHub Actions runs the complete suite in separate GNU Fortran
+release and checked configurations on every push and pull request.
 
 GNU/Linux:
 
