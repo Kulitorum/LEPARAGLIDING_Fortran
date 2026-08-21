@@ -26,6 +26,9 @@ program test_domain_model
   type(profile_topology) :: profile_topologies(0:2)
   type(spatial_rib_geometry_3d) :: spatial_rib, zero_based_spatial_rib
   type(production_panel_edges_2d) :: panel
+  type(production_panel_sewing_edges_2d) :: sewing_edges
+  type(production_panel_sewing_edges_2d) :: invalid_sewing_edges
+  type(panel_side_metrics) :: side_metrics, saved_side_metrics
   type(production_panel_2d) :: complete_panel
   type(production_boundary_edge_2d) :: production_boundary
   type(production_boundary_edge_2d) :: invalid_production_boundary
@@ -41,6 +44,7 @@ program test_domain_model
   character(len=120) :: message
   logical :: valid, panel_zero_active, parity_consistent, gap_valid
   real(real64) :: gap, sheet_u, sheet_v
+  real(real64) :: legacy_lower_length, legacy_higher_length
   integer :: i, j, k
 
   legacy_u = 0.0_real64
@@ -163,6 +167,69 @@ program test_domain_model
       'higher sewing edge coordinate')
   call require_close(panel%lower_cut_u(1), -0.1_real64, &
       'lower cut edge coordinate')
+
+  ! Both measurements deliberately use the three-point common prefix.  The
+  ! lower edge's fourth point must not leak into its result.
+  ! Limit the source view to slots 1:10: cut slots are physically unavailable,
+  ! yet this sewing-only adapter and measurement must remain valid.
+  call copy_legacy_production_panel_sewing_edges(legacy_u(:, :, 1:10), &
+      legacy_v(:, :, 1:10), 1, 4, 3, sewing_edges, valid, message)
+  call require(valid, 'valid sewing-only panel rejected: '//trim(message))
+  call require(sewing_edges%is_valid(), 'copied sewing edges are invalid')
+  call measure_panel_side_metrics(sewing_edges, 3, side_metrics, valid, message)
+  call require(valid, 'valid panel-side measurement rejected: '//trim(message))
+  call require(side_metrics%is_valid(), 'panel-side metrics are invalid')
+  call require(side_metrics%panel_index == 1, 'panel-side metric ownership')
+  call require(side_metrics%common_point_count == 3, &
+      'panel-side common point count')
+  call require_close(side_metrics%lower_sewing_length, &
+      2.0_real64*sqrt(5.0_real64), 'lower common-prefix sewing length')
+  call require_close(side_metrics%higher_sewing_length, &
+      2.0_real64*sqrt(20.0_real64), 'higher common-prefix sewing length')
+  legacy_lower_length = 0.0d0
+  legacy_higher_length = 0.0d0
+  do j = 1, 2
+    legacy_lower_length = legacy_lower_length + &
+        dsqrt((legacy_u(1, j + 1, 9) - legacy_u(1, j, 9))**2. + &
+        (legacy_v(1, j + 1, 9) - legacy_v(1, j, 9))**2.)
+    legacy_higher_length = legacy_higher_length + &
+        dsqrt((legacy_u(1, j + 1, 10) - legacy_u(1, j, 10))**2. + &
+        (legacy_v(1, j + 1, 10) - legacy_v(1, j, 10))**2.)
+  end do
+  call require(side_metrics%lower_sewing_length == legacy_lower_length, &
+      'lower sewing length changed the legacy expression result')
+  call require(side_metrics%higher_sewing_length == legacy_higher_length, &
+      'higher sewing length changed the legacy expression result')
+
+  ! An overlong prefix and an invalid panel both leave the prior result intact.
+  saved_side_metrics = side_metrics
+  call measure_panel_side_metrics(sewing_edges, 4, side_metrics, valid, message)
+  call require(.not. valid, 'mismatched panel-side prefix was accepted')
+  call require(len_trim(message) > 0, &
+      'invalid panel-side prefix has no diagnostic')
+  call require(side_metrics%panel_index == saved_side_metrics%panel_index, &
+      'invalid prefix changed panel-side ownership')
+  call require(side_metrics%common_point_count == &
+      saved_side_metrics%common_point_count, &
+      'invalid prefix changed panel-side point count')
+  call require_close(side_metrics%lower_sewing_length, &
+      saved_side_metrics%lower_sewing_length, &
+      'invalid prefix changed lower sewing length')
+  call require_close(side_metrics%higher_sewing_length, &
+      saved_side_metrics%higher_sewing_length, &
+      'invalid prefix changed higher sewing length')
+  invalid_sewing_edges = sewing_edges
+  invalid_sewing_edges%higher_v(2) = &
+      ieee_value(0.0_real64, ieee_quiet_nan)
+  call measure_panel_side_metrics(invalid_sewing_edges, 3, side_metrics, valid, &
+      message)
+  call require(.not. valid, 'invalid production edges were measured')
+  call require_close(side_metrics%lower_sewing_length, &
+      saved_side_metrics%lower_sewing_length, &
+      'invalid panel changed lower sewing length')
+  call require_close(side_metrics%higher_sewing_length, &
+      saved_side_metrics%higher_sewing_length, &
+      'invalid panel changed higher sewing length')
 
   ! The composite adapter exposes exactly one integration object per panel.
   legacy_u(1, 2, legacy_normalized_profile_fraction_slot) = 0.5_real64

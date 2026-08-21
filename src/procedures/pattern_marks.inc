@@ -342,7 +342,13 @@ c      Computes length at left and right of the partial rectagular
 c      panel i formed by npo points
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-!> Calculate the developed lengths of a panel's left and right sides.
+!> Publish the developed lengths of a panel's lower- and higher-rib sides.
+!!
+!! This compatibility adapter is the legacy coordinate-array boundary.  It
+!! first gives sewing slots 9/10 their typed production-edge ownership, then
+!! delegates all arithmetic to `measure_panel_side_metrics`.  The pure typed
+!! consumer measures the same explicit `npo` prefix on both sides and preserves
+!! the historical DSQRT expression and accumulation order exactly.
 !! @param[in] i Panel index in the coordinate arrays.
 !! @param[in] i12 Surface/category index used in the result arrays.
 !! @param[in] i22 Panel-variant index used in the result arrays.
@@ -355,17 +361,29 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        real*8 ufr(0:100,500,50),vfr(0:100,500,50)
        real*8 llarl(0:100,3,100),llarr(0:100,3,100)
-       integer i,j,i12,i22,npo
+       integer i,i12,i22,npo
+       type(production_panel_sewing_edges_2d) :: panel_edges
+       type(panel_side_metrics) :: side_metrics
+       logical valid
+       character(len=256) message
 
-c      Set panel side lengths 
-       llarl(i,i12,i22)=0.0d0
-       llarr(i,i12,i22)=0.0d0      
-       do j=1,npo-1
-       llarl(i,i12,i22)=llarl(i,i12,i22)+dsqrt((ufr(i,j+1,9)-
-     + ufr(i,j,9))**2.+(vfr(i,j+1,9)-vfr(i,j,9))**2.)
-       llarr(i,i12,i22)=llarr(i,i12,i22)+dsqrt((ufr(i,j+1,10)-
-     + ufr(i,j,10))**2.+(vfr(i,j+1,10)-vfr(i,j,10))**2.)
-       end do
+c      Name the legacy production edges before measuring their common prefix.
+       call copy_legacy_production_panel_sewing_edges(ufr,vfr,i,npo,npo,
+     + panel_edges,valid,message)
+       if (.not.valid) then
+       write (*,*) 'ERROR: llarlr edge adapter: ',trim(message)
+       stop 1
+       endif
+       call measure_panel_side_metrics(panel_edges,npo,side_metrics,
+     + valid,message)
+       if (.not.valid) then
+       write (*,*) 'ERROR: llarlr measurement: ',trim(message)
+       stop 1
+       endif
+
+c      Preserve the historical result-array interface for its callers.
+       llarl(i,i12,i22)=side_metrics%lower_sewing_length
+       llarr(i,i12,i22)=side_metrics%higher_sewing_length
 
 c       write (*,*) i,i12,i22,npo,llarl(i,i12,i22),llarr(i,i12,i22)
 

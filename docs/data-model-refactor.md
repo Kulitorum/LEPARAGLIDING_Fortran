@@ -10,8 +10,15 @@ the end of this document.
 
 Evidence baseline: original-3.28 compatibility, exact and semantic 3.29 output
 oracles, typed adapter/color/topology, authoritative spatial and neutral wings,
-regular-panel shaping/reformat/distortion, physical-terminal intrados, anchors,
-and first structural-surface/segment checkpoints
+regular-panel shaping/reformat/distortion, typed side metrics,
+physical-terminal intrados, anchors, structural-surface/segment checkpoints,
+and six retired procedure includes
+
+Pause checkpoint (2026-08-21): the combined warnings/runtime-check build and
+all 23 registered tests pass after the side-metric, type-3 structural, and DXF
+module migrations. Their focused semantic fixture batches also pass. The final
+combined optimized Release rerun was deliberately interrupted for the requested
+workstation reboot and is the first validation step to resume.
 
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
@@ -238,7 +245,7 @@ existing calculation as a comparison oracle:
   coordinates must agree before the production adapter writes only row
   `nribss` slots 9/11. It cannot represent or write terminal slots 10/12.
 
-The unit suite now contains 22 registered tests, including focused
+The unit suite now contains 23 registered tests, including focused
 `skin_tension` normalization/evaluation coverage and `panel_shaping` coverage
 for all quadrants, axis-aligned segments, endpoint bias, allowance conversion,
 validation, and transactional failure. Full Plan B and even-cell regressions
@@ -293,9 +300,10 @@ loops do not expose that row in the reviewed output hashes.
 - Classic intrados shaping and both regular extrados `ndif=1000` sides now use
   checked typed boundaries. The final real higher edge is owned; the outward
   scratch row is not, because Stage 7 never constructs it.
-- Four executable procedure includes have been deleted in favor of documented
-  free-form transformation, cleanup, polyline-interpolation, and 2D-geometry
-  modules with explicit interfaces and focused tests.
+- Six executable procedure includes have been deleted in favor of documented
+  free-form DXF-output, profile-data, transformation, cleanup,
+  polyline-interpolation, and 2D-geometry modules with explicit interfaces and
+  focused tests.
 
 ## Terminology used in this plan
 
@@ -397,8 +405,8 @@ panel measurements, and scratch accumulators.
 | 8 | `washin_angle_deg` | degrees | copied or derived from wash-in mode | Converted to radians before rib-local rotation (`src/main/06_airfoil_geometry.inc:136-155`). |
 | 9 | `rib_plane_angle_deg` | degrees | section 1 input | Used for the next spatial rotation (`src/main/06_airfoil_geometry.inc:173-178`). Legacy comments call it `beta`. |
 | 10 | `washin_pivot_percent` | percent chord | section 1 input | Divided by 100 and multiplied by chord for the rotation pivot (`src/main/06_airfoil_geometry.inc:152-156`). A zero input is changed to `0.01` (`src/main/04_data_reading.inc:82-85`). |
-| 11 | `intake_start_percent` | percent chord, signed convention | section 2 input | Used by profile reformatting to insert the intake boundary (`src/procedures/profile_data.inc:64-101`). |
-| 12 | `intake_end_percent` | percent chord | section 2 input | Used by profile reformatting for the other intake boundary (`src/procedures/profile_data.inc:120-166`). |
+| 11 | `intake_start_percent` | percent chord, signed convention | section 2 input | Used by profile reformatting to insert the intake boundary (`src/leparagliding_profile_data.f90:76-145`). |
+| 12 | `intake_end_percent` | percent chord | section 2 input | Used by profile reformatting for the other intake boundary (`src/leparagliding_profile_data.f90:147-181`). |
 | 14 | `cell_open_flag` | integer-like flag stored as real | section 2 input | Both adjacent ribs are tested to decide whether a cell is closed (`src/main/07_panel_development.inc:179-183`). |
 | 15 | `anchor_count` | integer-like count stored as real | section 3 input | Controls A--F iteration (`src/main/06_airfoil_geometry.inc:275-311`). |
 | 16:21 | `anchor_percent(1:6)` | percent chord | section 3 input | Converted to chord lengths and interpolated on profiles (`src/main/04_data_reading.inc:2476-2487`; `src/main/09_singular_rib_points.inc:14-43`). |
@@ -453,10 +461,10 @@ confirmed meaning; 7:9 have no literal executable references in the inspected
 
 | Column | Proposed name | Meaning and evidence |
 |---:|---|---|
-| 1 | `point_count` | Total contour points, read from `.txt` profiles (`src/main/06_airfoil_geometry.inc:28-39`) or produced by `.dat` reformatting (`src/procedures/profile_data.inc:54-58`, `163-166`). |
+| 1 | `point_count` | Total contour points, read from `.txt` profiles (`src/main/06_airfoil_geometry.inc:28-39`) or produced by `.dat` reformatting (`src/leparagliding_profile_data.f90:190-240`). |
 | 2 | `extrados_end_index` | Last extrados point and first intake point. Stage 7 uses extrados segments `1:np(2)-1` (`src/main/07_panel_development.inc:300-308`). |
 | 3 | `intake_point_count` | Number of intake points. The last intake point is `np(2)+np(3)-1` (`src/main/06_airfoil_geometry.inc:30-35`). |
-| 4 | `intrados_point_count` | Read/reformatted lower-surface count (`src/main/06_airfoil_geometry.inc:30-33`; `src/procedures/profile_data.inc:163-166`). It is mostly redundant once explicit index ranges exist. |
+| 4 | `intrados_point_count` | Read/reformatted lower-surface count (`src/main/06_airfoil_geometry.inc:30-33`; `src/leparagliding_profile_data.f90:236-240`). It is mostly redundant once explicit index ranges exist. |
 | 5 | `intake_end_index` | Derived as column 2 + column 3 - 1 (`src/main/06_airfoil_geometry.inc:35`). |
 | 6 | `leading_edge_index` | Index nearest `(0,0)` in the original normalized contour (`src/main/06_airfoil_geometry.inc:55-67`). |
 
@@ -487,7 +495,7 @@ arrays form a point.
 
 | Slot | Proposed typed value | Domain/unit | Producer and evidence |
 |---:|---|---|---|
-| 1 | `normalized_profile_fraction` | rib-local 2D, fraction of chord | Profile input writes U/V (`src/main/06_airfoil_geometry.inc:37-41`); `.dat` handling may insert intake points (`src/procedures/profile_data.inc:54-58`, `163-166`). |
+| 1 | `normalized_profile_fraction` | rib-local 2D, fraction of chord | Profile input writes U/V (`src/main/06_airfoil_geometry.inc:37-41`); `.dat` handling may insert intake points (`src/leparagliding_profile_data.f90:190-240`). |
 | 2 | `normalized_profile_percent` | rib-local 2D, percent chord | Stage 6 multiplies slot 1 by 100 (`src/main/06_airfoil_geometry.inc:142-146`). This is the profile domain used by the color mapper (`src/main/15_colors.inc:20-24`). |
 | 3 | `scaled_profile_2d` | rib-local 2D, working length | U/V are multiplied by chord and V is temporarily displaced (`src/main/06_airfoil_geometry.inc:148-150`). This is also the source rib pattern used in stage 11 (`src/main/11_panel_lengths.inc:41-42`, `55-56`). |
 | 4 | `washin_rotated_profile_3d_components` | intermediate local 3D, working length | Wash-in and Z rotation write U/V/W (`src/main/06_airfoil_geometry.inc:152-166`). |
@@ -628,9 +636,9 @@ workspace.
 Legacy procedure signatures expose the storage layout instead of the domain:
 
 - `datair(i,rib,np,u,v)` receives the full rib matrix, count matrix, and all 99
-  profile slots merely to load one profile (`src/procedures/profile_data.inc:1-17`).
+  profile slots merely to load one profile (`src/leparagliding_profile_data.f90:32-38`).
 - `xyzt(i,j,u,v,w,rib,np,u_aux,v_aux,w_aux)` receives full arrays although the
-  calculation uses one rib and point (`src/procedures/profile_data.inc:320-370`).
+  calculation uses one rib and point (`src/leparagliding_profile_data.f90:348-391`).
 - `panels3d` receives mutable full `rib/np/u/v/w` stores and documents several
   slots in prose (`src/procedures/geometry_3d.inc:1-30`).
 - `tessella` likewise receives every slot and returns a four-dimensional array
@@ -895,8 +903,11 @@ it contains no raw coordinate-slot references. Stage-8 extrados, intake, and
 intrados length/width calculations dual-run through exact typed neutral
 geometry, then assign the agreeing typed values as authoritative.
 Lower-intrados `k31d=1` offsets and slots 9/11 now pass through a typed Phase-4
-authority boundary; remaining panel drawing, mark routines, surfaces, sides,
-and special shaping paths still use legacy storage.
+authority boundary. The `llarlr` read-only mark consumer now adapts only sewing
+slots 9/10 into `production_panel_sewing_edges_2d`, then delegates exact-order
+common-prefix measurement to pure `panel_side_metrics`; unavailable cut slots
+cannot affect it. Remaining panel drawing, mark routines, surfaces, sides, and
+special shaping paths still use legacy storage.
 
 1. Change color construction to accept a typed normalized-profile pair and
    `production_panel_2d` rather than full `np/u/v` arrays.
@@ -1041,7 +1052,9 @@ slot 19 for all physical rows only after bit-exact agreement. Tip support stays
 excluded because Stage 9 never defines its local anchor point. Stage 16's
 type-6 3D output now copies each historical endpoint pair transactionally,
 exact-checks all six components, and draws an owned `structural_segment_3d`
-including its mirrored view. Remaining intake singular points, line/brake
+including its mirrored view. The complete optional two-side type-3 block now
+uses the same owned boundary for both endpoint families, retaining side colors,
+order, and mirrored output. Remaining intake singular points, line/brake
 mutation, and Stage-16 feature families still use compatibility storage.
 
 1. Replace slots 47:55 and 69:72 with `spatial_panel_surface` and local-frame
@@ -1058,13 +1071,13 @@ the raw `rib/np/u/v/w/pl*/pr*/uf*` stores.
 
 ### Phase 7 — Remove compatibility storage and includes
 
-Implementation status: incremental include retirement is active. Local/global
-2D transformations, generated-file cleanup, arc-length interpolation, profile
-input/auxiliary transforms, and the six-routine 2D geometry group now live in
-documented free-form modules with explicit interfaces and focused tests. Their
-old executable includes have been deleted; the procedure facade temporarily
-re-exports compatibility entry points. The numbered main includes and larger
-procedure groups remain.
+Implementation status: incremental include retirement is active. Low-level DXF
+serialization, local/global 2D transformations, generated-file cleanup,
+arc-length interpolation, profile input/auxiliary transforms, and the
+six-routine 2D geometry group now live in documented free-form modules with
+explicit interfaces and focused tests. Their old executable includes have been
+deleted; the procedure facade temporarily re-exports compatibility entry
+points. The numbered main includes and larger procedure groups remain.
 
 1. Replace `declarations.inc` with an owning `wing_model` plus run/output
    configuration.

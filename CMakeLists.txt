@@ -31,7 +31,6 @@ set(LEPARAGLIDING_MAIN_FRAGMENTS
     src/main/23_finish.inc)
 
 set(LEPARAGLIDING_PROCEDURE_FRAGMENTS
-    src/procedures/dxf_output.inc
     src/procedures/color_construction.inc
     src/procedures/panel_edges.inc
     src/procedures/junctions.inc
@@ -48,6 +47,7 @@ set_source_files_properties(
 add_executable(leparagliding
     src/leparagliding_hvr_config.f90
     src/leparagliding_mark_types.f90
+    src/leparagliding_dxf_output.f90
     src/leparagliding_geometry.f90
     src/leparagliding_geometry_2d.f90
     src/leparagliding_domain_model.f90
@@ -216,6 +216,28 @@ if(BUILD_TESTING)
 
   add_test(NAME file_cleanup COMMAND test_file_cleanup)
 
+  add_executable(test_dxf_output
+      tests/test_dxf_output.f90
+      src/leparagliding_mark_types.f90
+      src/leparagliding_dxf_output.f90)
+
+  set_target_properties(test_dxf_output PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-dxf-output-modules")
+  target_include_directories(test_dxf_output PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-dxf-output-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_dxf_output PRIVATE
+        -std=legacy -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_dxf_output PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME dxf_output COMMAND test_dxf_output)
+
   add_executable(test_geometry_2d
       tests/test_geometry_2d.f90
       src/leparagliding_geometry_2d.f90)
@@ -350,6 +372,7 @@ if(BUILD_TESTING)
       tests/test_profile_data.f90
       src/leparagliding_hvr_config.f90
       src/leparagliding_mark_types.f90
+      src/leparagliding_dxf_output.f90
       src/leparagliding_geometry.f90
       src/leparagliding_domain_model.f90
       src/leparagliding_color_geometry.f90

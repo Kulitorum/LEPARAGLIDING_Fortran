@@ -141,6 +141,25 @@ module leparagliding_domain_model
     procedure :: is_valid => spatial_rib_is_valid
   end type spatial_rib_geometry_3d
 
+  !> Lower- and higher-rib sewing edges of one flattened production panel.
+  !!
+  !! This focused view intentionally owns no cut contours.  It supports legacy
+  !! consumers such as side-length measurement whose contract includes only
+  !! sewing slots 9/10; unavailable or invalid cut data must not affect them.
+  !! Both U/V pairs are one-based, finite, and contain at least two points.
+  !! The two sides may have different extents.
+  type, public :: production_panel_sewing_edges_2d
+    integer :: panel_index = -1
+    integer :: lower_rib_index = -1
+    integer :: higher_rib_index = -1
+    real(real64), allocatable :: lower_u(:)
+    real(real64), allocatable :: lower_v(:)
+    real(real64), allocatable :: higher_u(:)
+    real(real64), allocatable :: higher_v(:)
+  contains
+    procedure :: is_valid => production_panel_sewing_edges_is_valid
+  end type production_panel_sewing_edges_2d
+
   !> Tensioned lower- and higher-rib edges of one production panel.
   !!
   !! Coordinates use LEP model units and have no drawing-sheet translation.
@@ -164,6 +183,23 @@ module leparagliding_domain_model
   contains
     procedure :: is_valid => production_panel_edges_is_valid
   end type production_panel_edges_2d
+
+  !> Exact sewing-edge measurements for one flattened production panel.
+  !!
+  !! `common_point_count` records the explicit common prefix measured on both
+  !! edges.  This matters when adjacent profiles have different
+  !! discretizations: neither edge may silently choose the other's extent.
+  !! The lower/higher names preserve the rib ownership expressed by
+  !! `production_panel_sewing_edges_2d`; they correspond to the historical
+  !! left/right results published by `llarlr`.
+  type, public :: panel_side_metrics
+    integer :: panel_index = -1
+    integer :: common_point_count = 0
+    real(real64) :: lower_sewing_length = 0.0_real64
+    real(real64) :: higher_sewing_length = 0.0_real64
+  contains
+    procedure :: is_valid => panel_side_metrics_is_valid
+  end type panel_side_metrics
 
   !> Tensioned production edge at one physical terminal rib.
   !!
@@ -297,8 +333,10 @@ module leparagliding_domain_model
   public :: copy_legacy_normalized_profile
   public :: copy_legacy_profile_topology
   public :: copy_legacy_spatial_rib
+  public :: copy_legacy_production_panel_sewing_edges
   public :: copy_legacy_production_panel_edges
   public :: copy_legacy_production_panel
+  public :: measure_panel_side_metrics
   public :: infer_legacy_rib_identities
   public :: topologies_are_index_compatible
   public :: extrados_topologies_are_index_compatible
@@ -536,6 +574,33 @@ contains
     valid = .true.
   end function spatial_rib_is_valid
 
+  !> Test whether a focused pair of production sewing edges is valid.
+  pure logical function production_panel_sewing_edges_is_valid(edges) &
+      result(valid)
+    class(production_panel_sewing_edges_2d), intent(in) :: edges
+
+    valid = .false.
+    if (edges%panel_index < 0) return
+    if (edges%lower_rib_index /= edges%panel_index) return
+    if (edges%higher_rib_index /= edges%panel_index + 1) return
+    if (.not. allocated(edges%lower_u)) return
+    if (.not. allocated(edges%lower_v)) return
+    if (.not. allocated(edges%higher_u)) return
+    if (.not. allocated(edges%higher_v)) return
+    if (size(edges%lower_u) < 2 .or. size(edges%higher_u) < 2) return
+    if (lbound(edges%lower_u, 1) /= 1) return
+    if (lbound(edges%lower_v, 1) /= 1) return
+    if (lbound(edges%higher_u, 1) /= 1) return
+    if (lbound(edges%higher_v, 1) /= 1) return
+    if (size(edges%lower_v) /= size(edges%lower_u)) return
+    if (size(edges%higher_v) /= size(edges%higher_u)) return
+    if (.not. all(ieee_is_finite(edges%lower_u))) return
+    if (.not. all(ieee_is_finite(edges%lower_v))) return
+    if (.not. all(ieee_is_finite(edges%higher_u))) return
+    if (.not. all(ieee_is_finite(edges%higher_v))) return
+    valid = .true.
+  end function production_panel_sewing_edges_is_valid
+
   !> Test whether developed panel edges satisfy all documented invariants.
   pure logical function production_panel_edges_is_valid(panel) result(valid)
     class(production_panel_edges_2d), intent(in) :: panel
@@ -570,6 +635,82 @@ contains
     if (.not. all(ieee_is_finite(panel%higher_cut_v))) return
     valid = .true.
   end function production_panel_edges_is_valid
+
+  !> Test whether panel-side measurements satisfy their ownership invariants.
+  pure logical function panel_side_metrics_is_valid(metrics) result(valid)
+    class(panel_side_metrics), intent(in) :: metrics
+
+    valid = .false.
+    if (metrics%panel_index < 0) return
+    if (metrics%common_point_count < 2) return
+    if (.not. ieee_is_finite(metrics%lower_sewing_length)) return
+    if (.not. ieee_is_finite(metrics%higher_sewing_length)) return
+    if (metrics%lower_sewing_length < 0.0_real64) return
+    if (metrics%higher_sewing_length < 0.0_real64) return
+    valid = .true.
+  end function panel_side_metrics_is_valid
+
+  !> Measure both sewing edges over an explicitly selected common prefix.
+  !!
+  !! The arithmetic deliberately retains `llarlr`'s DSQRT calls, default-REAL
+  !! exponents, operand order, and one-segment-at-a-time accumulation.  These
+  !! details keep valid legacy inputs bit-for-bit compatible while replacing
+  !! numeric coordinate slots with named edge ownership.  The destination is
+  !! transactional and remains unchanged when the edges or prefix are invalid.
+  !!
+  !! @param[in] edges Named flattened production sewing edges.
+  !! @param[in] common_point_count Number of leading points measured per edge.
+  !! @param[inout] metrics Typed result; unchanged on failure.
+  !! @param[out] valid True only when both edge lengths were measured.
+  !! @param[out] message Empty on success; diagnostic text on failure.
+  pure subroutine measure_panel_side_metrics(edges, common_point_count, &
+      metrics, valid, message)
+    type(production_panel_sewing_edges_2d), intent(in) :: edges
+    integer, intent(in) :: common_point_count
+    type(panel_side_metrics), intent(inout) :: metrics
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(panel_side_metrics) :: candidate
+    integer :: point_index
+
+    valid = .false.
+    message = ''
+    if (.not. edges%is_valid()) then
+      message = 'panel-side measurement received invalid sewing edges'
+      return
+    end if
+    if (common_point_count < 2 .or. &
+        common_point_count > size(edges%lower_u) .or. &
+        common_point_count > size(edges%higher_u)) then
+      message = 'panel-side common point count is outside the sewing edges'
+      return
+    end if
+
+    candidate%panel_index = edges%panel_index
+    candidate%common_point_count = common_point_count
+    candidate%lower_sewing_length = 0.0d0
+    candidate%higher_sewing_length = 0.0d0
+    do point_index = 1, common_point_count - 1
+      candidate%lower_sewing_length = candidate%lower_sewing_length + &
+          dsqrt((edges%lower_u(point_index + 1) - &
+          edges%lower_u(point_index))**2. + &
+          (edges%lower_v(point_index + 1) - &
+          edges%lower_v(point_index))**2.)
+      candidate%higher_sewing_length = candidate%higher_sewing_length + &
+          dsqrt((edges%higher_u(point_index + 1) - &
+          edges%higher_u(point_index))**2. + &
+          (edges%higher_v(point_index + 1) - &
+          edges%higher_v(point_index))**2.)
+    end do
+    if (.not. candidate%is_valid()) then
+      message = 'panel-side measurement produced invalid metrics'
+      return
+    end if
+
+    metrics = candidate
+    valid = .true.
+  end subroutine measure_panel_side_metrics
 
   !> Test whether one physical terminal production edge is self-consistent.
   pure logical function production_boundary_edge_is_valid(edge) result(valid)
@@ -1265,6 +1406,74 @@ contains
     geometry = candidate
     valid = .true.
   end subroutine copy_legacy_spatial_rib
+
+  !> Copy one panel's sewing edges from legacy slots 9/10.
+  !!
+  !! Unlike the complete production-edge adapter, this boundary neither reads
+  !! nor validates cut slots 11/12.  Each destination array owns its data.  On
+  !! validation failure `edges` remains unchanged.
+  !!
+  !! @param[in] legacy_u,legacy_v Historical coordinate arrays.
+  !! @param[in] panel_index Zero-based panel/lower-rib index.
+  !! @param[in] lower_point_count Number of lower-index points to copy.
+  !! @param[in] higher_point_count Number of higher-index points to copy.
+  !! @param[inout] edges Typed destination; unchanged on failure.
+  !! @param[out] valid True only when both sewing edges were copied.
+  !! @param[out] message Empty on success; diagnostic text on failure.
+  subroutine copy_legacy_production_panel_sewing_edges(legacy_u, legacy_v, &
+      panel_index, lower_point_count, higher_point_count, edges, valid, message)
+    real(real64), intent(in) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    integer, intent(in) :: panel_index, lower_point_count, higher_point_count
+    type(production_panel_sewing_edges_2d), intent(inout) :: edges
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(production_panel_sewing_edges_2d) :: candidate
+
+    valid = .false.
+    message = ''
+    if (.not. legacy_shapes_match(legacy_u, legacy_v)) then
+      message = 'legacy U/V array shapes differ'
+      return
+    end if
+    if (panel_index < 0 .or. panel_index > ubound(legacy_u, 1)) then
+      message = 'panel index is outside the legacy sewing-edge array'
+      return
+    end if
+    if (lower_point_count < 2 .or. &
+        lower_point_count > size(legacy_u, 2)) then
+      message = 'lower sewing-edge point count is outside the legacy array'
+      return
+    end if
+    if (higher_point_count < 2 .or. &
+        higher_point_count > size(legacy_u, 2)) then
+      message = 'higher sewing-edge point count is outside the legacy array'
+      return
+    end if
+    if (legacy_production_higher_sewing_slot > size(legacy_u, 3)) then
+      message = 'legacy array has no complete production sewing-edge slots'
+      return
+    end if
+
+    candidate%panel_index = panel_index
+    candidate%lower_rib_index = panel_index
+    candidate%higher_rib_index = panel_index + 1
+    candidate%lower_u = legacy_u(panel_index, 1:lower_point_count, &
+        legacy_production_lower_sewing_slot)
+    candidate%lower_v = legacy_v(panel_index, 1:lower_point_count, &
+        legacy_production_lower_sewing_slot)
+    candidate%higher_u = legacy_u(panel_index, 1:higher_point_count, &
+        legacy_production_higher_sewing_slot)
+    candidate%higher_v = legacy_v(panel_index, 1:higher_point_count, &
+        legacy_production_higher_sewing_slot)
+    if (.not. candidate%is_valid()) then
+      message = 'developed panel contains invalid sewing coordinates'
+      return
+    end if
+
+    edges = candidate
+    valid = .true.
+  end subroutine copy_legacy_production_panel_sewing_edges
 
   !> Copy one flattened panel's production edges from legacy `u/v` slots.
   !!

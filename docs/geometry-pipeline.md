@@ -66,7 +66,7 @@ a chord percentage at ribs, then mapped onto developed `u/v` panel edges.
 | `12_lines.inc` | Expands suspension topology, makes agreeing A--E base spatial anchors typed-authoritative, then calculates line geometry through compatibility slots |
 | `14_brakes.inc` | Expands brake topology and distribution |
 | `15_colors.inc` | Builds one checked typed production-panel collection at the compatibility boundary, then adds internal color seams, allowances, and inset registration marks without exposing raw slots to the color consumer |
-| `16_internal_ribs.inc` | Builds H/V/VH parts, junctions, rods, holes, and reinforcements; type-6 3D output exact-checks and draws named structural segments rather than raw component endpoints |
+| `16_internal_ribs.inc` | Builds H/V/VH parts, junctions, rods, holes, and reinforcements; the complete type-3 two-side block and type-6 3D output exact-check and draw named structural segments rather than raw component endpoints |
 | `17_equilibrium.inc` | Optionally solves force/moment equilibrium |
 | `18_text_output.inc` | Writes the detailed design report |
 | `19_lines_output.inc` | Writes the line schedule |

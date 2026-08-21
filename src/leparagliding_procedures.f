@@ -14,6 +14,10 @@ c***********************************************************************
        use leparagliding_domain_model
        use leparagliding_color_geometry
        use leparagliding_mark_types
+       use leparagliding_dxf_output, only : pointg,point,poinc,poinl,
+     + circle,mtriangle,linevent,segment101,line,line_layer,line3d,
+     + line3dn,poly2d,ellipse,set_ellipse_segments,romano,txt,itxt,
+     + itxt2,dxfinit,dxfend
        use leparagliding_geometry_2d, only : vredis,xrxs,flatt,axisch,
      + angdis2,vrib_hole_ellipse
        use leparagliding_transformations, only : loc2glo2d
@@ -23,16 +27,10 @@ c***********************************************************************
        use leparagliding_profile_data, only : datair,remapcont,xyzt
 
        private :: typm1, typm2, typm3, typm4, typm5, typm6
-       private :: dxf_point_entity, dxf_circle_entity
-       private :: dxf_line3d_entity, dxf_text_header, dxf_text_footer
-       private :: utf8_to_dxf_text
        private :: joncs45, interpolate_surface_y
-
-       integer, private, save :: configured_ellipse_segments = 60
 
        contains
 
-       include 'procedures/dxf_output.inc'
        include 'procedures/color_construction.inc'
        include 'procedures/panel_edges.inc'
        include 'procedures/junctions.inc'

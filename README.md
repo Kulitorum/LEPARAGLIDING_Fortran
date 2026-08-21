@@ -114,14 +114,15 @@ The maintained structure now:
   `leparagliding_structural_geometry`; Section 21.9 exact-checks the complete
   adjacent surface before drawing intermediate and ovalized profiles from its
   typed neutral/inflated medians rather than slots 48/49;
-- has moved local/global transforms, generated-file cleanup, polyline
-  interpolation, and six legacy-compatible 2D geometry routines out of
-  executable includes and into documented free-form modules with focused
-  tests;
+- has moved low-level DXF output, profile input/auxiliary transforms,
+  local/global transforms, generated-file cleanup, polyline interpolation, and
+  six legacy-compatible 2D geometry routines out of executable includes and
+  into documented free-form modules with focused tests;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
-- keeps new module code in free-form Fortran with `implicit none` while the
-  legacy numerical sequence remains fixed-form.
+- keeps newly authored domain algorithms in free-form Fortran with
+  `implicit none`; mechanically migrated compatibility groups retain any
+  declaration/literal behavior needed for bit-exact output.
 
 The tracked `leparagliding3.28.f.zip` is immutable compatibility input: its
 archive and extracted-source hashes are verified before the original program is
@@ -264,46 +265,49 @@ Twenty-two isolated tests are registered (twenty do not require Python):
 5. `transformations` checks the explicit local-to-global 2D transform moved out
    of its former executable include.
 6. `file_cleanup` checks generated-file replacement and NaN cleanup behavior.
-7. `geometry_2d` freezes redistribution, line intersection, flattening, axis
+7. `dxf_output` checks layer/color record order, shared mark configuration,
+   configurable ellipses, UTF-8 escaping, and document framing.
+8. `geometry_2d` freezes redistribution, line intersection, flattening, axis
    copying, disabled angle helper behavior, and H/V-rib hole ellipses.
-8. `polyline_interpolation` checks arc-length interpolation, following-segment
+9. `polyline_interpolation` checks arc-length interpolation, following-segment
    ownership at a shared vertex, vertical and duplicate segments, and the
    compatibility wrapper.
-9. `neutral_development` checks the pure quadrilateral developer, exact source
+10. `neutral_development` checks the pure quadrilateral developer, exact source
    distances, start-biased joins, all three neutral surfaces, panel zero, and
    transactional failure.
-10. `skin_tension` checks Section-31 direction normalization, column selection,
+11. `skin_tension` checks Section-31 direction normalization, column selection,
    validation, inclusive interval overlap, last-match selection, endpoints,
    and transactional failure.
-11. `panel_shaping` checks lower/higher and classic-intrados normal conventions,
+12. `panel_shaping` checks lower/higher and classic-intrados normal conventions,
    horizontal and vertical compatibility cases, incoming-segment ownership,
    allowance conversion, and transactional failure.
-12. `panel_reformat` checks regular and terminal expand/shrink behavior,
+13. `panel_reformat` checks regular and terminal expand/shrink behavior,
    distinct indices, quadrant reconstruction, cut ownership, provenance,
    bit-exact gating, and transactional failure.
-13. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
-   and verifies the rebuilt contour's topology identities.
-14. `color_geometry` checks robust color-edge interpolation, repeated profile
+14. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries,
+   verifies the rebuilt contour's topology identities, and covers the complete
+   auxiliary-profile transform.
+15. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-15. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+16. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
    comparator (registered when Python 3 is available).
-16. `color_division_import` compares DXF import with a Swoop2-derived section-16
+17. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-17. `plan_b_regression` compares all five principal outputs with the reviewed
+18. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline and, when Python is available, builds/runs the immutable
    original 3.28 program for its compatibility oracle.
-18. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
+19. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
    design, checks its collapsed center and declared counts, rejects non-finite
    DXF geometry, and compares all five principal outputs.
-19. `classic_skin_regression` runs the realistic gnuA3 design through classic
+20. `classic_skin_regression` runs the realistic gnuA3 design through classic
    skin tension (`k31d=0`), rejects non-finite DXF geometry, checks its declared
    counts, and freezes all five principal outputs.
-20. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
+21. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
    checks the one-based no-cut group path under runtime bounds checking, and
    freezes all five principal outputs.
-21. `profile_capacity_guard` verifies that an oversized 501-point profile is
+22. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-22. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+23. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -333,6 +337,7 @@ src/
   leparagliding_anchor_geometry.f90  typed rib-anchor definitions and placement
   leparagliding_color_geometry.f90  color-edge interpolation and seam offsets
   leparagliding_domain_model.f90    typed wing domains and legacy adapters
+  leparagliding_dxf_output.f90      low-level DXF serialization and text escaping
   leparagliding_file_cleanup.f90    generated-file compatibility cleanup
   leparagliding_geometry_2d.f90     legacy-compatible focused 2D routines
   leparagliding_hvr_config.f90      typed sections 38/39 parser and lookup
@@ -364,7 +369,6 @@ Important procedure groups:
 
 | File | Responsibility |
 |---|---|
-| `dxf_output.inc` | DXF primitives, ellipses, UTF-8 text, start/end records |
 | `color_construction.inc` | internal color seams, allowances, and inset marks |
 | `panel_edges.inc` | panel boundaries, arcs, vents, panel variants |
 | `junctions.inc` | junction and longitudinal nylon-rod geometry |
@@ -373,10 +377,10 @@ Important procedure groups:
 | `pattern_marks.inc` | print, alignment, and Romano marks |
 | `geometry_utilities.inc` | distances, arcs, interpolation, tessellation |
 
-The former `profile_data.inc`, `geometry_2d.inc`, `interpolation.inc`,
-`file_cleanup.inc`, and `transformations.inc` groups are free-form modules
-listed in the source map; the procedure facade re-exports their compatibility
-entry points while legacy callers migrate.
+The former `dxf_output.inc`, `profile_data.inc`, `geometry_2d.inc`,
+`interpolation.inc`, `file_cleanup.inc`, and `transformations.inc` groups are
+free-form modules listed in the source map; the procedure facade re-exports
+their compatibility entry points while legacy callers migrate.
 
 ## Maintenance rules
 

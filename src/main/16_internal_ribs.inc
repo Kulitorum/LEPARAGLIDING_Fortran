@@ -2543,10 +2543,37 @@ c      Left rib
        if (hvr(k,5).eq.1) then
 
        do j=1,21
-       call line3d(rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
-     + rx1(i,j,ii),ry1(i,j,ii),rz1(i,j,ii),4)
-       call line3d(-rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
-     + -rx1(i,j,ii),ry1(i,j,ii),rz1(i,j,ii),4)
+       call copy_legacy_structural_segment(rx2(i,j,ii),ry2(i,j,ii),
+     + rz2(i,j,ii),rx1(i,j,ii),ry1(i,j,ii),rz1(i,j,ii),
+     + typed_internal_rib_segment,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,A,I0,2A)')
+     + 'ERROR: typed type-3 side 1 at feature ',k,', ordinal ',ii,
+     + ', station ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       call structural_segment_matches_legacy(typed_internal_rib_segment,
+     + rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
+     + rx1(i,j,ii),ry1(i,j,ii),rz1(i,j,ii),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,A,I0,2A)')
+     + 'ERROR: type-3 side 1 mismatch at feature ',k,', ordinal ',ii,
+     + ', station ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       call line3d(typed_internal_rib_segment%endpoint_1%x_cm,
+     + typed_internal_rib_segment%endpoint_1%y_cm,
+     + typed_internal_rib_segment%endpoint_1%z_cm,
+     + typed_internal_rib_segment%endpoint_2%x_cm,
+     + typed_internal_rib_segment%endpoint_2%y_cm,
+     + typed_internal_rib_segment%endpoint_2%z_cm,4)
+       call line3d(-typed_internal_rib_segment%endpoint_1%x_cm,
+     + typed_internal_rib_segment%endpoint_1%y_cm,
+     + typed_internal_rib_segment%endpoint_1%z_cm,
+     + -typed_internal_rib_segment%endpoint_2%x_cm,
+     + typed_internal_rib_segment%endpoint_2%y_cm,
+     + typed_internal_rib_segment%endpoint_2%z_cm,4)
        end do
 
        end if
@@ -2556,10 +2583,37 @@ c      Right rib
        if (hvr(k,6).eq.1) then
 
        do j=1,21
-       call line3d(rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
-     + rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),3)
-       call line3d(-rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
-     + -rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),3)
+       call copy_legacy_structural_segment(rx2(i,j,ii),ry2(i,j,ii),
+     + rz2(i,j,ii),rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),
+     + typed_internal_rib_segment,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,A,I0,2A)')
+     + 'ERROR: typed type-3 side 2 at feature ',k,', ordinal ',ii,
+     + ', station ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       call structural_segment_matches_legacy(typed_internal_rib_segment,
+     + rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
+     + rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,A,I0,2A)')
+     + 'ERROR: type-3 side 2 mismatch at feature ',k,', ordinal ',ii,
+     + ', station ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       call line3d(typed_internal_rib_segment%endpoint_1%x_cm,
+     + typed_internal_rib_segment%endpoint_1%y_cm,
+     + typed_internal_rib_segment%endpoint_1%z_cm,
+     + typed_internal_rib_segment%endpoint_2%x_cm,
+     + typed_internal_rib_segment%endpoint_2%y_cm,
+     + typed_internal_rib_segment%endpoint_2%z_cm,3)
+       call line3d(-typed_internal_rib_segment%endpoint_1%x_cm,
+     + typed_internal_rib_segment%endpoint_1%y_cm,
+     + typed_internal_rib_segment%endpoint_1%z_cm,
+     + -typed_internal_rib_segment%endpoint_2%x_cm,
+     + typed_internal_rib_segment%endpoint_2%y_cm,
+     + typed_internal_rib_segment%endpoint_2%z_cm,3)
        end do
 
        end if
