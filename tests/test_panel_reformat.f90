@@ -2,13 +2,20 @@ program test_panel_reformat
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_quiet_nan, ieee_value
   use leparagliding_domain_model, only : production_boundary_edge_2d, &
-      surface_intrados
+      surface_intrados, legacy_production_lower_sewing_slot, &
+      legacy_production_lower_cut_slot
   use leparagliding_panel_reformat
   implicit none
 
   type(production_boundary_edge_2d) :: boundary, reformatted, saved
   type(production_boundary_edge_2d) :: direction_boundary
   type(boundary_length_match_control) :: control
+  type(preceding_join_support_2d) :: join_support, reformatted_join
+  type(preceding_join_support_2d) :: saved_join
+  real(real64) :: legacy_u(0:5, 10, 12)
+  real(real64) :: legacy_v(0:5, 10, 12)
+  real(real64) :: expected_u(0:5, 10, 12)
+  real(real64) :: expected_v(0:5, 10, 12)
   character(len=160) :: message
   logical :: valid
 
@@ -22,6 +29,74 @@ program test_panel_reformat
   boundary%cut_u = boundary%sewing_u
   boundary%cut_v = [1.0_real64, 1.0_real64, 1.0_real64, 1.0_real64]
   call require(boundary%is_valid(), 'valid terminal fixture rejected')
+
+  ! The terminal range starts at point 5, so point 4 is its separate join
+  ! support and point 3 is the fixed anchor used by the legacy extrapolation.
+  legacy_u = -101.0_real64
+  legacy_v = -202.0_real64
+  legacy_u(4, 3, legacy_production_lower_sewing_slot) = 10.0_real64
+  legacy_v(4, 3, legacy_production_lower_sewing_slot) = 20.0_real64
+  legacy_u(4, 4, legacy_production_lower_sewing_slot) = 13.0_real64
+  legacy_v(4, 4, legacy_production_lower_sewing_slot) = 22.0_real64
+  legacy_u(4, 4, legacy_production_lower_cut_slot) = 14.0_real64
+  legacy_v(4, 4, legacy_production_lower_cut_slot) = 24.0_real64
+  call copy_legacy_preceding_join_support(boundary, legacy_u, legacy_v, &
+      join_support, valid, message)
+  call require(valid, 'valid terminal join support rejected: '//trim(message))
+  call require(join_support%is_valid(), 'copied terminal join is invalid')
+  call require(join_support%anchor_point_index == 3 .and. &
+      join_support%support_point_index == 4, &
+      'terminal join support lost its contour indices')
+  call require_close(join_support%anchor_sewing_u, 10.0_real64, &
+      'terminal join anchor U')
+  call require_close(join_support%sewing_u, 13.0_real64, &
+      'terminal join sewing U')
+  call require_close(join_support%cut_v, 24.0_real64, &
+      'terminal join cut V')
+
+  call reformat_preceding_join_support(join_support, reformatted_join, &
+      valid, message)
+  call require(valid, 'valid terminal join reformat rejected: '//trim(message))
+  call require_close(reformatted_join%sewing_u, 7.0_real64, &
+      'reformatted terminal join sewing U')
+  call require_close(reformatted_join%sewing_v, 18.0_real64, &
+      'reformatted terminal join sewing V')
+  call require_close(reformatted_join%cut_u, 8.0_real64, &
+      'reformatted terminal join cut U')
+  call require_close(reformatted_join%cut_v, 20.0_real64, &
+      'reformatted terminal join cut V')
+
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(4, 4, legacy_production_lower_sewing_slot) = 7.0_real64
+  expected_v(4, 4, legacy_production_lower_sewing_slot) = 18.0_real64
+  expected_u(4, 4, legacy_production_lower_cut_slot) = 8.0_real64
+  expected_v(4, 4, legacy_production_lower_cut_slot) = 20.0_real64
+  call write_legacy_preceding_join_support(reformatted_join, legacy_u, &
+      legacy_v, valid, message)
+  call require(valid, 'valid terminal join publication rejected: '// &
+      trim(message))
+  call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
+      'terminal join publication changed storage outside its exact point')
+
+  ! Failed support operations leave both typed and compatibility storage alone.
+  saved_join = reformatted_join
+  boundary%surface = 0
+  call copy_legacy_preceding_join_support(boundary, legacy_u, legacy_v, &
+      reformatted_join, valid, message)
+  call require(.not. valid, 'non-intrados terminal join source was accepted')
+  call require_same_join_support(reformatted_join, saved_join, &
+      'failed terminal join copy changed its destination')
+  boundary%surface = surface_intrados
+
+  expected_u = legacy_u
+  expected_v = legacy_v
+  reformatted_join%source_panel_index = -1
+  call write_legacy_preceding_join_support(reformatted_join, legacy_u, &
+      legacy_v, valid, message)
+  call require(.not. valid, 'invalid terminal join publication was accepted')
+  call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
+      'failed terminal join publication changed compatibility storage')
 
   control%measurement_start_index = 7
   control%reconstruction_start_index = 7
@@ -171,5 +246,23 @@ contains
         all(abs(actual%cut_u - expected%cut_u) <= 0.0_real64) .and. &
         all(abs(actual%cut_v - expected%cut_v) <= 0.0_real64), description)
   end subroutine require_same_boundary
+
+  subroutine require_same_join_support(actual, expected, description)
+    type(preceding_join_support_2d), intent(in) :: actual, expected
+    character(len=*), intent(in) :: description
+
+    call require(actual%boundary_rib_index == expected%boundary_rib_index .and. &
+        actual%source_panel_index == expected%source_panel_index .and. &
+        actual%boundary_contour_first_index == &
+        expected%boundary_contour_first_index .and. &
+        actual%anchor_point_index == expected%anchor_point_index .and. &
+        actual%support_point_index == expected%support_point_index .and. &
+        actual%anchor_sewing_u == expected%anchor_sewing_u .and. &
+        actual%anchor_sewing_v == expected%anchor_sewing_v .and. &
+        actual%sewing_u == expected%sewing_u .and. &
+        actual%sewing_v == expected%sewing_v .and. &
+        actual%cut_u == expected%cut_u .and. &
+        actual%cut_v == expected%cut_v, description)
+  end subroutine require_same_join_support
 
 end program test_panel_reformat

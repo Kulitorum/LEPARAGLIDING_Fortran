@@ -2681,6 +2681,20 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 c      Calcule length of the reformating polyline
 
+c      Snapshot the one intake-side point which the historical terminal
+c      reformatter changes outside the exact intrados contour.
+       if (i.eq.nribss.and.k31d.eq.1) then
+       call copy_legacy_preceding_join_support(
+     + typed_terminal_intrados_production_edge,u,v,
+     + typed_terminal_intrados_join_support,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal intrados join-support copy: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       end if
+
        dist1=0.0d0
        do j=jirr(i),np(i,1)-1
        dist1=dist1+sqrt((v(i,j,9)-v(i,j+1,9))**2.+
@@ -2805,6 +2819,39 @@ c      extrapolation at intrados_first-1 is outside this boundary's ownership.
        end if
        typed_terminal_intrados_production_edge=
      + typed_terminal_intrados_reformatted_edge
+
+c      The old extrapolation immediately above is the join-support oracle.
+c      Compare it independently because it is not an intrados contour point,
+c      then publish the typed sewing/cut pair at that one exact point.
+       call reformat_preceding_join_support(
+     + typed_terminal_intrados_join_support,
+     + typed_terminal_intrados_reformatted_join_support,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal join-support reformat failed: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       j=typed_terminal_intrados_reformatted_join_support%
+     + support_point_index
+       typed_coordinates_match=geometry_values_are_close(
+     + typed_terminal_intrados_reformatted_join_support%sewing_u,
+     + u(i,j,9)).and.geometry_values_are_close(
+     + typed_terminal_intrados_reformatted_join_support%sewing_v,
+     + v(i,j,9))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0)')
+     + 'ERROR: typed/legacy terminal join support differs at point ',j
+       stop 1
+       end if
+       call write_legacy_preceding_join_support(
+     + typed_terminal_intrados_reformatted_join_support,u,v,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal join-support write-back: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
        end if
 
 c      VERIFICATION

@@ -257,8 +257,11 @@ range after the optional `ndif=1000` length match for `k31d=1`:
   displacement as its sewing point, preserving the established allowance vector
   which the old slot-9-only rewrite stranded in slot 11.
 - The legacy `intrados_first-1` extrapolation is deliberately not claimed by an
-  intrados boundary. It is a preceding intake join-support point and remains on
-  the compatibility path until that cross-surface feature has its own type.
+  intrados boundary. `preceding_join_support_2d` represents that cross-surface
+  point, its preceding sewing anchor, and its cut point. The typed reformatter
+  reproduces `anchor + anchor - support`, translates the cut point by the same
+  displacement, and checked-writes only that exact slot-9/11 pair after legacy
+  agreement.
 
 Focused unit coverage includes expansion, fractional shrink, distinct start
 indices, all quadrant signs, provenance, cut-vector retention, and transactional
@@ -903,10 +906,11 @@ for real panels `0:nribss-1`, including its final contour point. The distinct
 physical terminal boundary at row `nribss` is also typed-authoritative through
 the initial production handoff and the exact-range `ndif=1000` length match: it
 owns intrados offsets and slots 9/11 without inventing a panel or terminal slots
-10/12. Section-31 laws, shaped sewing/cut sides, and terminal length matching are
-owned by focused pure modules; stage 8 compares them with the old calculations
-before publishing compatibility slots. Regular-row reformats, distortion, join
-support, and all other production surfaces/sides remain to be migrated.
+10/12. Section-31 laws, shaped sewing/cut sides, terminal length matching, and
+the preceding join support are owned by focused pure modules; stage 8 compares
+them with the old calculations before publishing compatibility slots.
+Regular-row reformats, distortion, and all other production surfaces/sides
+remain to be migrated.
 
 1. Extract `skin_tension_law` parsing and evaluation from slots 7/8.
    **Complete for Section-31 intrados laws and the lower side of every real
@@ -918,11 +922,12 @@ support, and all other production surfaces/sides remain to be migrated.
 3. Produce sewing and cut edges directly in `production_panel_2d`.
    **In progress: the first boundary produces validated
    `shaped_panel_side_2d` and publishes slots 9/11 transactionally; aggregation
-   into a complete production panel remains.**
+into a complete production panel remains.**
 4. Model vents, end extensions, and special reformat paths as named optional
    features; delete `ufa/ufb/ufc/uft` workspaces as each path migrates.
-   **In progress: exact-range terminal intrados `ndif=1000` length matching is
-   typed and authoritative; regular rows, join support, and distortion remain.**
+   **In progress: exact-range terminal intrados `ndif=1000` length matching and
+   its separate preceding join support are typed and authoritative; regular
+   rows and distortion remain.**
 5. Keep a write-back adapter for remaining internal-rib consumers.
 
 Exit criterion: stage 8 no longer writes slots 7:12 for migrated surfaces;
@@ -1088,10 +1093,13 @@ The producer-authority checkpoints completed:
 9. model the terminal intrados `ndif=1000` length match with explicit source and
    target lengths plus separate measurement/reconstruction indices, preserve
    its implicit single-precision scale, dual-compare every exact-range sewing
-   point, and publish the agreeing sewing/cut pair transactionally.
+   point, and publish the agreeing sewing/cut pair transactionally; and
+10. represent the preceding intake/intrados join support separately from the
+    physical terminal surface, dual-compare its historical extrapolation, and
+    publish its paired sewing/cut point transactionally.
 
-The next slice should type the preceding intake join-support extrapolation or
-begin regular-row `ndif` length matching and five-pass distortion correction.
+The next slice should begin regular-row `ndif` length matching and five-pass
+distortion correction.
 Terminal extrados and the remaining regular sides/surfaces follow.
 Later shaping-cut bounds exposed by the Chooca-15 preset still need a
 mixed-profile full-output fixture.

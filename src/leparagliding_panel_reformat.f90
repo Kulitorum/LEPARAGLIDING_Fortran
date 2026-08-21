@@ -17,7 +17,8 @@ module leparagliding_panel_reformat
   use, intrinsic :: iso_fortran_env, only : real32, real64
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
   use leparagliding_domain_model, only : production_boundary_edge_2d, &
-      surface_intrados
+      surface_intrados, legacy_production_lower_sewing_slot, &
+      legacy_production_lower_cut_slot
   implicit none
   private
 
@@ -44,9 +45,195 @@ module leparagliding_panel_reformat
     procedure :: is_valid_for => boundary_length_match_control_is_valid_for
   end type boundary_length_match_control
 
+  !> One compatibility point immediately before a terminal surface range.
+  !!
+  !! The `ndif=1000` right-side path extrapolates `contour_first_index-1`
+  !! using the preceding point.  This point belongs to the intake/intrados join
+  !! treatment rather than the exact intrados edge, so it is represented
+  !! separately instead of widening `production_boundary_edge_2d`.
+  type, public :: preceding_join_support_2d
+    integer :: boundary_rib_index = -1
+    integer :: source_panel_index = -1
+    integer :: boundary_contour_first_index = 0
+    integer :: anchor_point_index = 0
+    integer :: support_point_index = 0
+    real(real64) :: anchor_sewing_u = 0.0_real64
+    real(real64) :: anchor_sewing_v = 0.0_real64
+    real(real64) :: sewing_u = 0.0_real64
+    real(real64) :: sewing_v = 0.0_real64
+    real(real64) :: cut_u = 0.0_real64
+    real(real64) :: cut_v = 0.0_real64
+  contains
+    procedure :: is_valid => preceding_join_support_is_valid
+  end type preceding_join_support_2d
+
   public :: reformat_terminal_intrados_boundary
+  public :: copy_legacy_preceding_join_support
+  public :: reformat_preceding_join_support
+  public :: write_legacy_preceding_join_support
 
 contains
+
+  !> Validate the provenance and exact two-point relationship of join support.
+  pure logical function preceding_join_support_is_valid(support)
+    class(preceding_join_support_2d), intent(in) :: support
+
+    real(real64) :: values(6)
+
+    preceding_join_support_is_valid = .false.
+    if (support%source_panel_index < 0) return
+    if (support%boundary_rib_index /= support%source_panel_index + 1) return
+    if (support%boundary_contour_first_index < 3) return
+    if (support%support_point_index /= &
+        support%boundary_contour_first_index - 1) return
+    if (support%anchor_point_index /= support%support_point_index - 1) return
+    values = [support%anchor_sewing_u, support%anchor_sewing_v, &
+        support%sewing_u, support%sewing_v, support%cut_u, support%cut_v]
+    if (.not. all(ieee_is_finite(values))) return
+    preceding_join_support_is_valid = .true.
+  end function preceding_join_support_is_valid
+
+  !> Snapshot the terminal point immediately before the typed intrados range.
+  !!
+  !! This is a checked read adapter.  It never treats the support as part of
+  !! the intrados boundary and leaves `support` unchanged on failure.
+  pure subroutine copy_legacy_preceding_join_support(boundary, legacy_u, &
+      legacy_v, support, valid, message)
+    type(production_boundary_edge_2d), intent(in) :: boundary
+    real(real64), intent(in) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    type(preceding_join_support_2d), intent(inout) :: support
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(preceding_join_support_2d) :: candidate
+
+    valid = .false.
+    message = ''
+    if (.not. all(shape(legacy_u) == shape(legacy_v))) then
+      message = 'legacy U/V join-support source shapes differ'
+      return
+    end if
+    if (.not. boundary%is_valid() .or. &
+        boundary%surface /= surface_intrados) then
+      message = 'join support requires a valid terminal intrados boundary'
+      return
+    end if
+    if (boundary%contour_first_index < 3) then
+      message = 'terminal intrados range has no preceding join-support pair'
+      return
+    end if
+
+    candidate%boundary_rib_index = boundary%boundary_rib_index
+    candidate%source_panel_index = boundary%source_panel_index
+    candidate%boundary_contour_first_index = boundary%contour_first_index
+    candidate%support_point_index = boundary%contour_first_index - 1
+    candidate%anchor_point_index = candidate%support_point_index - 1
+    if (candidate%boundary_rib_index < lbound(legacy_u, 1) .or. &
+        candidate%boundary_rib_index > ubound(legacy_u, 1) .or. &
+        candidate%anchor_point_index < lbound(legacy_u, 2) .or. &
+        candidate%support_point_index > ubound(legacy_u, 2) .or. &
+        legacy_production_lower_sewing_slot < lbound(legacy_u, 3) .or. &
+        legacy_production_lower_cut_slot > ubound(legacy_u, 3)) then
+      message = 'terminal join support is outside legacy source storage'
+      return
+    end if
+
+    candidate%anchor_sewing_u = legacy_u(candidate%boundary_rib_index, &
+        candidate%anchor_point_index, legacy_production_lower_sewing_slot)
+    candidate%anchor_sewing_v = legacy_v(candidate%boundary_rib_index, &
+        candidate%anchor_point_index, legacy_production_lower_sewing_slot)
+    candidate%sewing_u = legacy_u(candidate%boundary_rib_index, &
+        candidate%support_point_index, legacy_production_lower_sewing_slot)
+    candidate%sewing_v = legacy_v(candidate%boundary_rib_index, &
+        candidate%support_point_index, legacy_production_lower_sewing_slot)
+    candidate%cut_u = legacy_u(candidate%boundary_rib_index, &
+        candidate%support_point_index, legacy_production_lower_cut_slot)
+    candidate%cut_v = legacy_v(candidate%boundary_rib_index, &
+        candidate%support_point_index, legacy_production_lower_cut_slot)
+    if (.not. candidate%is_valid()) then
+      message = 'legacy terminal join support is invalid'
+      return
+    end if
+
+    support = candidate
+    valid = .true.
+  end subroutine copy_legacy_preceding_join_support
+
+  !> Reproduce the legacy `anchor + anchor - support` extrapolation.
+  !!
+  !! The cut point receives exactly the sewing-point displacement so its
+  !! established allowance vector is not stranded by the rewrite.
+  pure subroutine reformat_preceding_join_support(source, reformatted, valid, &
+      message)
+    type(preceding_join_support_2d), intent(in) :: source
+    type(preceding_join_support_2d), intent(inout) :: reformatted
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(preceding_join_support_2d) :: candidate
+    real(real64) :: displacement_u, displacement_v
+
+    valid = .false.
+    message = ''
+    if (.not. source%is_valid()) then
+      message = 'cannot reformat invalid terminal join support'
+      return
+    end if
+    candidate = source
+    candidate%sewing_u = source%anchor_sewing_u + &
+        source%anchor_sewing_u - source%sewing_u
+    candidate%sewing_v = source%anchor_sewing_v + &
+        source%anchor_sewing_v - source%sewing_v
+    displacement_u = candidate%sewing_u - source%sewing_u
+    displacement_v = candidate%sewing_v - source%sewing_v
+    candidate%cut_u = source%cut_u + displacement_u
+    candidate%cut_v = source%cut_v + displacement_v
+    if (.not. candidate%is_valid()) then
+      message = 'terminal join-support reformat produced invalid geometry'
+      return
+    end if
+    reformatted = candidate
+    valid = .true.
+  end subroutine reformat_preceding_join_support
+
+  !> Publish one terminal join-support sewing/cut pair transactionally.
+  pure subroutine write_legacy_preceding_join_support(support, legacy_u, &
+      legacy_v, valid, message)
+    type(preceding_join_support_2d), intent(in) :: support
+    real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    valid = .false.
+    message = ''
+    if (.not. all(shape(legacy_u) == shape(legacy_v))) then
+      message = 'legacy U/V join-support destination shapes differ'
+      return
+    end if
+    if (.not. support%is_valid()) then
+      message = 'cannot publish invalid terminal join support'
+      return
+    end if
+    if (support%boundary_rib_index < lbound(legacy_u, 1) .or. &
+        support%boundary_rib_index > ubound(legacy_u, 1) .or. &
+        support%support_point_index < lbound(legacy_u, 2) .or. &
+        support%support_point_index > ubound(legacy_u, 2) .or. &
+        legacy_production_lower_sewing_slot < lbound(legacy_u, 3) .or. &
+        legacy_production_lower_cut_slot > ubound(legacy_u, 3)) then
+      message = 'terminal join support is outside legacy destination storage'
+      return
+    end if
+
+    legacy_u(support%boundary_rib_index, support%support_point_index, &
+        legacy_production_lower_sewing_slot) = support%sewing_u
+    legacy_v(support%boundary_rib_index, support%support_point_index, &
+        legacy_production_lower_sewing_slot) = support%sewing_v
+    legacy_u(support%boundary_rib_index, support%support_point_index, &
+        legacy_production_lower_cut_slot) = support%cut_u
+    legacy_v(support%boundary_rib_index, support%support_point_index, &
+        legacy_production_lower_cut_slot) = support%cut_v
+    valid = .true.
+  end subroutine write_legacy_preceding_join_support
 
   !> Validate a length-match request against its exact terminal contour.
   pure logical function boundary_length_match_control_is_valid_for( &

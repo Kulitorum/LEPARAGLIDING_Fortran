@@ -100,7 +100,9 @@ The maintained structure now:
   physical wingtip boundary;
 - applies the terminal `ndif=1000` length match through
   `leparagliding_panel_reformat`, preserving its historical arithmetic while
-  moving the terminal sewing and cut contours together;
+  moving the terminal sewing and cut contours together, including the
+  separately owned intake/intrados join-support point immediately before the
+  terminal surface range;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -161,9 +163,10 @@ length match—including its separate measurement/reconstruction indices and
 implicitly single-precision accumulator—before publishing the agreeing sewing
 edge. Its slot-11 cut edge receives the same point displacement so the
 established allowance vectors remain attached. The historical extrapolated
-intake join immediately before the intrados range, regular-row reformats,
-five-pass distortion correction, and remaining surfaces/sides are later
-Phase-4 boundaries.
+intake join immediately before the intrados range is represented independently,
+dual-compared, and publishes its slot-9/11 pair transactionally. Regular-row
+reformats, five-pass distortion correction, and remaining surfaces/sides are
+later Phase-4 boundaries.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces

@@ -29,6 +29,8 @@ array and its slot, not by the variable letter alone:
 | `typed_terminal_intrados_offsets` | One typed skin-tension offset for each point on the physical terminal intrados contour |
 | `typed_terminal_intrados_production_edge` | Physical wingtip sewing/cut boundary; owns row-`nribss` slots 9/11 only and cannot contain slots 10/12 |
 | `typed_terminal_intrados_reformatted_edge` | The agreeing exact-range terminal `ndif=1000` result after sewing-length matching and paired cut translation |
+| `typed_terminal_intrados_join_support` | The separately owned point at `intrados_first-1`, its preceding sewing anchor, and its established cut point |
+| `typed_terminal_intrados_reformatted_join_support` | The agreeing legacy-compatible join extrapolation with paired sewing/cut translation |
 | `u/v(panel,j,9)` | Tensioned/developed left skin edge |
 | `u/v(panel,j,10)` | Tensioned/developed right skin edge |
 | `u/v(panel,j,11:12)` | Left/right sewing-border coordinates |
@@ -90,6 +92,7 @@ section 1 rib planform + section 2 profiles
   -> checked write-back of regular-panel offsets and slot-9/11 sewing/cut edges
   -> separately checked physical-terminal offsets and slot-9/11 boundary
   -> typed terminal ndif length match compared point-for-point with legacy
+  -> typed preceding join-support extrapolation compared independently
   -> tensioned left/right u/v slots 9/10
   -> outer sewing/cutting geometry in slots 11/12 and panel routines
   -> section 15/16 chord percentages
@@ -145,9 +148,12 @@ includes distinct measurement and reconstruction indices, real-exponent
 distance expressions, absolute-angle quadrant branches, and the legacy
 implicitly default-REAL accumulator and scale. After point-for-point agreement,
 the typed edge owns the exact intrados range and translates slot 11 by the same
-point displacement. The legacy extrapolation at `intrados_first-1` is an intake
-join support outside this boundary. Regular-row length matching, its five-pass
-distortion correction, and terminal extrados remain future ownership boundaries.
+point displacement. The extrapolation at `intrados_first-1` remains outside
+that surface boundary: `preceding_join_support_2d` owns it with its preceding
+anchor, reproduces `anchor + anchor - support`, and translates the cut point by
+the identical displacement before an exact-point write-back. Regular-row length
+matching, its five-pass distortion correction, and terminal extrados remain
+future ownership boundaries.
 
 When section 29 shaping is disabled, data reading selects its declared
 one-based no-cut group, validates that every rib has a declared group, and

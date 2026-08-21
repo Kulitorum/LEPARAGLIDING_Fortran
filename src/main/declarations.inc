@@ -289,6 +289,9 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
      + typed_terminal_intrados_reformatted_edge
        type(boundary_length_match_control) ::
      + typed_terminal_intrados_reformat_control
+       type(preceding_join_support_2d) ::
+     + typed_terminal_intrados_join_support,
+     + typed_terminal_intrados_reformatted_join_support
        real*8, allocatable :: typed_terminal_intrados_offsets(:)
        type(quadrilateral_distances_3d), allocatable ::
      + typed_extrados_source_distances(:),typed_intake_source_distances(:),
