@@ -58,6 +58,7 @@ add_executable(leparagliding
     src/leparagliding_neutral_development.f90
     src/leparagliding_skin_tension.f90
     src/leparagliding_panel_shaping.f90
+    src/leparagliding_panel_reformat.f90
     src/leparagliding_color_geometry.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
@@ -166,6 +167,28 @@ if(BUILD_TESTING)
   endif()
 
   add_test(NAME panel_shaping COMMAND test_panel_shaping)
+
+  add_executable(test_panel_reformat
+      tests/test_panel_reformat.f90
+      src/leparagliding_domain_model.f90
+      src/leparagliding_panel_reformat.f90)
+
+  set_target_properties(test_panel_reformat PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-panel-reformat-modules")
+  target_include_directories(test_panel_reformat PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-panel-reformat-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_panel_reformat PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_panel_reformat PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME panel_reformat COMMAND test_panel_reformat)
 
   add_executable(test_profile_data
       tests/test_profile_data.f90

@@ -37,6 +37,14 @@ endforeach()
 #   gnua.txt          DC4548BAF611877A7EA5EF9B028450C62F657E37A38D83FCDEFD617133D7A9F9
 #   gnuat.txt         11D84F2F34DE2BF0260A00C021BECB3CB261DBAEDF436AFDEF262425D6F4787B
 file(READ "${CASE_DIR}/leparagliding.txt" fixture_input)
+string(ASCII 9 tab_character)
+string(REPLACE "${tab_character}" " " normalized_fixture_input
+    "${fixture_input}")
+string(REGEX MATCH "1000 +1[.]0" ndif_enabled "${normalized_fixture_input}")
+if(ndif_enabled STREQUAL "")
+  message(FATAL_ERROR
+      "Classic fixture must retain ndif=1000 and xndif=1.0 coverage")
+endif()
 if(DISABLE_SHAPING)
   string(FIND "${fixture_input}" "*       29. 3D SHAPING" section_29_start)
   string(FIND "${fixture_input}"

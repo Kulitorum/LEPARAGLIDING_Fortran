@@ -23,6 +23,16 @@ foreach(input_file leparagliding.txt gnuReflex.txt)
   file(COPY "${CASE_DIR}/${input_file}" DESTINATION "${WORK_DIR}")
 endforeach()
 
+file(READ "${CASE_DIR}/leparagliding.txt" fixture_input)
+string(ASCII 9 tab_character)
+string(REPLACE "${tab_character}" " " normalized_fixture_input
+    "${fixture_input}")
+string(REGEX MATCH "1000 +1[.]0" ndif_enabled "${normalized_fixture_input}")
+if(ndif_enabled STREQUAL "")
+  message(FATAL_ERROR
+      "Even-cell fixture must retain ndif=1000 and xndif=1.0 coverage")
+endif()
+
 execute_process(
     COMMAND "${PROGRAM}"
     WORKING_DIRECTORY "${WORK_DIR}"

@@ -91,6 +91,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        use leparagliding_neutral_development
        use leparagliding_skin_tension
        use leparagliding_panel_shaping
+       use leparagliding_panel_reformat
        use leparagliding_mark_types
        use leparagliding_hvr_config
 

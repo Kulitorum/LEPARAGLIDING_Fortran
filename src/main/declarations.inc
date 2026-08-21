@@ -285,7 +285,10 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
      + typed_intrados_tension_laws(:)
        type(shaped_panel_side_2d) :: typed_intrados_lower_side
        type(production_boundary_edge_2d) ::
-     + typed_terminal_intrados_production_edge
+     + typed_terminal_intrados_production_edge,
+     + typed_terminal_intrados_reformatted_edge
+       type(boundary_length_match_control) ::
+     + typed_terminal_intrados_reformat_control
        real*8, allocatable :: typed_terminal_intrados_offsets(:)
        type(quadrilateral_distances_3d), allocatable ::
      + typed_extrados_source_distances(:),typed_intake_source_distances(:),

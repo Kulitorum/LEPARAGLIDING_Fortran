@@ -23,6 +23,16 @@ foreach(input_file leparagliding.txt gnuReflex_SN.txt gnuReflexC174.txt)
   file(COPY_FILE "${CASE_DIR}/${input_file}" "${WORK_DIR}/${input_file}")
 endforeach()
 
+file(READ "${CASE_DIR}/leparagliding.txt" fixture_input)
+string(ASCII 9 tab_character)
+string(REPLACE "${tab_character}" " " normalized_fixture_input
+    "${fixture_input}")
+string(REGEX MATCH "1000 +1[.]0" ndif_enabled "${normalized_fixture_input}")
+if(ndif_enabled STREQUAL "")
+  message(FATAL_ERROR
+      "Plan B must retain ndif=1000 and xndif=1.0 reformat coverage")
+endif()
+
 execute_process(
     COMMAND "${PROGRAM}"
     WORKING_DIRECTORY "${WORK_DIR}"

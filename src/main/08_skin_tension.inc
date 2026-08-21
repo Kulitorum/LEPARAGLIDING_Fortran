@@ -2505,6 +2505,13 @@ c      Differences with control coefficient xndif
 
        rib(i,93)=xndif*(rib(i,34)-rib(i,33))
        rib(i,95)=xndif*(rib(i,34)-rib(i,35))
+       if (i.eq.nribss.and.k31d.eq.1) then
+       typed_terminal_intrados_reformat_control%source_contour_length=
+     + rib(i,35)
+       typed_terminal_intrados_reformat_control%target_contour_length=
+     + rib(i,34)
+       typed_terminal_intrados_reformat_control%correction_fraction=xndif
+       end if
 
        end do
 
@@ -2750,6 +2757,55 @@ c      AFEGIR calcul punts extrems!!!!!!!!!!!
        j=np(i,2)+np(i,3)-2
        u(i,j,9)=u(i,j-1,9)+u(i,j-1,9)-u(i,j,9)
        v(i,j,9)=v(i,j-1,9)+v(i,j-1,9)-v(i,j,9)
+
+c      The final row is a physical boundary rather than another panel.  The
+c      legacy reconstruction above remains the comparison oracle, including
+c      its distinct jirr measurement and jirl reconstruction indices.  Once
+c      every exact intrados sewing point agrees, publish the typed result and
+c      translate its cut contour by the same displacement.  The historical
+c      extrapolation at intrados_first-1 is outside this boundary's ownership.
+       if (i.eq.nribss.and.k31d.eq.1) then
+       typed_terminal_intrados_reformat_control%
+     + measurement_start_index=jirr(i)
+       typed_terminal_intrados_reformat_control%
+     + reconstruction_start_index=jirl(i)
+       call reformat_terminal_intrados_boundary(
+     + typed_terminal_intrados_production_edge,
+     + typed_terminal_intrados_reformat_control,
+     + typed_terminal_intrados_reformatted_edge,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal intrados reformat failed: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       do j=typed_terminal_intrados_reformatted_edge%contour_first_index,
+     + typed_terminal_intrados_reformatted_edge%contour_last_index
+       k=j-typed_terminal_intrados_reformatted_edge%contour_first_index+1
+       typed_coordinates_match=geometry_values_are_close(
+     + typed_terminal_intrados_reformatted_edge%sewing_u(k),u(i,j,9)).and.
+     + geometry_values_are_close(
+     + typed_terminal_intrados_reformatted_edge%sewing_v(k),v(i,j,9))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,4(1X,ES24.16))')
+     + 'ERROR: typed/legacy terminal intrados reformat differs at point ',j,
+     + typed_terminal_intrados_reformatted_edge%sewing_u(k),u(i,j,9),
+     + typed_terminal_intrados_reformatted_edge%sewing_v(k),v(i,j,9)
+       stop 1
+       end if
+       end do
+       call write_legacy_production_boundary(
+     + typed_terminal_intrados_reformatted_edge,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal intrados reformat write-back: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       typed_terminal_intrados_production_edge=
+     + typed_terminal_intrados_reformatted_edge
+       end if
 
 c      VERIFICATION
 
