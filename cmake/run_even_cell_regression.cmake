@@ -5,6 +5,7 @@ foreach(required_variable PROGRAM CASE_DIR WORK_DIR)
 endforeach()
 
 include("${CMAKE_CURRENT_LIST_DIR}/check_dxf_semantics.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/check_text_semantics.cmake")
 
 if(NOT EXISTS "${PROGRAM}")
   message(FATAL_ERROR "LEparagliding executable does not exist: ${PROGRAM}")
@@ -88,6 +89,10 @@ foreach(index RANGE 0 ${last_output_index} 2)
         "even-cell-leparagliding" "${output_path}")
   elseif(output_name STREQUAL "lep-3d.dxf")
     leparagliding_assert_dxf_semantics("even-cell-lep-3d" "${output_path}")
+  elseif(output_name STREQUAL "lep-out.txt")
+    leparagliding_assert_text_semantics("even-cell-lep-out" "${output_path}")
+  elseif(output_name STREQUAL "lines.txt")
+    leparagliding_assert_text_semantics("even-cell-lines" "${output_path}")
   endif()
 
   file(READ "${output_path}" output_text)

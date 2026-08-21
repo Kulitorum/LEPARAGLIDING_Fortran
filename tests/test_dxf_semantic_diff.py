@@ -19,6 +19,12 @@ from dxf_semantic_snapshot import (  # noqa: E402
     create_snapshot,
     load_snapshot,
 )
+from text_semantic_snapshot import (  # noqa: E402
+    compare_records as compare_text_records,
+    compare_snapshot as compare_text_snapshot,
+    create_snapshot as create_text_snapshot,
+    parse_text_deliverable,
+)
 
 
 def dxf(*entities: str) -> str:
@@ -189,6 +195,76 @@ class SemanticDxfComparisonTests(unittest.TestCase):
         report = "\n".join(result.differences)
         self.assertIn("vertices=2", report)
         self.assertIn("vertices=1", report)
+
+
+class SemanticTextComparisonTests(unittest.TestCase):
+    REPORT = """\
+LABORATORI D'ENVOL PARAGLIDING 3.29
+
+Scale: 1.00000
+Flat area = 15.97 m2 171.9 ft2
+Ribs number = 24
+"""
+
+    LINES = """\
+Plan A
+1 1A1 35.0 cm - type 1 Riser 25.00 mm
+2 2A1 321.0 cm - type 2 Line275 1.90 mm
+"""
+
+    def test_whitespace_blank_lines_and_numeric_format_are_ignored(self) -> None:
+        expected = parse_text_deliverable(self.REPORT)
+        actual = parse_text_deliverable(
+            "LABORATORI   D'ENVOL PARAGLIDING 3.2900\r\n"
+            "Scale:\t1D0\r\n\r\n"
+            "Flat area = 15.97000 m2\t171.900 ft2\r\n"
+            "Ribs number = 24.0\r\n"
+        )
+
+        result = compare_text_records(expected, actual, abs_tol=1.0e-9)
+
+        self.assertTrue(result.equivalent, result.differences)
+
+    def test_numeric_tolerance_is_explicit_and_actionable(self) -> None:
+        expected = parse_text_deliverable(self.REPORT)
+        actual = parse_text_deliverable(self.REPORT.replace("15.97", "15.9705"))
+
+        passing = compare_text_records(expected, actual, abs_tol=0.001)
+        failing = compare_text_records(expected, actual, abs_tol=0.0001)
+
+        self.assertTrue(passing.equivalent, passing.differences)
+        self.assertFalse(failing.equivalent)
+        self.assertIn("delta 0.0005", "\n".join(failing.differences))
+
+    def test_text_and_record_order_remain_semantic(self) -> None:
+        expected = parse_text_deliverable(self.LINES)
+        changed_text = parse_text_deliverable(self.LINES.replace("Riser", "Wrong"))
+        reordered = parse_text_deliverable(
+            "\n".join(reversed(self.LINES.splitlines()))
+        )
+
+        text_result = compare_text_records(expected, changed_text)
+        order_result = compare_text_records(expected, reordered)
+
+        self.assertFalse(text_result.equivalent)
+        self.assertIn("Riser", "\n".join(text_result.differences))
+        self.assertFalse(order_result.equivalent)
+
+    def test_compressed_text_snapshot_round_trip_and_comparison(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "lines.txt"
+            actual = Path(directory) / "actual-lines.txt"
+            snapshot = Path(directory) / "lines.semantic.json.gz"
+            source.write_text(self.LINES, encoding="utf-8")
+            actual.write_text(
+                self.LINES.replace("35.0", "35.000000").replace("  ", "   "),
+                encoding="utf-8",
+            )
+            create_text_snapshot("lines", source, snapshot)
+
+            result = compare_text_snapshot(snapshot, actual, abs_tol=1.0e-9)
+
+        self.assertTrue(result.equivalent, result.differences)
 
 
 if __name__ == "__main__":
