@@ -15,6 +15,7 @@ program test_panel_shaping
   type(neutral_boundary_edge_2d) :: neutral_boundary
   type(shaped_panel_side_2d) :: shaped, saved
   type(shaped_panel_side_2d) :: extrados_lower, extrados_higher
+  type(shaped_panel_side_2d) :: intrados_higher
   type(shaped_panel_side_2d) :: mismatched_extrados_side
   type(production_boundary_edge_2d) :: production_boundary
   type(production_boundary_edge_2d) :: saved_production_boundary
@@ -233,7 +234,32 @@ program test_panel_shaping
   call require_legacy_equal(legacy_u, legacy_v, expected_u, expected_v, &
       'rejected extrados write transaction')
 
+  ! The same writer selects the topology's exact intrados range while retaining
+  ! the higher-side slot pair used by the new regular-panel checkpoint.
   panel%surface = surface_intrados
+  panel%contour_first_index = 3
+  panel%contour_last_index = 4
+  call shape_neutral_panel_side(panel, panel_side_higher, &
+      [0.5_real64, 1.0_real64], 10.0_real64, intrados_higher, &
+      valid, message)
+  call require(valid, 'intrados higher side rejected: '//trim(message))
+  legacy_u = -777.0_real64
+  legacy_v = 888.0_real64
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(2, 3:4, legacy_production_higher_sewing_slot) = &
+      intrados_higher%sewing_u
+  expected_v(2, 3:4, legacy_production_higher_sewing_slot) = &
+      intrados_higher%sewing_v
+  expected_u(2, 3:4, legacy_production_higher_cut_slot) = &
+      intrados_higher%cut_u
+  expected_v(2, 3:4, legacy_production_higher_cut_slot) = &
+      intrados_higher%cut_v
+  call write_legacy_shaped_panel_side(intrados_higher, topology, legacy_u, &
+      legacy_v, valid, message)
+  call require(valid, 'higher intrados write rejected: '//trim(message))
+  call require_legacy_equal(legacy_u, legacy_v, expected_u, expected_v, &
+      'higher intrados exact-range write')
 
   ! At a neutral-development join, the next segment's start may not equal the
   ! incoming segment's end.  Point two must retain the incoming endpoint bias.

@@ -92,6 +92,8 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        use leparagliding_skin_tension
        use leparagliding_panel_shaping
        use leparagliding_panel_reformat
+       use leparagliding_spatial_geometry, only : rib_definition,
+     + copy_legacy_rib_definition
        use leparagliding_mark_types
        use leparagliding_hvr_config
 

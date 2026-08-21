@@ -286,7 +286,7 @@ program test_spatial_geometry
   call require(.not. definition%is_valid(), 'inconsistent chord accepted')
   definition = make_center_definition()
   definition%profile_height_scale = 0.0_real64
-  call require(.not. definition%is_valid(), 'zero profile scale accepted')
+  call require(definition%is_valid(), 'zero-height wingtip profile rejected')
 
   definition = make_center_definition()
   local_point%chordwise_cm = ieee_value(0.0_real64, ieee_quiet_nan)

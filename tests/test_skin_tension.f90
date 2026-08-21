@@ -60,6 +60,20 @@ program test_skin_tension
   call require(.not. valid, 'out-of-range distance was accepted')
   call require_close(offset, 0.0_real64, 'failed evaluation output')
 
+  ! A higher panel side selects the next boundary's independently identified
+  ! law.  Its contour length and width scale that boundary's normalized data.
+  call copy_legacy_new_skin_tension_law(legacy_values, 4, 8, &
+      surface_intrados, 1, law, valid, message)
+  call require(valid, 'higher-boundary intrados law rejected: '//trim(message))
+  call require(law%boundary_rib_index == 8, &
+      'higher-boundary intrados identity was lost')
+  call evaluate_skin_tension_offset(law, 120.0_real64, 30.0_real64, &
+      60.0_real64, offset, valid, message)
+  call require(valid, 'higher-boundary intrados point rejected: '// &
+      trim(message))
+  call require_close(offset, 3.0_real64, &
+      'higher-boundary intrados scaling')
+
   call copy_legacy_new_skin_tension_law(legacy_values, 4, 3, &
       surface_extrados, 1, law, valid, message)
   call require(valid, 'valid extrados law rejected: '//trim(message))

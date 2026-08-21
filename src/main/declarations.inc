@@ -229,7 +229,6 @@ c      Coordenades airfoil en gir Z
        real*8 ufa(0:100,500,50),vfa(0:100,500,50) ! auxiliar a
        real*8 ufb(0:100,500,50),vfb(0:100,500,50) ! auxiliar b
        real*8 ufc(0:100,500,50),vfc(0:100,500,50) ! auxiliar b
-       real*8 uft(0:100,500,50),vft(0:100,500,50) ! auxiliar t
        real*8 ufr(0:100,500,50),vfr(0:100,500,50) ! auxiliar r
        real*8 u_aux(0:100,500,10),v_aux(0:100,500,10),
      + w_aux(0:100,500,10) ! auxiliar general
@@ -273,6 +272,8 @@ c      Coordenades airfoil en gir Z
 c      Typed read-only views used while migrating legacy rib and neutral-panel
 c      arrays.  They own snapshots and never alias the numbered global slots.
        type(rib_identity), allocatable :: wing_rib_identities(:)
+       type(rib_definition), allocatable :: wing_rib_definitions(:)
+       logical, allocatable :: wing_rib_definition_available(:)
        type(profile_topology), allocatable :: wing_profile_topologies(:)
        type(spatial_rib_geometry_3d), allocatable :: wing_spatial_ribs(:)
        type(neutral_panel_2d) :: neutral_extrados_panel,neutral_intake_panel
@@ -282,7 +283,8 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
        type(skin_tension_law), allocatable ::
      + typed_extrados_tension_laws(:),typed_intrados_tension_laws(:)
        type(shaped_panel_side_2d) :: typed_extrados_lower_side,
-     + typed_extrados_higher_side,typed_intrados_lower_side
+     + typed_extrados_higher_side,typed_intrados_lower_side,
+     + typed_intrados_higher_side
        type(production_boundary_edge_2d) ::
      + typed_terminal_intrados_production_edge,
      + typed_terminal_intrados_reformatted_edge

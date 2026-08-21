@@ -214,10 +214,6 @@ c      6.7 Airfoil (x,y,z) absolute coordinates
        y(i,j)=rib(i,3)+u(i,j,5)
        z(i,j)=rib(i,7)-v(i,j,5)
 
-       u_aux(i,j,9)=y(i,j)
-       v_aux(i,j,9)=z(i,j)
-       w_aux(i,j,9)=x(i,j)
-
 c      6.8 Tornar a posar la costella al seu lloc
        v(i,j,3)=v(i,j,3)+rib(i,50)
 

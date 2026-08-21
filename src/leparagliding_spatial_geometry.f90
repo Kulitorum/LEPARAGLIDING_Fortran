@@ -117,6 +117,8 @@ contains
   !! Intake positions and rotation pivots are required to be finite but are
   !! not clamped to [0,1]: the legacy input permits a signed intake convention,
   !! and authoritative migration must not reject established extrapolations.
+  !! Profile height scale is likewise only required to be finite because the
+  !! maintained Plan B wingtip deliberately uses zero to collapse its height.
   pure logical function rib_definition_is_valid(definition) result(valid)
     class(rib_definition), intent(in) :: definition
     real(real64) :: expected_chord, scale
@@ -141,7 +143,6 @@ contains
         definition%intake_end_fraction, &
         definition%profile_height_scale]))) return
     if (definition%chord_length_cm <= 0.0_real64) return
-    if (definition%profile_height_scale <= 0.0_real64) return
 
     expected_chord = definition%trailing_edge_position_cm - &
         definition%leading_edge_position_cm

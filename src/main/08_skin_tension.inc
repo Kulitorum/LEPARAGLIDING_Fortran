@@ -603,12 +603,6 @@ c      Initialize sob points
        end do ! i (initialize all sob points)
 
        do i=0,nribss
- 
-c      Initialize vector extrados left side
-       do j=1,np(i,2)
-       u(i,j,50)=u(i,j,7)
-       u(i,j,51)=u(i,j,8) ! ? verificar significat vectors 50 i 51
-       end do  ! j
 
 c      Assign lengths and sob distances
        u(i,1,7)=0.
@@ -741,12 +735,6 @@ c      Initialize again sob points
        end do ! i (initialize all sob points)
 
        do i=0,nribss
- 
-c      Initialize vector extrados left side
-       do j=1,np(i,2)
-       u(i,j,50)=u(i,j,7)
-       u(i,j,51)=u(i,j,8) ! ? verificar significat vectors 50 i 51
-       end do  ! j
 
 c      Assign lengths and sob distances
        u(i,1,7)=0.
@@ -895,15 +883,6 @@ c            "antiprecission"
 c      Method not recommended
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-c      Define provisional vector 29, used later in 11.4 (Panels marks)
-
-       do i=0,nribss-1
-       do j=1,np(i,2)
-       u(i,j,29)=u(i,j,10)
-       v(i,j,29)=v(i,j,10)
-       end do
-       end do
-
 c      Jump to the end if ndif=1000 (no effect)
        if (ndif.ne.1000) then 
       
@@ -911,18 +890,6 @@ c      Avoid xndif=0
        if (xndif.eq.0.) then
        xndif=0.01
        end if
-
-c      Salva punts corva interior a vector 29 per a usos posterior
-c      rib(i,36)
-
-       do i=0,nribss-1
-       do j=1,np(i,2)
-
-       u(i,j,29)=u(i,j,10)
-       v(i,j,29)=v(i,j,10)
-
-       end do
-       end do
 
 c      Calcula diferencies de longitud costat exterior - interior
 
@@ -2356,17 +2323,12 @@ c      distance and puntslat calculations have a physical, defined oracle.
        end if
 
        do i=0,nribss
- 
-c      Initialize vector extrados left side
-       do j=np(i,2)+np(i,3)-1,np(i,1)-1
-       u(i,j,50)=u(i,j,7)
-c      u(i,j,51)=u(i,j,8) ? verificar significat vectors 50 i 51
-       end do  ! j
 
 c      Assign lengths and sob distances
        u(i,np(i,2)+np(i,3)-1,7)=0.
        u(i,np(i,2)+np(i,3)-1,8)=0.
 
+       typed_geometry_metric=0.d0
        do j=np(i,2)+np(i,3)-1,np(i,1)-1
        do k=1,skinpoints(i)-1
 
@@ -2428,6 +2390,44 @@ c      agrees.  The terminal row remains a physical boundary, not a panel.
        v(i,j,7)=typed_skin_tension_offset
        end if
 
+c      The regular higher side uses boundary i+1's intrados law.  Accumulate
+c      its distance independently from the exact retained higher neutral edge,
+c      compare both the legacy distance and offset, then publish the agreeing
+c      typed offset.  No higher side exists for terminal row nribss.
+       if (i.lt.nribss) then
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + u(i,j,8))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: higher intrados distance differs at panel ',i,
+     + ', point ',j,typed_geometry_metric,u(i,j,8)
+       stop 1
+       end if
+       call evaluate_skin_tension_offset(
+     + typed_intrados_tension_laws(i+1),rib(i+1,25),rib(i+1,24),
+     + typed_geometry_metric,typed_skin_tension_offset,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: typed higher intrados tension failed at panel ',i,
+     + ', point ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,8))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: typed/legacy higher intrados tension differs at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,8)
+       stop 1
+       end if
+       v(i,j,8)=typed_skin_tension_offset
+       k=j-(np(i,2)+np(i,3)-1)+1
+       typed_geometry_metric=typed_geometry_metric+sqrt(
+     + (neutral_intrados_panels(i)%higher_segment_end_u(k)-
+     + neutral_intrados_panels(i)%higher_segment_start_u(k))**2+
+     + (neutral_intrados_panels(i)%higher_segment_end_v(k)-
+     + neutral_intrados_panels(i)%higher_segment_start_v(k))**2)
+       end if
+
        end do ! j
 
 c      The final contour point has a tension value but no following segment.
@@ -2472,6 +2472,36 @@ c      a skin-tension offset and is consumed as the final shaped point.
        stop 1
        end if
        v(i,j,7)=typed_skin_tension_offset
+       end if
+
+c      The final higher contour point has an offset but no outgoing segment.
+c      The exact accumulator therefore already contains its developed distance.
+       if (i.lt.nribss) then
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + u(i,j,8))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: higher intrados endpoint distance differs at panel ',i,
+     + typed_geometry_metric,u(i,j,8)
+       stop 1
+       end if
+       call evaluate_skin_tension_offset(
+     + typed_intrados_tension_laws(i+1),rib(i+1,25),rib(i+1,24),
+     + typed_geometry_metric,typed_skin_tension_offset,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed higher intrados endpoint failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,8))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: typed/legacy higher intrados endpoint differs at panel ',i,
+     + typed_skin_tension_offset,v(i,j,8)
+       stop 1
+       end if
+       v(i,j,8)=typed_skin_tension_offset
        end if
 
 c      The physical terminal rib is not a panel.  Independently traverse its
@@ -2618,6 +2648,47 @@ c      Compute points right side
        if (i.lt.nribss) then
        call puntslat(i,pr1x,pr1y,pr2x,pr2y,np(i,1)-np(i,4)+1,
      + np(i,1)-1,u,v,xlow,1)
+
+c      Shape and publish the real higher intrados side from its retained exact
+c      neutral panel.  Compare the complete sewing/cut contour before the
+c      checked adapter writes only slots 10/12 over the intrados range.
+       call shape_neutral_panel_side(neutral_intrados_panels(i),
+     + panel_side_higher,
+     + v(i,np(i,1)-np(i,4)+1:np(i,1),8),xlow,
+     + typed_intrados_higher_side,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed higher intrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=np(i,1)-np(i,4)+1,np(i,1)
+       k=j-(np(i,1)-np(i,4)+1)+1
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_intrados_higher_side%sewing_u(k),
+     + u(i,j,10)).and.
+     + geometry_values_are_close(typed_intrados_higher_side%sewing_v(k),
+     + v(i,j,10)).and.
+     + geometry_values_are_close(typed_intrados_higher_side%cut_u(k),
+     + u(i,j,12)).and.
+     + geometry_values_are_close(typed_intrados_higher_side%cut_v(k),
+     + v(i,j,12))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: typed/legacy higher intrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_shaped_panel_side(typed_intrados_higher_side,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: higher intrados publication failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
        end if
 
 c      Leading edge segment unformated rib(i,98) intra
@@ -4983,29 +5054,6 @@ c      Extrados panel from TE to LE
 
 c      Set panel side lengths part 1
        call llarlr(i,1,1,npo,uf,vf,llarl,llarr)
-
-c      Update vents for perfect matching (BRUTE FORCE)
-c      Use vectors auxiliar t
-c      !!!!!!!!!!!!!!!!!!!!!!! NO VA NI FA RES ARA!!!!!!!!!!!
-       j=1
-       uft(i,j,9)=ufe(i,npf,9)
-       uft(i,j,10)=ufe(i,npf,10)
-       uft(i,j,11)=ufe(i,npf,11)
-       uft(i,j,12)=ufe(i,npf,12)
-       vft(i,j,9)=vfe(i,npf,9)
-       vft(i,j,10)=vfe(i,npf,10)
-       vft(i,j,11)=vfe(i,npf,11)
-       vft(i,j,12)=vfe(i,npf,12)
-       do j=2,np(i,3)
-       uft(i,j,9)=ufv(i,j,9)
-       uft(i,j,10)=ufv(i,j,10)
-       uft(i,j,11)=ufv(i,j,11)
-       uft(i,j,12)=ufv(i,j,12)
-       vft(i,j,9)=vfv(i,j,9)
-       vft(i,j,10)=vfv(i,j,10)
-       vft(i,j,11)=vfv(i,j,11)
-       vft(i,j,12)=vfv(i,j,12)
-       end do
 
 c      Roman marks
        x1=uf(i,1,9)

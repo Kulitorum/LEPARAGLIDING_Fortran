@@ -3,13 +3,13 @@
 Status: implementation in progress; Phase 0 DXF/CI gates and the typed
 ownership checkpoints documented below are complete. Remaining Phase-0 report
 oracles and Phases 1--7 continue in dependency order. Phase 4 currently owns
-extrados offsets and shaping, lower-intrados shaping, and terminal reformat;
+extrados and regular intrados offsets/shaping plus terminal intrados reformat;
 Phase 5 has its validated rib-definition and spatial-transform foundation.
 
 Evidence baseline: typed adapter/color, topology, neutral terminal-boundary,
 authoritative extrados/intake/intrados, typed regular-panel extrados offsets,
-typed regular-panel extrados shaping, and typed regular plus physical-terminal
-lower-intrados shaping/reformat checkpoints
+typed regular-panel extrados shaping, and typed regular-panel plus
+physical-terminal intrados shaping/reformat checkpoints
 
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
@@ -200,8 +200,8 @@ write-back.
 
 ### Seventh checkpoint: Section-31 laws and production offsets
 
-The current Phase-4 slice owns new-law extrados offsets on both panel sides and
-lower-intrados production geometry for every real panel while retaining the
+The current Phase-4 slice owns new-law extrados and intrados offsets and
+production geometry on both sides of every real panel while retaining the
 existing calculation as a comparison oracle:
 
 - `leparagliding_skin_tension` defines a validated, transactional
@@ -215,14 +215,14 @@ existing calculation as a comparison oracle:
   behavior of overlapping legacy intervals.
 - For `k31d=1`, stage 8 independently accumulates each exact neutral-contour
   distance, then dual-compares and publishes typed offsets on both extrados
-  sides and the lower intrados side of panels `0:nribss-1`. The final contour
-  point is included: it owns an offset even though the final real segment is
-  `last-1` and there is no outgoing segment at `last`.
+  and intrados sides of panels `0:nribss-1`. Higher sides select boundary law
+  `i+1`; the final contour point is included even though there is no outgoing
+  segment at `last`.
 - `leparagliding_panel_shaping` defines transactional `shaped_panel_side_2d`
-  results and a pure side-parameterized kernel. Both extrados sides and the
-  lower-intrados side are integrated. For extrados, the exact-range checked
-  adapter selects legacy slots 9/11 for a lower side or 10/12 for a higher side
-  and publishes only after the complete typed contour agrees.
+  results and a pure side-parameterized kernel. Both sides of extrados and
+  intrados are integrated. The exact-range checked adapter publishes both
+  extrados sides and the higher intrados side, selecting slots 9/11 for a lower
+  side or 10/12 for a higher side only after the complete contour agrees.
 - The kernel retains the legacy lower/higher normal signs, horizontal-initial-
   point convention, incoming-segment endpoint bias at joins, and promoted
   default-REAL `0.1` millimetre allowance conversion. These are explicit
@@ -390,7 +390,7 @@ panel measurements, and scratch accumulators.
 | 110:115 | `anchor_profile_u(1:6)` | rib-local working length | stage 6 | Interpolated anchor U coordinates (`src/main/06_airfoil_geometry.inc:281-301`). |
 | 120:125 | `anchor_profile_v(1:6)` | rib-local working length | stage 6 | Interpolated anchor V coordinates in the same block. |
 | 130:135 | `te_to_anchor_contour_length(1:6)` | working length | stage 6 | Accumulated along the lower contour (`src/main/06_airfoil_geometry.inc:293-301`). |
-| 160 | `profile_height_scale` | dimensionless | later input section | Multiplies normalized V while reading profiles (`src/main/06_airfoil_geometry.inc:37-41`). |
+| 160 | `profile_height_scale` | dimensionless | later input section | Multiplies normalized V while reading profiles (`src/main/06_airfoil_geometry.inc:37-41`); zero is retained because maintained wingtip inputs use it to collapse profile height. |
 | 165 | feature/control value, unresolved | unknown | input and later geometry | Widely shared by stages 4, 5, 6, 8, 9, 11, and 21; it must be named only after tracing its input section with Pere. |
 | 169 | `shaping_group_index` | integer-like index stored as real | input | Converted to `ng` by 3D shaping (`src/procedures/geometry_3d.inc:39-40`). |
 | 190:193 | four rib/panel side lengths | working length | stage 11 | Explicitly initialized and measured for both sides of an extrados panel (`src/main/11_panel_lengths.inc:84-119`). |
@@ -910,36 +910,34 @@ Exit criterion: typed neutral development is authoritative, legacy `pl*/pr*`
 is adapter output only, and no point-499 scratch convention remains in the
 neutral-development pipeline.
 
-Phase 4 now owns new-law extrados offsets and sewing/cut shaping on both
-regular-panel sides, lower-intrados regular panels, and the separate physical
-terminal intrados production edge through its exact-range `ndif=1000` length
-match. Broader regular-row reformat, distortion, remaining shaping-side, vent,
-and special-path migration follows.
+Phase 4 now owns new-law extrados and intrados offsets and sewing/cut shaping on
+both regular-panel sides plus the separate physical terminal intrados production
+edge through its exact-range `ndif=1000` length match. Broader regular-row
+reformat, distortion, intake shaping, vent, and special-path migration follows.
 Retiring the duplicate stage-7 comparison oracle can follow once downstream
 boundaries have equivalent semantic regression coverage.
 
 ### Phase 4 — Own production panel shaping
 
-Implementation status: `k31d=1` offsets on both extrados sides and the
-lower-intrados side are typed-authoritative for real panels `0:nribss-1`,
-including each final contour point. Sewing/cut shaping is typed-authoritative
-for both extrados sides and the lower intrados side. The distinct physical
+Implementation status: `k31d=1` offsets and sewing/cut shaping on both extrados
+and intrados sides are typed-authoritative for real panels `0:nribss-1`,
+including each final contour point. The distinct physical
 terminal boundary at row `nribss` is typed-authoritative through the initial
 production handoff and the exact-range `ndif=1000` length match: it owns
 intrados offsets and slots 9/11 without inventing a panel or terminal slots
 10/12. Section-31 laws, shaped sewing/cut sides, extrados exact-range
 publication, terminal length matching, and the preceding join support are owned
 by focused pure modules; stage 8 compares them with the old calculations before
-publishing compatibility slots. Regular-row reformats, distortion, and
-remaining intake and intrados production shaping sides remain to be migrated.
+publishing compatibility slots. Regular-row reformats, distortion, and intake
+production shaping remain to be migrated.
 
 1. Extract `skin_tension_law` parsing and evaluation from slots 7/8.
-   **Complete for Section-31 extrados and intrados laws, both extrados sides,
-   and the lower intrados side of every real panel.**
+   **Complete for Section-31 extrados and intrados laws on both sides of every
+   real panel.**
 2. Implement one side-shaping routine parameterized by side and surface instead
    of separate copy/pasted extrados/intrados blocks. **The shared pure kernel is
-   complete and integrated for both extrados regular-panel sides, the lower
-   intrados regular-panel side, and the separately typed terminal intrados
+   complete and integrated for both extrados and intrados regular-panel sides
+   plus the separately typed terminal intrados
    boundary.**
 3. Produce sewing and cut edges directly in `production_panel_2d`.
    **In progress: validated `shaped_panel_side_2d` results publish exact ranges
@@ -964,13 +962,18 @@ displacement-adjusted rib-local point. Focused tests freeze identity, each
 rotation and pivot, the explicit displacement policy, a compound numeric oracle,
 and generated-rib provenance. A checked legacy adapter now copies one Stage-4
 row, verifies identity and source-profile provenance, and converts degrees and
-percentages exactly once. Retained main-stage definitions, complete-profile
-construction, symmetry/tip constructors, and dual-run authority remain.
+percentages exactly once. Stage 4 retains every complete authored definition in
+a collection aligned with the full rib-role index range. Generated row 0 and the
+tip-support row remain explicitly unavailable there because their legacy rows
+never receive every late-scaled field; named symmetry/tip constructors must
+supply them from explicit provenance. Complete-profile construction and dual-run
+authority remain.
 
 1. Parse section-1/2 values into `rib_definition` and
    `normalized_profile_2d`, converting units at the boundary. **The validated
-   destination type and transactional Stage-4 row adapter are complete;
-   retained main-stage collection integration remains.**
+   destination type, transactional Stage-4 row adapter, and role-aligned
+   retained main-stage collection are complete for authored physical ribs;
+   incomplete generated rows are deliberately deferred to named constructors.**
 2. Replace the chained numbered slots 3/4/5 and duplicated `xyzt` path with one
    explicit transformation from a normalized profile and rib definition to
    `spatial_rib_3d`. **The exact-order single-point transform is complete and
@@ -1118,11 +1121,11 @@ The producer-authority checkpoints completed:
    them after intake support is released, make their stage-8 metrics
    authoritative, and remove the magic point-499 save/restore and collision
    rule without modifying terminal row `nribss`; and
-7. normalize Section-31 extrados and intrados laws, make both extrados-side and
-   lower-intrados `k31d=1` offsets authoritative for every real panel and final
+7. normalize Section-31 extrados and intrados laws, make both surfaces' lower
+   and higher `k31d=1` offsets authoritative for every real panel and final
    contour point after comparison, then shape and transactionally publish the
-   agreeing typed extrados slot-9/11 and slot-10/12 contours while retaining the
-   checked lower-intrados slot-9/11 publication; and
+   agreeing typed extrados contours and higher-intrados slot-10/12 contour while
+   retaining the checked lower-intrados slot-9/11 publication; and
 8. define `production_boundary_edge_2d`, seed the legacy terminal intrados
    neutral oracle from the final real panel, independently check every terminal
    distance/offset/coordinate, publish only row-`nribss` slots 9/11, and stop

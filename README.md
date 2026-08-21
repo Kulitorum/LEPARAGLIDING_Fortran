@@ -93,12 +93,12 @@ The maintained structure now:
   physical wingtip comparison edges derived from the final real panel;
 - normalizes the authored Section-31 piecewise-linear laws in
   `leparagliding_skin_tension`, then makes their `k31d=1` extrados offsets on
-  both sides and lower-intrados offsets authoritative for every real panel
-  after exact legacy agreement;
+  both sides and intrados offsets on both sides authoritative for every real
+  panel after exact legacy agreement;
 - builds the corresponding sewing and cut contours with the pure
   `leparagliding_panel_shaping` compatibility kernel and publishes the agreeing
-  typed geometry for both regular-panel extrados sides, lower-intrados regular
-  panels, and their separately modeled physical wingtip boundary;
+  typed geometry for both regular-panel extrados and intrados sides plus their
+  separately modeled physical wingtip boundary;
 - applies the terminal `ndif=1000` length match through
   `leparagliding_panel_reformat`, preserving its historical arithmetic while
   moving the terminal sewing and cut contours together, including the
@@ -147,11 +147,11 @@ rule. Section 31 positions are reversed from their trailing-edge-to-leading-edge
 input direction into increasing developed-contour percentages, validated over
 the complete 0--100 percent interval, and stored with their overwidth values in
 a named per-boundary, per-surface law. For `k31d=1`, the typed evaluator owns
-both extrados-side offsets and lower-intrados offsets for panels
-`0:nribss-1`, including each final contour point. Typed shaping results own
-extrados slots 9/11 and 10/12 plus lower-intrados slots 9/11. For extrados, an
-exact-range, side-selecting adapter publishes each complete side only after
-every coordinate agrees with the retained legacy calculation.
+both sides' offsets on extrados and intrados for panels `0:nribss-1`, including
+each final contour point. Typed shaping results own slots 9/11 and 10/12 on both
+surfaces. The exact-range, side-selecting adapter publishes both extrados sides
+and the higher intrados side only after every coordinate agrees with the
+retained legacy calculation; the lower intrados side retains its checked path.
 Historical inclusive interval overlap, last-matching-interval selection,
 default-REAL promotion, normal direction, incoming-segment endpoint bias, and
 millimetre allowance conversion are preserved deliberately. The `k31d=1`
@@ -168,8 +168,8 @@ edge. Its slot-11 cut edge receives the same point displacement so the
 established allowance vectors remain attached. The historical extrapolated
 intake join immediately before the intrados range is represented independently,
 dual-compared, and publishes its slot-9/11 pair transactionally. Regular-row
-reformats, five-pass distortion correction, and remaining intake/intrados
-shaping sides are later Phase-4 boundaries.
+reformats, five-pass distortion correction, and intake shaping are later
+Phase-4 boundaries. Two dead slot-29 copies with no active reader were removed.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces

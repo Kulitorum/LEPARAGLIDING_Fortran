@@ -2568,6 +2568,58 @@ c     parity is retained as a non-fatal consistency diagnostic.
      + ncells,', center width=',cencell
       end if
 
+c     Retain complete Stage-4 definitions for every authored physical rib.
+c     The collection deliberately has the same bounds as the role model so a
+c     later named constructor can fill each generated role without reindexing.
+c     Generated row 0 and tip-support row nribss+1 are not copied here: their
+c     legacy columns 160 and 50 are incomplete at this boundary.  In contrast,
+c     columns 250/251 were copied during section 1, and row 0's column 250 sign
+c     was adjusted above.  Copying only the complete authored rows preserves
+c     those established legacy values instead of inventing generated fields.
+      if (.not.allocated(wing_rib_identities)) then
+      write (*,'(A)') 'ERROR: rib-role model did not retain identities'
+      stop 1
+      end if
+      if (lbound(wing_rib_identities,1).ne.0.or.
+     + ubound(wing_rib_identities,1).ne.nribss+1) then
+      write (*,'(A,2(I0,A),I0)')
+     + 'ERROR: rib-definition/identity bounds differ: expected 0:',
+     + nribss+1,', received ',lbound(wing_rib_identities,1),':',
+     + ubound(wing_rib_identities,1)
+      stop 1
+      end if
+      if (allocated(wing_rib_definitions)) deallocate(wing_rib_definitions)
+      if (allocated(wing_rib_definition_available))
+     + deallocate(wing_rib_definition_available)
+      allocate(wing_rib_definitions(0:nribss+1))
+      allocate(wing_rib_definition_available(0:nribss+1))
+      wing_rib_definition_available=.false.
+      do i=0,nribss+1
+      if (wing_rib_identities(i)%is_authored_physical()) then
+      call copy_legacy_rib_definition(rib,wing_rib_identities(i),
+     + wing_rib_identities(i)%profile_source_index,
+     + wing_rib_definitions(i),domain_model_valid,domain_model_message)
+      if (.not.domain_model_valid) then
+      write (*,'(A,I0,2A)') 'ERROR: invalid Stage-4 rib definition at row ',
+     + i,': ',trim(domain_model_message)
+      stop 1
+      end if
+      wing_rib_definition_available(i)=.true.
+      else if (i.eq.0.or.wing_rib_identities(i)%is_tip_support()) then
+c     Availability remains false until explicit generated-rib constructors
+c     supply every field from named source and placement provenance.
+      else
+      write (*,'(A,I0)')
+     + 'ERROR: unsupported generated rib role at legacy row ',i
+      stop 1
+      end if
+      end do
+      if (any(.not.wing_rib_definition_available(1:nribss))) then
+      write (*,'(A)')
+     + 'ERROR: incomplete authored Stage-4 rib-definition collection'
+      stop 1
+      end if
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     4.8 DXF layers  (project)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
