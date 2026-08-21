@@ -91,6 +91,13 @@ The maintained structure now:
   the shared intake support is no longer needed, and makes typed stage-8
   surface lengths/widths authoritative after legacy agreement, including
   physical wingtip comparison edges derived from the final real panel;
+- normalizes the authored Section-31 piecewise-linear laws in
+  `leparagliding_skin_tension`, then makes their `k31d=1` lower-intrados
+  offsets authoritative for every real panel after exact legacy agreement;
+- builds the corresponding sewing and cut contours with the pure
+  `leparagliding_panel_shaping` compatibility kernel and publishes the agreeing
+  typed geometry for lower-intrados regular panels and their separately modeled
+  physical wingtip boundary;
 - parses new HVR settings into typed, initialized configuration objects in
   `leparagliding_hvr_config`; and
 - keeps new module code in free-form Fortran with `implicit none` while the
@@ -128,6 +135,26 @@ input paths reject point 501 before copying. This does not yet claim that every
 later legacy algorithm supports arbitrary 500-point inputs.
 Row `nribss` remains a terminal boundary, not another panel, and is untouched
 by regular-panel write-back.
+
+The first Phase-4 production-shaping checkpoint follows the same authority
+rule. Section 31 positions are reversed from their trailing-edge-to-leading-edge
+input direction into increasing developed-contour percentages, validated over
+the complete 0--100 percent interval, and stored with their overwidth values in
+a named per-boundary law. For `k31d=1`, the typed evaluator owns lower-intrados
+offsets for panels `0:nribss-1`, including the final contour point, and the
+typed shaping result owns their slot-9 sewing and slot-11 cut coordinates.
+Both are published only after agreement with the retained legacy calculation.
+Historical inclusive interval overlap, last-matching-interval selection,
+default-REAL promotion, normal direction, incoming-segment endpoint bias, and
+millimetre allowance conversion are preserved deliberately. The `k31d=1`
+intrados wingtip is now a separate `production_boundary_edge_2d`, derived from
+the final real panel's higher neutral edge without fabricating panel `nribss`.
+A checked adapter first supplies the exact terminal `pl1/pl2` oracle that the
+legacy stage read without constructing; typed offsets and shaping must then
+agree point-for-point before only row-`nribss` slots 9/11 are published. Slots
+10/12 remain deliberately nonexistent beyond the wingtip. The optional `ndif`
+reformatter still takes compatibility ownership afterward; migrating that
+named feature and the remaining surfaces/sides is the next Phase-4 work.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces
@@ -172,7 +199,7 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Up to twelve isolated tests are registered (ten do not require Python):
+Up to fourteen isolated tests are registered (twelve do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
@@ -182,28 +209,34 @@ Up to twelve isolated tests are registered (ten do not require Python):
 2. `neutral_development` checks the pure quadrilateral developer, exact source
    distances, start-biased joins, all three neutral surfaces, panel zero, and
    transactional failure.
-3. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
+3. `skin_tension` checks Section-31 direction normalization, column selection,
+   validation, inclusive interval overlap, last-match selection, endpoints,
+   and transactional failure.
+4. `panel_shaping` checks lower/higher normal conventions in every quadrant,
+   horizontal and vertical compatibility cases, incoming-segment endpoint
+   ownership, allowance conversion, and transactional failure.
+5. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
    and verifies the rebuilt contour's topology identities.
-4. `color_geometry` checks robust color-edge interpolation, repeated profile
+6. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-5. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+7. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
    comparator (registered when Python 3 is available).
-6. `color_division_import` compares DXF import with a Swoop2-derived section-16
+8. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-7. `plan_b_regression` compares all five principal outputs with the reviewed
+9. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline, after normalizing line endings.
-8. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
+10. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
    design, checks its collapsed center and declared counts, rejects non-finite
    DXF geometry, and compares all five principal outputs.
-9. `classic_skin_regression` runs the realistic gnuA3 design through classic
+11. `classic_skin_regression` runs the realistic gnuA3 design through classic
    skin tension (`k31d=0`), rejects non-finite DXF geometry, checks its declared
    counts, and freezes all five principal outputs.
-10. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
+12. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
    checks the one-based no-cut group path under runtime bounds checking, and
    freezes all five principal outputs.
-11. `profile_capacity_guard` verifies that an oversized 501-point profile is
+13. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-12. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+14. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -238,6 +271,8 @@ src/
   leparagliding_mark_types.f90      shared mark drawing configuration
   leparagliding_neutral_development.f90
                                       pure neutral-surface development
+  leparagliding_panel_shaping.f90  typed sewing/cut side-shaping kernel
+  leparagliding_skin_tension.f90   normalized Section-31 laws and evaluator
   main/                             numbered main-program calculation stages
   procedures/                       procedures grouped by responsibility
 tests/
