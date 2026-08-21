@@ -63,10 +63,23 @@ program test_skin_tension
   call copy_legacy_new_skin_tension_law(legacy_values, 4, 3, &
       surface_extrados, 1, law, valid, message)
   call require(valid, 'valid extrados law rejected: '//trim(message))
+  call require(law%boundary_rib_index == 3, &
+      'extrados boundary identity was lost')
+  call require(law%surface == surface_extrados, &
+      'extrados surface identity was lost')
   call require_close(law%developed_position_percent(2), 40.0_real64, &
       'extrados position columns')
   call require_close(law%overwidth_percent(2), 3.0_real64, &
       'extrados overwidth columns')
+
+  call evaluate_skin_tension_offset(law, 200.0_real64, 10.0_real64, &
+      80.0_real64, offset, valid, message)
+  call require(valid, 'extrados law point rejected: '//trim(message))
+  call require_close(offset, 0.3_real64, 'extrados law offset')
+  call evaluate_skin_tension_offset(law, 200.0_real64, 10.0_real64, &
+      200.0_real64, offset, valid, message)
+  call require(valid, 'extrados law endpoint rejected: '//trim(message))
+  call require_close(offset, 0.0_real64, 'extrados endpoint offset')
 
   law%developed_position_percent(1) = 1.0_real64
   call require(.not. law%is_valid(), 'law without zero endpoint was valid')

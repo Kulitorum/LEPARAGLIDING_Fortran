@@ -23,14 +23,16 @@ array and its slot, not by the variable letter alone:
 | `neutral_intake_panel` | Exact typed intake segments plus explicit post-intake support for the current regular panel |
 | `neutral_intrados_panels(0:nribss-1)` | Retained exact typed intrados panels, developed before intake overwrites the shared support index and checked-written after vent processing |
 | `terminal_extrados_edge`, `terminal_intake_edge`, `terminal_intrados_edge` | Physical wingtip comparison edges derived from the higher side of the final real panel; these are boundaries, not fabricated panels |
-| `typed_intrados_tension_laws(0:nribss)` | Validated Section-31 intrados boundary laws, normalized into increasing developed-contour direction |
-| `u(panel,j,7)`, `v(panel,j,7)` | Intrados developed-contour distance and its `k31d=1` skin-tension offset |
+| `typed_extrados_tension_laws(0:nribss)`, `typed_intrados_tension_laws(0:nribss)` | Validated Section-31 boundary laws for both surfaces, normalized into increasing developed-contour direction |
+| `u(panel,j,7:8)`, `v(panel,j,7:8)` | Developed-contour distances and `k31d=1` offsets; both extrados sides and the lower intrados side are typed-authoritative |
 | `typed_intrados_lower_side` | Sewing and cut contours shaped from the exact lower side of the current real intrados panel |
 | `typed_terminal_intrados_offsets` | One typed skin-tension offset for each point on the physical terminal intrados contour |
 | `typed_terminal_intrados_production_edge` | Physical wingtip sewing/cut boundary; owns row-`nribss` slots 9/11 only and cannot contain slots 10/12 |
 | `typed_terminal_intrados_reformatted_edge` | The agreeing exact-range terminal `ndif=1000` result after sewing-length matching and paired cut translation |
 | `typed_terminal_intrados_join_support` | The separately owned point at `intrados_first-1`, its preceding sewing anchor, and its established cut point |
 | `typed_terminal_intrados_reformatted_join_support` | The agreeing legacy-compatible join extrapolation with paired sewing/cut translation |
+| `layout_transform_2d` | Drawing-only reflection, rotation, and translation; production coordinates remain local and unscaled |
+| `rib_definition` | Named, validated Stage-6 placement inputs with explicit units, angles, profile source, and generated-rib provenance |
 | `u/v(panel,j,9)` | Tensioned/developed left skin edge |
 | `u/v(panel,j,10)` | Tensioned/developed right skin edge |
 | `u/v(panel,j,11:12)` | Left/right sewing-border coordinates |
@@ -47,17 +49,17 @@ a chord percentage at ribs, then mapped onto developed `u/v` panel edges.
 |---|---|
 | `declarations.inc` | Declares shared schema and documents legacy array slots |
 | `03_initialization.inc` | Initializes defaults, run state, and fixed I/O units |
-| `04_data_reading.inc` | Parses sections 1--39, validates options, scales geometry, derives placement, and normalizes Section-31 intrados laws |
+| `04_data_reading.inc` | Parses sections 1--39, validates options, scales geometry, derives placement, and normalizes Section-31 extrados and intrados laws |
 | `05_graphic_design.inc` | Draws planform/vault references and design annotations |
-| `06_airfoil_geometry.inc` | Loads profiles, constructs normalized plus absolute 3D geometry, then snapshots physical spatial ribs |
+| `06_airfoil_geometry.inc` | Loads profiles, constructs normalized plus absolute 3D geometry, then snapshots physical spatial ribs; the equivalent exact-order point transform is now isolated and tested for later dual-run integration |
 | `07_panel_development.inc` | Flattens consecutive 3D quadrilaterals, exactly compares legacy and pure typed regular extrados/intake/intrados results, publishes extrados/intake, and retains intrados across vent processing |
-| `08_skin_tension.inc` | Makes agreeing typed surface metrics authoritative, processes vents, checked-writes retained intrados, makes typed `k31d=1` lower-intrados offsets plus sewing/cut contours authoritative, and dual-runs the terminal `ndif=1000` length match before continuing legacy edges, borders, and layouts |
+| `08_skin_tension.inc` | Makes agreeing typed surface metrics authoritative, processes vents, checked-writes retained intrados, makes typed `k31d=1` offsets authoritative on both extrados sides and the lower intrados side, owns lower-intrados sewing/cut contours, and dual-runs the terminal `ndif=1000` length match before continuing legacy edges, borders, and layouts |
 | `09_singular_rib_points.inc` | Resolves anchors, intake limits, and named construction points |
 | `10_calage.inc` | Calculates aerodynamic reference angles and balance geometry |
 | `11_panel_lengths.inc` | Measures corresponding sides and places assembly marks |
 | `12_lines.inc` | Expands suspension topology and calculates line geometry |
 | `14_brakes.inc` | Expands brake topology and distribution |
-| `15_colors.inc` | Adds internal color seams, allowances, and inset registration marks |
+| `15_colors.inc` | Adds internal color seams, allowances, and inset registration marks using typed surface/layout ownership |
 | `16_internal_ribs.inc` | Builds H/V/VH parts, junctions, rods, holes, and reinforcements |
 | `17_equilibrium.inc` | Optionally solves force/moment equilibrium |
 | `18_text_output.inc` | Writes the detailed design report |
@@ -87,7 +89,8 @@ section 1 rib planform + section 2 profiles
   -> retained typed intrados panels and typed-authoritative length/width metrics
   -> vent processing while the intake support remains published
   -> checked intrados write-back after vents
-  -> normalized Section-31 law evaluation for each lower-intrados contour point
+  -> normalized Section-31 law evaluation for both extrados contour sides and
+     each lower-intrados contour point
   -> typed side shaping from exact neutral segments, compared with legacy shaping
   -> checked write-back of regular-panel offsets and slot-9/11 sewing/cut edges
   -> separately checked physical-terminal offsets and slot-9/11 boundary
@@ -114,12 +117,13 @@ ready for arbitrary 500-point profiles. Both `.dat` and count-prefixed `.txt`
 readers nevertheless reject point 501 before it can index fixed storage, and
 the new-tension intrados accumulator stops at the final real segment `last-1`.
 
-For the first Phase-4 slice, `leparagliding_skin_tension` converts Section 31
+For the current Phase-4 slice, `leparagliding_skin_tension` converts Section 31
 from its authored trailing-edge-to-leading-edge order into increasing 0--100
-percent developed-contour order. Intrados uses source columns 3/4. Its pure
-evaluator scales position by contour length and overwidth by panel width. It
-retains the historical promoted default-REAL `1.001` inclusive upper-bound
-factor and lets the last matching interval win when adjacent intervals overlap.
+percent developed-contour order. Extrados uses source columns 1/2 and intrados
+uses source columns 3/4. Its pure evaluator scales position by contour length
+and overwidth by panel width. It retains the historical promoted default-REAL
+`1.001` inclusive upper-bound factor and lets the last matching interval win
+when adjacent intervals overlap.
 For `k31d=1`, these typed offsets are authoritative on the lower intrados side
 of every real panel `0:nribss-1`, including the final contour point even though
 that point has no outgoing neutral segment.

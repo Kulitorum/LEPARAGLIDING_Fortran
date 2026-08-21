@@ -614,6 +614,7 @@ c      Assign lengths and sob distances
        u(i,1,7)=0.
        u(i,1,8)=0.
 
+       typed_geometry_metric=0.d0
        do j=1,np(i,2)
        do k=1,skinpoints(i)-1
 
@@ -630,6 +631,43 @@ c      Left side
      + (pl2y(i,j)-pl1y(i,j))**2)
 
        end do ! k
+
+c      The retained interpolation is the compatibility oracle.  For real
+c      panels, independently accumulate the exact neutral-contour distance,
+c      compare the typed law result, and publish the agreeing offset.  The
+c      terminal row is a boundary rather than a regular panel.
+       if (i.lt.nribss) then
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + u(i,j,7))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: extrados lower distance mismatch at panel ',i,
+     + ', point ',j,typed_geometry_metric,u(i,j,7)
+       stop 1
+       end if
+       call evaluate_skin_tension_offset(
+     + typed_extrados_tension_laws(i),rib(i,23),rib(i,22),
+     + typed_geometry_metric,typed_skin_tension_offset,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: invalid extrados lower tension at panel ',i,
+     + ', point ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,7))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: extrados lower offset mismatch at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,7)
+       stop 1
+       end if
+       v(i,j,7)=typed_skin_tension_offset
+       if (j.lt.np(i,2)) then
+       typed_geometry_metric=typed_geometry_metric+sqrt(
+     + (pl2x(i,j)-pl1x(i,j))**2+
+     + (pl2y(i,j)-pl1y(i,j))**2)
+       end if
+       end if
 
        end do ! j
 
@@ -663,6 +701,7 @@ c      Assign lengths and sob distances
        u(i,1,7)=0.
        u(i,1,8)=0.
 
+       typed_geometry_metric=0.d0
        do j=1,np(i,2)
        do k=1,skinpoints(i)
 
@@ -688,6 +727,41 @@ c      I coherencia amb pr* !!!!
        end if
 
        end do ! k
+
+c      The higher edge uses boundary i+1's extrados law but the current
+c      panel width, matching the Section-31 legacy convention.
+       if (i.lt.nribss) then
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + u(i,j,8))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: extrados higher distance mismatch at panel ',i,
+     + ', point ',j,typed_geometry_metric,u(i,j,8)
+       stop 1
+       end if
+       call evaluate_skin_tension_offset(
+     + typed_extrados_tension_laws(i+1),rib(i+1,23),rib(i,22),
+     + typed_geometry_metric,typed_skin_tension_offset,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: invalid extrados higher tension at panel ',i,
+     + ', point ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,8))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: extrados higher offset mismatch at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,8)
+       stop 1
+       end if
+       v(i,j,8)=typed_skin_tension_offset
+       if (j.lt.np(i,2)) then
+       typed_geometry_metric=typed_geometry_metric+sqrt(
+     + (pr2x(i,j)-pr1x(i,j))**2+
+     + (pr2y(i,j)-pr1y(i,j))**2)
+       end if
+       end if
 
        end do ! j
 
