@@ -14,7 +14,7 @@
 !! the terminal sewing/cut pair coherent without inventing a panel or higher
 !! terminal side.
 module leparagliding_panel_reformat
-  use, intrinsic :: iso_fortran_env, only : real32, real64
+  use, intrinsic :: iso_fortran_env, only : int64, real32, real64
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
   use leparagliding_domain_model, only : production_boundary_edge_2d, &
       surface_intrados, legacy_production_lower_sewing_slot, &
@@ -67,12 +67,394 @@ module leparagliding_panel_reformat
     procedure :: is_valid => preceding_join_support_is_valid
   end type preceding_join_support_2d
 
+  !> Exact production contour owned by one regular lower extrados row.
+  !!
+  !! Stage 8 stores this edge in legacy slots 9/11 at `panel_index`.  The
+  !! point after `contour_last_index` is an intake-side support point and is
+  !! deliberately excluded: the historical extrapolation of that point stays
+  !! in the fixed-form caller until its cross-surface ownership is modelled.
+  type :: regular_lower_extrados_edge_2d
+    integer :: panel_index = -1
+    integer :: contour_first_index = 1
+    integer :: contour_last_index = -1
+    real(real64), allocatable :: sewing_u(:)
+    real(real64), allocatable :: sewing_v(:)
+    real(real64), allocatable :: cut_u(:)
+    real(real64), allocatable :: cut_v(:)
+  contains
+    procedure :: is_valid => regular_lower_extrados_edge_is_valid
+  end type regular_lower_extrados_edge_2d
+
   public :: reformat_terminal_intrados_boundary
+  public :: reformat_legacy_regular_lower_extrados_row
   public :: copy_legacy_preceding_join_support
   public :: reformat_preceding_join_support
   public :: write_legacy_preceding_join_support
 
 contains
+
+  !> Validate one bounded regular lower-extrados production edge.
+  pure logical function regular_lower_extrados_edge_is_valid(edge)
+    class(regular_lower_extrados_edge_2d), intent(in) :: edge
+
+    integer :: point_count
+
+    regular_lower_extrados_edge_is_valid = .false.
+    if (edge%panel_index < 0) return
+    if (edge%contour_first_index /= 1) return
+    if (edge%contour_last_index < edge%contour_first_index) return
+    point_count = edge%contour_last_index - edge%contour_first_index + 1
+    if (point_count < 2) return
+    if (.not. allocated(edge%sewing_u) .or. &
+        .not. allocated(edge%sewing_v) .or. &
+        .not. allocated(edge%cut_u) .or. &
+        .not. allocated(edge%cut_v)) return
+    if (any([size(edge%sewing_u), size(edge%sewing_v), &
+        size(edge%cut_u), size(edge%cut_v)] /= point_count)) return
+    if (.not. all(ieee_is_finite(edge%sewing_u)) .or. &
+        .not. all(ieee_is_finite(edge%sewing_v)) .or. &
+        .not. all(ieee_is_finite(edge%cut_u)) .or. &
+        .not. all(ieee_is_finite(edge%cut_v))) return
+    regular_lower_extrados_edge_is_valid = .true.
+  end function regular_lower_extrados_edge_is_valid
+
+  !> Reformat one regular lower extrados row through a checked typed boundary.
+  !!
+  !! This is the migration boundary for the forward `ndif=1000` loop.  It
+  !! snapshots the exact extrados contour from slots 9/11, calculates a typed
+  !! candidate, independently evaluates the historical loop as an oracle, and
+  !! publishes the candidate only when every sewing coordinate is bit-exact.
+  !! The established cut contour is intentionally unchanged, matching the
+  !! production contract before this migration.  The caller still owns the
+  !! historical extrapolation at `contour_last_index+1`.
+  !!
+  !! Rejected requests are transactional and leave both legacy arrays intact.
+  pure subroutine reformat_legacy_regular_lower_extrados_row(panel_index, &
+      contour_last_index, reconstruction_start_index, &
+      source_contour_length, target_contour_length, correction_fraction, &
+      legacy_u, legacy_v, valid, message)
+    integer, intent(in) :: panel_index, contour_last_index
+    integer, intent(in) :: reconstruction_start_index
+    real(real64), intent(in) :: source_contour_length, target_contour_length
+    real(real64), intent(in) :: correction_fraction
+    real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(regular_lower_extrados_edge_2d) :: source, typed_candidate
+    type(regular_lower_extrados_edge_2d) :: legacy_oracle
+    integer :: point_count
+
+    valid = .false.
+    message = ''
+    if (any(shape(legacy_u) /= shape(legacy_v))) then
+      message = 'legacy U/V regular-row source shapes differ'
+      return
+    end if
+    if (panel_index < lbound(legacy_u, 1) .or. &
+        panel_index > ubound(legacy_u, 1)) then
+      message = 'regular-row panel index is outside legacy storage'
+      return
+    end if
+    if (contour_last_index < 2 .or. &
+        contour_last_index > ubound(legacy_u, 2)) then
+      message = 'regular-row extrados contour is outside legacy storage'
+      return
+    end if
+    if (legacy_production_lower_sewing_slot < lbound(legacy_u, 3) .or. &
+        legacy_production_lower_cut_slot > ubound(legacy_u, 3)) then
+      message = 'legacy array has no regular lower production slots'
+      return
+    end if
+    if (reconstruction_start_index < 1 .or. &
+        reconstruction_start_index >= contour_last_index) then
+      message = 'regular-row reconstruction start is outside the contour'
+      return
+    end if
+    if (.not. ieee_is_finite(source_contour_length) .or. &
+        source_contour_length <= 0.0_real64 .or. &
+        .not. ieee_is_finite(target_contour_length) .or. &
+        target_contour_length <= 0.0_real64 .or. &
+        .not. ieee_is_finite(correction_fraction)) then
+      message = 'regular-row length-match values are invalid'
+      return
+    end if
+
+    point_count = contour_last_index
+    source%panel_index = panel_index
+    source%contour_last_index = contour_last_index
+    source%sewing_u = legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot)
+    source%sewing_v = legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot)
+    source%cut_u = legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot)
+    source%cut_v = legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot)
+    if (.not. source%is_valid()) then
+      message = 'legacy regular-row source contains invalid geometry'
+      return
+    end if
+
+    call build_regular_forward_candidate(source, reconstruction_start_index, &
+        source_contour_length, target_contour_length, correction_fraction, &
+        typed_candidate, valid, message)
+    if (.not. valid) return
+    call build_legacy_forward_oracle(source, reconstruction_start_index, &
+        source_contour_length, target_contour_length, correction_fraction, &
+        legacy_oracle, valid, message)
+    if (.not. valid) return
+    if (.not. edges_are_bit_exact(typed_candidate, legacy_oracle)) then
+      valid = .false.
+      message = 'typed and legacy regular-row reformats differ'
+      return
+    end if
+
+    legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot) = typed_candidate%sewing_u
+    legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot) = typed_candidate%sewing_v
+    legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot) = typed_candidate%cut_u
+    legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot) = typed_candidate%cut_v
+    valid = .true.
+  end subroutine reformat_legacy_regular_lower_extrados_row
+
+  !> Construct the typed forward reconstruction used as production authority.
+  pure subroutine build_regular_forward_candidate(source, start_index, &
+      source_contour_length, target_contour_length, correction_fraction, &
+      candidate, valid, message)
+    type(regular_lower_extrados_edge_2d), intent(in) :: source
+    integer, intent(in) :: start_index
+    real(real64), intent(in) :: source_contour_length, target_contour_length
+    real(real64), intent(in) :: correction_fraction
+    type(regular_lower_extrados_edge_2d), intent(inout) :: candidate
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    real(real64), allocatable :: segment_angle(:), segment_distance(:)
+    real(real64), allocatable :: segment_sign_u(:), segment_sign_v(:)
+    real(real32) :: measured_length, corrected_length, length_scale
+    real(real64) :: delta_u, delta_v
+    integer :: point_index, point_count
+
+    valid = .false.
+    message = ''
+    if (.not. source%is_valid()) then
+      message = 'cannot reformat an invalid regular lower extrados edge'
+      return
+    end if
+    point_count = size(source%sewing_u)
+    if (start_index < 1 .or. start_index >= point_count) then
+      message = 'regular lower extrados start index is outside its contour'
+      return
+    end if
+
+    measured_length = 0.0_real32
+    do point_index = start_index, point_count - 1
+      measured_length = measured_length + sqrt( &
+          (source%sewing_v(point_index) - &
+          source%sewing_v(point_index + 1))**legacy_square_exponent + &
+          (source%sewing_u(point_index) - &
+          source%sewing_u(point_index + 1))**legacy_square_exponent)
+    end do
+    if (.not. ieee_is_finite(measured_length) .or. &
+        measured_length <= 0.0_real32) then
+      message = 'regular lower extrados has no measurable reformat run'
+      return
+    end if
+    corrected_length = measured_length + correction_fraction*( &
+        target_contour_length - source_contour_length)
+    length_scale = corrected_length/measured_length
+    if (.not. ieee_is_finite(length_scale) .or. &
+        length_scale <= 0.0_real32) then
+      message = 'regular lower extrados scale is not positive and finite'
+      return
+    end if
+
+    allocate(segment_angle(point_count), segment_distance(point_count), &
+        segment_sign_u(point_count), segment_sign_v(point_count))
+    segment_angle = 0.0_real64
+    segment_distance = 0.0_real64
+    segment_sign_u = 0.0_real64
+    segment_sign_v = 0.0_real64
+    do point_index = start_index, point_count - 1
+      delta_v = source%sewing_v(point_index + 1) - &
+          source%sewing_v(point_index)
+      delta_u = source%sewing_u(point_index + 1) - &
+          source%sewing_u(point_index)
+      if (delta_u /= 0.0_real64) then
+        segment_angle(point_index) = abs(atan(delta_v/delta_u))
+      else
+        segment_angle(point_index) = half_pi
+      end if
+      call legacy_axis_signs(delta_u, delta_v, &
+          segment_sign_u(point_index), segment_sign_v(point_index))
+      segment_distance(point_index) = sqrt( &
+          (source%sewing_v(point_index) - &
+          source%sewing_v(point_index + 1))**legacy_square_exponent + &
+          (source%sewing_u(point_index) - &
+          source%sewing_u(point_index + 1))**legacy_square_exponent)
+    end do
+
+    candidate = source
+    do point_index = start_index, point_count - 1
+      candidate%sewing_u(point_index + 1) = &
+          candidate%sewing_u(point_index) + &
+          segment_sign_u(point_index)*length_scale* &
+          segment_distance(point_index)*cos(segment_angle(point_index))
+      candidate%sewing_v(point_index + 1) = &
+          candidate%sewing_v(point_index) + &
+          segment_sign_v(point_index)*length_scale* &
+          segment_distance(point_index)*sin(segment_angle(point_index))
+    end do
+    if (.not. candidate%is_valid()) then
+      message = 'regular lower extrados reformat produced invalid geometry'
+      return
+    end if
+    valid = .true.
+  end subroutine build_regular_forward_candidate
+
+  !> Independently reproduce the fixed-form forward loop as a migration oracle.
+  !!
+  !! This intentional duplication is temporary.  Once the checked application
+  !! fixtures establish the typed kernel as the sole compatibility authority,
+  !! remove this oracle and its bit-exact gate rather than maintaining two
+  !! production algorithms.
+  pure subroutine build_legacy_forward_oracle(source, start_index, &
+      source_contour_length, target_contour_length, correction_fraction, &
+      oracle, valid, message)
+    type(regular_lower_extrados_edge_2d), intent(in) :: source
+    integer, intent(in) :: start_index
+    real(real64), intent(in) :: source_contour_length, target_contour_length
+    real(real64), intent(in) :: correction_fraction
+    type(regular_lower_extrados_edge_2d), intent(inout) :: oracle
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    real(real64), allocatable :: anglee(:), distee(:), siu(:), siv(:)
+    real(real32) :: dist2, dist3, distk
+    real(real64) :: xdu, xdv
+    integer :: j, point_count
+
+    valid = .false.
+    message = ''
+    point_count = size(source%sewing_u)
+    allocate(anglee(point_count), distee(point_count), siu(point_count), &
+        siv(point_count))
+    anglee = 0.0_real64
+    distee = 0.0_real64
+    siu = 0.0_real64
+    siv = 0.0_real64
+
+    dist2 = 0.0_real32
+    do j = start_index, point_count - 1
+      dist2 = dist2 + sqrt( &
+          (source%sewing_v(j) - source%sewing_v(j + 1))** &
+          legacy_square_exponent + &
+          (source%sewing_u(j) - source%sewing_u(j + 1))** &
+          legacy_square_exponent)
+    end do
+    if (.not. ieee_is_finite(dist2) .or. dist2 <= 0.0_real32) then
+      message = 'legacy regular-row oracle has no measurable reformat run'
+      return
+    end if
+    dist3 = dist2 + correction_fraction*( &
+        target_contour_length - source_contour_length)
+    distk = dist3/dist2
+    if (.not. ieee_is_finite(distk) .or. distk <= 0.0_real32) then
+      message = 'legacy regular-row oracle scale is not positive and finite'
+      return
+    end if
+
+    do j = start_index, point_count - 1
+      xdv = source%sewing_v(j + 1) - source%sewing_v(j)
+      xdu = source%sewing_u(j + 1) - source%sewing_u(j)
+      if (xdu /= 0.0_real64) then
+        anglee(j) = abs(atan(xdv/xdu))
+      else
+        anglee(j) = half_pi
+      end if
+      call legacy_axis_signs(xdu, xdv, siu(j), siv(j))
+      distee(j) = sqrt( &
+          (source%sewing_v(j) - source%sewing_v(j + 1))** &
+          legacy_square_exponent + &
+          (source%sewing_u(j) - source%sewing_u(j + 1))** &
+          legacy_square_exponent)
+    end do
+
+    oracle = source
+    do j = start_index, point_count - 1
+      oracle%sewing_u(j + 1) = oracle%sewing_u(j) + &
+          siu(j)*distk*distee(j)*cos(anglee(j))
+      oracle%sewing_v(j + 1) = oracle%sewing_v(j) + &
+          siv(j)*distk*distee(j)*sin(anglee(j))
+    end do
+    if (.not. oracle%is_valid()) then
+      message = 'legacy regular-row oracle produced invalid geometry'
+      return
+    end if
+    valid = .true.
+  end subroutine build_legacy_forward_oracle
+
+  !> Preserve the fixed-form independent quadrant-condition ordering.
+  pure subroutine legacy_axis_signs(delta_u, delta_v, sign_u, sign_v)
+    real(real64), intent(in) :: delta_u, delta_v
+    real(real64), intent(out) :: sign_u, sign_v
+
+    sign_u = 0.0_real64
+    sign_v = 0.0_real64
+    if (delta_u >= 0.0_real64 .and. delta_v >= 0.0_real64) then
+      sign_u = 1.0_real64
+      sign_v = 1.0_real64
+    end if
+    if (delta_u <= 0.0_real64 .and. delta_v >= 0.0_real64) then
+      sign_u = -1.0_real64
+      sign_v = 1.0_real64
+    end if
+    if (delta_u >= 0.0_real64 .and. delta_v <= 0.0_real64) then
+      sign_u = 1.0_real64
+      sign_v = -1.0_real64
+    end if
+    if (delta_u <= 0.0_real64 .and. delta_v <= 0.0_real64) then
+      sign_u = -1.0_real64
+      sign_v = -1.0_real64
+    end if
+  end subroutine legacy_axis_signs
+
+  !> Compare all owned coordinates by representation, including signed zero.
+  pure logical function edges_are_bit_exact(first, second)
+    type(regular_lower_extrados_edge_2d), intent(in) :: first, second
+
+    integer :: point_index
+
+    edges_are_bit_exact = .false.
+    if (.not. first%is_valid() .or. .not. second%is_valid()) return
+    if (first%panel_index /= second%panel_index .or. &
+        first%contour_first_index /= second%contour_first_index .or. &
+        first%contour_last_index /= second%contour_last_index) return
+    do point_index = 1, size(first%sewing_u)
+      if (.not. same_real64_bits(first%sewing_u(point_index), &
+          second%sewing_u(point_index)) .or. &
+          .not. same_real64_bits(first%sewing_v(point_index), &
+          second%sewing_v(point_index)) .or. &
+          .not. same_real64_bits(first%cut_u(point_index), &
+          second%cut_u(point_index)) .or. &
+          .not. same_real64_bits(first%cut_v(point_index), &
+          second%cut_v(point_index))) return
+    end do
+    edges_are_bit_exact = .true.
+  end function edges_are_bit_exact
+
+  pure logical function same_real64_bits(first, second)
+    real(real64), intent(in) :: first, second
+    integer(int64) :: first_bits, second_bits
+
+    first_bits = transfer(first, first_bits)
+    second_bits = transfer(second, second_bits)
+    same_real64_bits = first_bits == second_bits
+  end function same_real64_bits
 
   !> Validate the provenance and exact two-point relationship of join support.
   pure logical function preceding_join_support_is_valid(support)
@@ -344,23 +726,8 @@ contains
         segment_angle(point_index) = half_pi
       end if
 
-      ! These independent conditions preserve the legacy axis sign order.
-      if (delta_u >= 0.0_real64 .and. delta_v >= 0.0_real64) then
-        segment_sign_u(point_index) = 1.0_real64
-        segment_sign_v(point_index) = 1.0_real64
-      end if
-      if (delta_u <= 0.0_real64 .and. delta_v >= 0.0_real64) then
-        segment_sign_u(point_index) = -1.0_real64
-        segment_sign_v(point_index) = 1.0_real64
-      end if
-      if (delta_u >= 0.0_real64 .and. delta_v <= 0.0_real64) then
-        segment_sign_u(point_index) = 1.0_real64
-        segment_sign_v(point_index) = -1.0_real64
-      end if
-      if (delta_u <= 0.0_real64 .and. delta_v <= 0.0_real64) then
-        segment_sign_u(point_index) = -1.0_real64
-        segment_sign_v(point_index) = -1.0_real64
-      end if
+      call legacy_axis_signs(delta_u, delta_v, &
+          segment_sign_u(point_index), segment_sign_v(point_index))
       segment_distance(point_index) = sqrt( &
           (boundary%sewing_v(point_index) - &
           boundary%sewing_v(point_index - 1))**legacy_square_exponent + &

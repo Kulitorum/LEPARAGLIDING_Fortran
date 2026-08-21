@@ -14,6 +14,8 @@ c***********************************************************************
        use leparagliding_domain_model
        use leparagliding_color_geometry
        use leparagliding_mark_types
+       use leparagliding_geometry_2d, only : vredis,xrxs,flatt,axisch,
+     + angdis2,vrib_hole_ellipse
        use leparagliding_transformations, only : loc2glo2d
        use leparagliding_file_cleanup, only : nonan,fix_dxf_nan,
      + replace_in_string
@@ -31,7 +33,6 @@ c***********************************************************************
 
        include 'procedures/dxf_output.inc'
        include 'procedures/color_construction.inc'
-       include 'procedures/geometry_2d.inc'
        include 'procedures/panel_edges.inc'
        include 'procedures/junctions.inc'
        include 'procedures/offsets_reinforcements.inc'

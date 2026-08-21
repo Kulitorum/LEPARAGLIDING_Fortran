@@ -269,8 +269,9 @@ c      Coordenades airfoil en gir Z
        real*8 pr1x(0:100,500),pr1y(0:100,500),pr2x(0:100,500),
      + pr2y(0:100,500)
 
-c      Typed read-only views used while migrating legacy rib and neutral-panel
-c      arrays.  They own snapshots and never alias the numbered global slots.
+c      Typed views used while migrating legacy rib and neutral-panel arrays.
+c      They own storage rather than aliasing numbered slots; narrow checked
+c      writers publish only production boundaries proven bit-exact.
        type(rib_identity), allocatable :: wing_rib_identities(:)
        type(rib_definition), allocatable :: wing_rib_definitions(:)
        logical, allocatable :: wing_rib_definition_available(:)
@@ -278,6 +279,8 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
      + wing_anchor_definitions(:)
        type(resolved_rib_anchors), allocatable ::
      + wing_base_resolved_anchors(:)
+       type(resolved_rib_anchors), allocatable ::
+     + typed_base_resolved_anchor_candidates(:)
        logical, allocatable :: wing_base_resolved_anchor_available(:)
        type(profile_topology), allocatable :: wing_profile_topologies(:)
        type(normalized_profile_2d) :: typed_normalized_profile
@@ -309,7 +312,7 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
      + typed_intrados_source_distances(:)
        logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
      + neutral_gap_valid,typed_coordinates_match,
-     + typed_spatial_geometry_exact
+     + typed_spatial_geometry_exact,typed_base_anchor_spatial_exact
        character(len=256) :: domain_model_message
        real*8 :: typed_geometry_metric,typed_skin_tension_offset
        integer :: typed_profile_source_index

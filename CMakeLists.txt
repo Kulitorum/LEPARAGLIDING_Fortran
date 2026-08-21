@@ -33,7 +33,6 @@ set(LEPARAGLIDING_MAIN_FRAGMENTS
 set(LEPARAGLIDING_PROCEDURE_FRAGMENTS
     src/procedures/dxf_output.inc
     src/procedures/color_construction.inc
-    src/procedures/geometry_2d.inc
     src/procedures/panel_edges.inc
     src/procedures/junctions.inc
     src/procedures/offsets_reinforcements.inc
@@ -51,6 +50,7 @@ add_executable(leparagliding
     src/leparagliding_hvr_config.f90
     src/leparagliding_mark_types.f90
     src/leparagliding_geometry.f90
+    src/leparagliding_geometry_2d.f90
     src/leparagliding_domain_model.f90
     src/leparagliding_spatial_geometry.f90
     src/leparagliding_anchor_geometry.f90
@@ -216,6 +216,27 @@ if(BUILD_TESTING)
 
   add_test(NAME file_cleanup COMMAND test_file_cleanup)
 
+  add_executable(test_geometry_2d
+      tests/test_geometry_2d.f90
+      src/leparagliding_geometry_2d.f90)
+
+  set_target_properties(test_geometry_2d PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-geometry-2d-modules")
+  target_include_directories(test_geometry_2d PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-geometry-2d-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_geometry_2d PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_geometry_2d PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME geometry_2d COMMAND test_geometry_2d)
+
   add_executable(test_polyline_interpolation
       tests/test_polyline_interpolation.f90
       src/leparagliding_polyline_interpolation.f90)
@@ -332,6 +353,7 @@ if(BUILD_TESTING)
       src/leparagliding_geometry.f90
       src/leparagliding_domain_model.f90
       src/leparagliding_color_geometry.f90
+      src/leparagliding_geometry_2d.f90
       src/leparagliding_transformations.f90
       src/leparagliding_file_cleanup.f90
       src/leparagliding_polyline_interpolation.f90

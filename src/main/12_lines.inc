@@ -230,11 +230,11 @@ c      profile demonstrates that the old intrados search can have no segment.
 c
 c      Row 0 keeps its explicit mirrored identity.  Tip support nribss+1 stays
 c      available only in wing_anchor_definitions: Stage 9 never produces its
-c      slot-6 anchors even though old Stage 12 loops over that row.  No line
-c      consumer is migrated; legacy storage remains authoritative.  Save and
-c      restore shared loop indices so this read-only snapshot cannot perturb
-c      downstream drawing or mark placement.
-       if (.not.allocated(wing_anchor_definitions)) then
+c      slot-6 anchors even though old Stage 12 loops over that row.  Save and
+c      restore shared loop indices so collection cannot perturb downstream
+c      drawing or mark placement.
+       if (.not.allocated(wing_anchor_definitions).or.
+     +     .not.allocated(wing_rib_definitions)) then
        write (*,'(A)')
      + 'ERROR: typed anchor dependencies unavailable at Stage 12.3'
        stop 1
@@ -272,6 +272,96 @@ c      downstream drawing or mark placement.
        if (any(.not.wing_base_resolved_anchor_available(0:nribss))) then
        write (*,'(A)') 'ERROR: incomplete base anchor collection'
        stop 1
+       end if
+
+c      Independently replace only the Stage-12.3 spatial portion from the
+c      retained Stage-9 rib-local points and named rib placement definitions.
+c      The separate Stage-6 mark points/distances remain untouched.  Physical
+c      rows are transformed directly; row 0 mirrors the completed row-1
+c      candidate, exactly matching the historical post-transform policy.
+c
+c      Publication is whole-wing and bit-exact.  Tolerance agreement catches
+c      a real algorithmic mismatch, but even a last-bit delta keeps the legacy
+c      slot-19 producer authoritative because line topology is branch-sensitive.
+c      Tip support is intentionally excluded until Stage 9 gives it a defined
+c      local point.  Later brake displacement and single-surface replacement
+c      still act on the published compatibility slot as before.
+       if (allocated(typed_base_resolved_anchor_candidates))
+     + deallocate(typed_base_resolved_anchor_candidates)
+       allocate(typed_base_resolved_anchor_candidates(0:nribss))
+       typed_base_anchor_spatial_exact=.true.
+       do i=1,nribss
+       call place_resolved_rib_anchors(wing_base_resolved_anchors(i),
+     + wing_rib_definitions(i),typed_base_resolved_anchor_candidates(i),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed base anchor placement at rib ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       call resolved_rib_anchors_match_legacy(
+     + typed_base_resolved_anchor_candidates(i),wing_anchor_definitions(i),
+     + rib,u,v,w,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed/legacy placed anchor mismatch at rib ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,size(typed_base_resolved_anchor_candidates(i)%anchors)
+       if (any(abs([
+     + typed_base_resolved_anchor_candidates(i)%anchors(j)%spatial_point%x_cm-
+     + u(i,j,19),
+     + typed_base_resolved_anchor_candidates(i)%anchors(j)%spatial_point%y_cm-
+     + v(i,j,19),
+     + typed_base_resolved_anchor_candidates(i)%anchors(j)%spatial_point%z_cm-
+     + w(i,j,19)]) .gt.0.0d0))
+     + typed_base_anchor_spatial_exact=.false.
+       end do
+       end do
+
+       call build_symmetry_resolved_anchors(
+     + typed_base_resolved_anchor_candidates(1),wing_anchor_definitions(0),
+     + typed_base_resolved_anchor_candidates(0),domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: typed center anchor placement failed: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       call resolved_rib_anchors_match_legacy(
+     + typed_base_resolved_anchor_candidates(0),wing_anchor_definitions(0),
+     + rib,u,v,w,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)')
+     + 'ERROR: typed/legacy center anchor mismatch: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,size(typed_base_resolved_anchor_candidates(0)%anchors)
+       if (any(abs([
+     + typed_base_resolved_anchor_candidates(0)%anchors(j)%spatial_point%x_cm-
+     + u(0,j,19),
+     + typed_base_resolved_anchor_candidates(0)%anchors(j)%spatial_point%y_cm-
+     + v(0,j,19),
+     + typed_base_resolved_anchor_candidates(0)%anchors(j)%spatial_point%z_cm-
+     + w(0,j,19)]) .gt.0.0d0))
+     + typed_base_anchor_spatial_exact=.false.
+       end do
+
+       if (typed_base_anchor_spatial_exact) then
+       wing_base_resolved_anchors(0:nribss)=
+     + typed_base_resolved_anchor_candidates
+       do i=0,nribss
+       call write_legacy_resolved_anchor_spatial_points(
+     + wing_base_resolved_anchors(i),u,v,w,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: anchor spatial publication at rib ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end do
        end if
        i=anchor_saved_i
        j=anchor_saved_j

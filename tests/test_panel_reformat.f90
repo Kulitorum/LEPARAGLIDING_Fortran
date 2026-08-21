@@ -19,6 +19,41 @@ program test_panel_reformat
   character(len=160) :: message
   logical :: valid
 
+  ! A regular lower extrados row is reformatted only over its exact contour.
+  ! The module evaluates both the typed candidate and the fixed-form oracle;
+  ! successful publication therefore also exercises the bit-exact gate.
+  legacy_u = -101.0_real64
+  legacy_v = -202.0_real64
+  legacy_u(2, 1:5, legacy_production_lower_sewing_slot) = &
+      [0.0_real64, 1.0_real64, 2.0_real64, 3.0_real64, 4.0_real64]
+  legacy_v(2, 1:5, legacy_production_lower_sewing_slot) = 0.0_real64
+  legacy_u(2, 1:5, legacy_production_lower_cut_slot) = &
+      [0.25_real64, 1.25_real64, 2.25_real64, 3.25_real64, 4.25_real64]
+  legacy_v(2, 1:5, legacy_production_lower_cut_slot) = 1.5_real64
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(2, 4:5, legacy_production_lower_sewing_slot) = &
+      [4.0_real64, 6.0_real64]
+  call reformat_legacy_regular_lower_extrados_row(2, 5, 3, &
+      4.0_real64, 6.0_real64, 1.0_real64, legacy_u, legacy_v, valid, message)
+  call require(valid, 'valid regular-row reformat rejected: '//trim(message))
+  call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
+      'regular-row publication changed storage outside its sewing contour')
+  call require(all(legacy_u(2, 1:5, legacy_production_lower_cut_slot) == &
+      [0.25_real64, 1.25_real64, 2.25_real64, 3.25_real64, 4.25_real64]) &
+      .and. all(legacy_v(2, 1:5, legacy_production_lower_cut_slot) == &
+      1.5_real64), 'regular-row reformat changed the established cut edge')
+
+  ! The point after the extrados range belongs to intake support and must not
+  ! be claimed by this migration.  Invalid requests are transactional too.
+  expected_u = legacy_u
+  expected_v = legacy_v
+  call reformat_legacy_regular_lower_extrados_row(2, 5, 5, &
+      4.0_real64, 6.0_real64, 1.0_real64, legacy_u, legacy_v, valid, message)
+  call require(.not. valid, 'terminal regular-row start index was accepted')
+  call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
+      'rejected regular-row request changed compatibility storage')
+
   boundary%source_panel_index = 3
   boundary%boundary_rib_index = 4
   boundary%surface = surface_intrados

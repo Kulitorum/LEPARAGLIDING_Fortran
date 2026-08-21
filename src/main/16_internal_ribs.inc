@@ -3,7 +3,8 @@
 !! Consumes the section-12/21/23/38/39 definitions and prepared profile slots
 !! to build internal contours, holes, sewing offsets, nylon-rod channels, and
 !! production marks.  Most geometry is delegated to documented procedures in
-!! `junctions.inc`, `geometry_2d.inc`, and `offsets_reinforcements.inc`.
+!! `junctions.inc`, `leparagliding_geometry_2d`, and
+!! `offsets_reinforcements.inc`.
 c      16. H V and HV ribs
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

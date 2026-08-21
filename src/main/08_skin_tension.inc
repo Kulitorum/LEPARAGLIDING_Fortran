@@ -1365,7 +1365,26 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        do i=0,nribss
 
-c      Calcule length of the reformating polyline
+c      Regular panel rows now cross a typed boundary which independently
+c      checks the historical forward loop bit for bit.  The physical terminal
+c      row remains below as the legacy oracle until terminal extrados ownership
+c      is represented explicitly.  Neither path owns the intake support point
+c      extrapolated after this branch.
+       if (i.lt.nribss) then
+       call reformat_legacy_regular_lower_extrados_row(i,np(i,2),
+     + int(jirr(i)),
+     + rib(i,32),rib(i,31),xndif,u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: regular lower extrados reformat failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+
+       else
+
+c      Calcule length of the reformating polyline for terminal legacy row
 
        dist1=0.
        do j=1,jirr(i)-1
@@ -1433,6 +1452,8 @@ c      Define
        u(i,j+1,9)=u(i,j+1,32)
        v(i,j+1,9)=v(i,j+1,32)
        end do
+
+       end if
 
        j=np(i,2)+1
        u(i,j,9)=u(i,j-1,9)+u(i,j-1,9)-u(i,j-2,9)

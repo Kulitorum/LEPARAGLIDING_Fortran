@@ -101,8 +101,10 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
      + resolved_rib_anchors,copy_legacy_rib_anchor_definition,
      + build_generated_rib_anchor_definition,
      + rib_anchor_definition_matches_legacy,
+     + place_resolved_rib_anchors,build_symmetry_resolved_anchors,
      + copy_legacy_resolved_rib_anchors,
-     + resolved_rib_anchors_match_legacy
+     + resolved_rib_anchors_match_legacy,
+     + write_legacy_resolved_anchor_spatial_points
        use leparagliding_mark_types
        use leparagliding_hvr_config
 

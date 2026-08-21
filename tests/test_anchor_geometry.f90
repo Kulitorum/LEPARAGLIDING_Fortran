@@ -16,6 +16,7 @@ program test_anchor_geometry
   call test_generated_definition_provenance(failures)
   call test_legacy_snapshot_preserves_distinct_producers(failures)
   call test_resolved_geometry_and_legacy_comparison(failures)
+  call test_spatial_placement_boundary(failures)
   call test_symmetry_resolution(failures)
 
   if (failures /= 0) then
@@ -242,6 +243,98 @@ contains
     call require(.not. matches .and. index(message, 'ordinal 1') > 0, &
         'TE-distance drift is rejected with anchor ordinal', failures)
   end subroutine test_resolved_geometry_and_legacy_comparison
+
+  subroutine test_spatial_placement_boundary(failures)
+    integer, intent(inout) :: failures
+    real(real64) :: legacy_rib(0:3, 200)
+    real(real64) :: legacy_u(0:3, 8, 20), legacy_v(0:3, 8, 20)
+    real(real64) :: legacy_w(0:3, 8, 20)
+    type(normalized_profile_2d) :: profile
+    type(rib_definition) :: placement, rotated_placement, wrong_placement
+    type(rib_anchor_definition) :: definition
+    type(resolved_rib_anchors) :: source, placed, rotated
+    type(rib_identity) :: identity
+    real(real64) :: retained_x
+    logical :: valid
+    character(len=160) :: message
+
+    identity = physical_identity(1)
+    profile = sample_profile(1)
+    placement = sample_placement(identity)
+    legacy_rib = 0.0_real64
+    legacy_rib(1, 15) = 1.0_real64
+    legacy_rib(1, 16) = 50.0_real64
+    legacy_rib(1, 21) = 95.0_real64
+    call copy_legacy_rib_anchor_definition(legacy_rib, identity, definition, &
+        valid, message)
+    call require(valid, 'spatial-boundary definition setup', failures)
+    if (.not. valid) return
+    call resolve_rib_anchors(profile, placement, definition, source, valid, &
+        message)
+    call require(valid, 'spatial-boundary source setup', failures)
+    if (.not. valid) return
+
+    ! Prove placement does not trust the incoming legacy snapshot coordinates.
+    source%anchors(1)%spatial_point%x_cm = 90.0_real64
+    source%anchors(1)%spatial_point%y_cm = 91.0_real64
+    source%anchors(1)%spatial_point%z_cm = 92.0_real64
+    call place_resolved_rib_anchors(source, placement, placed, valid, message)
+    call require(valid, 'typed Stage-12 placement: '//trim(message), failures)
+    if (.not. valid) return
+    call require_close(placed%anchors(1)%spatial_point%x_cm, 2.0_real64, &
+        'typed Stage-12 X', failures)
+    call require_close(placed%anchors(1)%spatial_point%y_cm, 8.0_real64, &
+        'typed Stage-12 Y', failures)
+    call require_close(placed%anchors(1)%spatial_point%z_cm, 3.7_real64, &
+        'typed Stage-12 Z', failures)
+    call require_close(source%anchors(1)%spatial_point%x_cm, 90.0_real64, &
+        'typed placement does not mutate its source', failures)
+
+    legacy_u = -7.0_real64
+    legacy_v = -7.0_real64
+    legacy_w = -7.0_real64
+    call write_legacy_resolved_anchor_spatial_points(placed, legacy_u, &
+        legacy_v, legacy_w, valid, message)
+    call require(valid, 'narrow Stage-12 compatibility writer: '// &
+        trim(message), failures)
+    call require_close(legacy_u(1, 1, 19), 2.0_real64, &
+        'writer publishes active X', failures)
+    call require_close(legacy_v(1, 1, 19), 8.0_real64, &
+        'writer publishes active Y', failures)
+    call require_close(legacy_w(1, 1, 19), 3.7_real64, &
+        'writer publishes active Z', failures)
+    call require_close(legacy_u(1, 1, 18), -7.0_real64, &
+        'writer preserves Stage-12 intermediate slots', failures)
+    call require_close(legacy_u(1, 2, 19), -7.0_real64, &
+        'writer preserves inactive anchor ordinals', failures)
+
+    rotated_placement = placement
+    rotated_placement%washin_angle_rad = 0.2_real64
+    call place_resolved_rib_anchors(source, rotated_placement, rotated, &
+        valid, message)
+    call require(valid, 'nonzero-washin Stage-12 placement', failures)
+    if (valid) then
+      call require_close(rotated%anchors(1)%spatial_point%y_cm, &
+          3.0_real64 + 5.0_real64 * cos(0.2_real64) + &
+          0.5_real64 * sin(0.2_real64), &
+          'Stage-12 displacement does not move rotated chord', failures)
+      call require_close(rotated%anchors(1)%spatial_point%z_cm, &
+          4.0_real64 + 5.0_real64 * sin(0.2_real64) - &
+          0.5_real64 * cos(0.2_real64) + 0.2_real64, &
+          'Stage-12 displacement follows wash-in rotation', failures)
+    end if
+
+    wrong_placement = placement
+    wrong_placement%identity = physical_identity(2)
+    wrong_placement%source_profile_number = 2
+    retained_x = placed%anchors(1)%spatial_point%x_cm
+    call place_resolved_rib_anchors(source, wrong_placement, placed, valid, &
+        message)
+    call require(.not. valid .and. index(message, 'provenance') > 0, &
+        'placement rejects mismatched provenance', failures)
+    call require_close(placed%anchors(1)%spatial_point%x_cm, retained_x, &
+        'failed placement leaves destination unchanged', failures)
+  end subroutine test_spatial_placement_boundary
 
   subroutine test_symmetry_resolution(failures)
     integer, intent(inout) :: failures
