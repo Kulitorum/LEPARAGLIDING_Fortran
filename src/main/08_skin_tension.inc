@@ -674,6 +674,57 @@ c      terminal row is a boundary rather than a regular panel.
 c      Compute points left side
        call puntslat(i,pl1x,pl1y,pl2x,pl2y,1,np(i,2),u,v,xupp,-1)
 
+c      Shape each real lower extrados boundary from the exact neutral panel.
+c      Compare the complete typed result before publishing any slot so a late
+c      mismatch cannot leave a partially replaced production side.
+       if (i.lt.nribss) then
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i,wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),surface_extrados,
+     + neutral_extrados_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: invalid neutral extrados before lower shaping at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       call shape_neutral_panel_side(neutral_extrados_panel,
+     + panel_side_lower,v(i,1:np(i,2),7),xupp,
+     + typed_extrados_lower_side,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed lower extrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,np(i,2)
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_extrados_lower_side%sewing_u(j),
+     + u(i,j,9)).and.
+     + geometry_values_are_close(typed_extrados_lower_side%sewing_v(j),
+     + v(i,j,9)).and.
+     + geometry_values_are_close(typed_extrados_lower_side%cut_u(j),
+     + u(i,j,11)).and.
+     + geometry_values_are_close(typed_extrados_lower_side%cut_v(j),
+     + v(i,j,11))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: typed/legacy lower extrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_shaped_panel_side(typed_extrados_lower_side,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: lower extrados publication failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end if
+
        end do  ! i
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -770,6 +821,57 @@ c     + u(i,np(i,2),8),xsobnew(i,skinpoints(i))
 
 c      Compute points right side
        call puntslat(i,pr1x,pr1y,pr2x,pr2y,1,np(i,2),u,v,xupp,1)
+
+c      Repeat the exact-panel shaping contract for the higher-index edge.
+c      Slots 10/12 are published only after every sewing and cut coordinate
+c      agrees with the retained puntslat result.
+       if (i.lt.nribss) then
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i,wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),surface_extrados,
+     + neutral_extrados_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: invalid neutral extrados before higher shaping at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       call shape_neutral_panel_side(neutral_extrados_panel,
+     + panel_side_higher,v(i,1:np(i,2),8),xupp,
+     + typed_extrados_higher_side,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed higher extrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,np(i,2)
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_extrados_higher_side%sewing_u(j),
+     + u(i,j,10)).and.
+     + geometry_values_are_close(typed_extrados_higher_side%sewing_v(j),
+     + v(i,j,10)).and.
+     + geometry_values_are_close(typed_extrados_higher_side%cut_u(j),
+     + u(i,j,12)).and.
+     + geometry_values_are_close(typed_extrados_higher_side%cut_v(j),
+     + v(i,j,12))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: typed/legacy higher extrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_shaped_panel_side(typed_extrados_higher_side,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: higher extrados publication failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end if
 
 c      Leading edge segment unformated rib(i,96) extra
        if (i.lt.nribss) then

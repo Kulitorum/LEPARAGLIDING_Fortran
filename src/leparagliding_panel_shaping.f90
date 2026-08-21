@@ -17,9 +17,13 @@
 module leparagliding_panel_shaping
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-  use leparagliding_domain_model, only : neutral_panel_2d, &
+  use leparagliding_domain_model, only : profile_topology, neutral_panel_2d, &
       neutral_boundary_edge_2d, production_boundary_edge_2d, &
-      surface_extrados, surface_intake, surface_intrados
+      surface_extrados, surface_intake, surface_intrados, &
+      legacy_production_lower_sewing_slot, &
+      legacy_production_higher_sewing_slot, &
+      legacy_production_lower_cut_slot, &
+      legacy_production_higher_cut_slot
   implicit none
   private
 
@@ -57,6 +61,7 @@ module leparagliding_panel_shaping
 
   public :: shape_neutral_panel_side
   public :: shape_neutral_boundary_edge
+  public :: write_legacy_shaped_panel_side
 
 contains
 
@@ -135,6 +140,94 @@ contains
 
     shaped_side = candidate
   end subroutine shape_neutral_panel_side
+
+  !> Publish one shaped side through its exact legacy production slots.
+  !!
+  !! The shaped surface must cover exactly the corresponding topology range.
+  !! The lower side owns slots 9/11 and the higher side owns slots 10/12.  All
+  !! array, identity, range, and slot checks complete before the first write,
+  !! so rejected calls leave both destinations unchanged.  `legacy_u` and
+  !! `legacy_v` must be distinct actual arguments.
+  pure subroutine write_legacy_shaped_panel_side(shaped_side, topology, &
+      legacy_u, legacy_v, valid, message)
+    type(shaped_panel_side_2d), intent(in) :: shaped_side
+    type(profile_topology), intent(in) :: topology
+    real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    integer :: expected_first, expected_last, sewing_slot, cut_slot
+
+    valid = .false.
+    message = ''
+    if (any(shape(legacy_u) /= shape(legacy_v))) then
+      message = 'legacy U/V shaped-side destination shapes differ'
+      return
+    end if
+    if (.not. shaped_side%is_valid()) then
+      message = 'cannot write an invalid shaped panel side'
+      return
+    end if
+    if (.not. topology%is_valid()) then
+      message = 'shaped-side write-back received invalid topology'
+      return
+    end if
+    select case (shaped_side%surface)
+    case (surface_extrados)
+      expected_first = topology%extrados%first
+      expected_last = topology%extrados%last
+    case (surface_intake)
+      expected_first = topology%intake%first
+      expected_last = topology%intake%last
+    case (surface_intrados)
+      expected_first = topology%intrados%first
+      expected_last = topology%intrados%last
+    case default
+      message = 'shaped-side write-back does not support this surface'
+      return
+    end select
+    if (shaped_side%contour_first_index /= expected_first .or. &
+        shaped_side%contour_last_index /= expected_last) then
+      message = 'shaped panel side range differs from source topology'
+      return
+    end if
+    select case (shaped_side%side)
+    case (panel_side_lower)
+      sewing_slot = legacy_production_lower_sewing_slot
+      cut_slot = legacy_production_lower_cut_slot
+    case (panel_side_higher)
+      sewing_slot = legacy_production_higher_sewing_slot
+      cut_slot = legacy_production_higher_cut_slot
+    case default
+      message = 'shaped-side write-back received an unknown panel side'
+      return
+    end select
+    if (shaped_side%panel_index < lbound(legacy_u, 1) .or. &
+        shaped_side%panel_index > ubound(legacy_u, 1)) then
+      message = 'shaped panel index is outside legacy destinations'
+      return
+    end if
+    if (shaped_side%contour_first_index < lbound(legacy_u, 2) .or. &
+        shaped_side%contour_last_index > ubound(legacy_u, 2)) then
+      message = 'shaped panel side exceeds legacy point capacity'
+      return
+    end if
+    if (sewing_slot < lbound(legacy_u, 3) .or. &
+        cut_slot > ubound(legacy_u, 3)) then
+      message = 'legacy array lacks selected shaped-side production slots'
+      return
+    end if
+
+    legacy_u(shaped_side%panel_index, expected_first:expected_last, &
+        sewing_slot) = shaped_side%sewing_u
+    legacy_v(shaped_side%panel_index, expected_first:expected_last, &
+        sewing_slot) = shaped_side%sewing_v
+    legacy_u(shaped_side%panel_index, expected_first:expected_last, &
+        cut_slot) = shaped_side%cut_u
+    legacy_v(shaped_side%panel_index, expected_first:expected_last, &
+        cut_slot) = shaped_side%cut_v
+    valid = .true.
+  end subroutine write_legacy_shaped_panel_side
 
   !> Shape one physical terminal edge without inventing an outward panel.
   !!

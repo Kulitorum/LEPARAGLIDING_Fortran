@@ -81,7 +81,7 @@ c            16 = airfoil borders
 c            18 = anchor space coordinates
 c            19 = anchor absolute coordinates
 c      x(i,j) y(i,j) z(i,j): absolute airfoil coordinates
-c      xx(1,j) yy(1,j) zz(1,j): central airfoil (or i=0)
+c      Central mirrored airfoil geometry is the explicit x/y/z row 0.
 c      hol(100,20,20) airfoil holes properties
 c      xl(i,j) xr(i,j) panels length
 c      skin(k,j) skin tension
@@ -260,8 +260,6 @@ c      Coordenades airfoil en gir Z
        real*8 sx4(0:100,50,10), sy4(0:100,50,10), sz4(0:100,50,10)
 
        integer np(0:100,9)
-       real*8 xx(1,500),yy(1,500),zz(1,500)
-
        real*8 px0,py0,ptheta
        real*8 pa,pb,pc,pd,pe,pf
        real*8 pa1l,pa2l,phl,pa1r,pa2r,phr
@@ -283,7 +281,8 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
      + terminal_intake_edge,terminal_intrados_edge
        type(skin_tension_law), allocatable ::
      + typed_extrados_tension_laws(:),typed_intrados_tension_laws(:)
-       type(shaped_panel_side_2d) :: typed_intrados_lower_side
+       type(shaped_panel_side_2d) :: typed_extrados_lower_side,
+     + typed_extrados_higher_side,typed_intrados_lower_side
        type(production_boundary_edge_2d) ::
      + typed_terminal_intrados_production_edge,
      + typed_terminal_intrados_reformatted_edge

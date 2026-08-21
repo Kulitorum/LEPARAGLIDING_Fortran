@@ -1,21 +1,29 @@
 program test_panel_shaping
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_quiet_nan, ieee_value
-  use leparagliding_domain_model, only : neutral_panel_2d, &
+  use leparagliding_domain_model, only : profile_topology, neutral_panel_2d, &
       neutral_boundary_edge_2d, production_boundary_edge_2d, &
-      derive_neutral_boundary_edge, surface_intrados
+      derive_neutral_boundary_edge, surface_extrados, surface_intrados, &
+      legacy_production_lower_sewing_slot, &
+      legacy_production_higher_sewing_slot, &
+      legacy_production_lower_cut_slot, legacy_production_higher_cut_slot
   use leparagliding_panel_shaping
   implicit none
 
   type(neutral_panel_2d) :: panel, bad_panel, empty_panel
+  type(profile_topology) :: topology
   type(neutral_boundary_edge_2d) :: neutral_boundary
   type(shaped_panel_side_2d) :: shaped, saved
+  type(shaped_panel_side_2d) :: extrados_lower, extrados_higher
+  type(shaped_panel_side_2d) :: mismatched_extrados_side
   type(production_boundary_edge_2d) :: production_boundary
   type(production_boundary_edge_2d) :: saved_production_boundary
   character(len=160) :: message
   logical :: valid
   integer :: quadrant
   real(real64) :: nan_value, allowance_model
+  real(real64) :: legacy_u(0:3, 6, 13), legacy_v(0:3, 6, 13)
+  real(real64) :: expected_u(0:3, 6, 13), expected_v(0:3, 6, 13)
   real(real64), allocatable :: empty_offsets(:)
   real(real64), parameter :: delta_u(4) = &
       [3.0_real64, -3.0_real64, -3.0_real64, 3.0_real64]
@@ -133,6 +141,99 @@ program test_panel_shaping
       0.6_real64*allowance_model, 'legacy allowance conversion V')
   call require_close_strict(shaped%cut_u(2) - shaped%sewing_u(2), &
       -0.8_real64*allowance_model, 'endpoint allowance conversion U')
+
+  ! A complete extrados panel owns two independently shaped production sides.
+  ! This locks the surface and side identities plus the opposite cut normals
+  ! used by the Stage-8 slot-9/11 and slot-10/12 transactions.
+  panel%surface = surface_extrados
+  panel%contour_first_index = 1
+  panel%contour_last_index = 2
+  topology%point_count = 4
+  topology%extrados%first = 1
+  topology%extrados%last = 2
+  topology%intake%first = 2
+  topology%intake%last = 3
+  topology%intrados%first = 3
+  topology%intrados%last = 4
+  topology%leading_edge_index = 2
+  call require(topology%is_valid(), 'invalid shaped-side adapter topology')
+  call shape_neutral_panel_side(panel, panel_side_lower, &
+      [0.25_real64, 0.75_real64], 10.0_real64, extrados_lower, &
+      valid, message)
+  call require(valid, 'extrados lower side rejected: '//trim(message))
+  call shape_neutral_panel_side(panel, panel_side_higher, &
+      [0.25_real64, 0.75_real64], 10.0_real64, extrados_higher, &
+      valid, message)
+  call require(valid, 'extrados higher side rejected: '//trim(message))
+  call require(extrados_lower%surface == surface_extrados .and. &
+      extrados_lower%side == panel_side_lower, &
+      'extrados lower identity')
+  call require(extrados_higher%surface == surface_extrados .and. &
+      extrados_higher%side == panel_side_higher, &
+      'extrados higher identity')
+  call require_close(extrados_lower%sewing_u(1), 9.8_real64, &
+      'extrados lower sewing U')
+  call require_close(extrados_higher%sewing_u(1), 110.2_real64, &
+      'extrados higher sewing U')
+  call require_close_strict(extrados_lower%cut_u(1)- &
+      extrados_lower%sewing_u(1), -0.8_real64*real(0.1, real64)* &
+      10.0_real64, 'extrados lower cut normal')
+  call require_close_strict(extrados_higher%cut_u(1)- &
+      extrados_higher%sewing_u(1), 0.8_real64*real(0.1, real64)* &
+      10.0_real64, 'extrados higher cut normal')
+
+  ! Sentinels prove that each adapter call owns exactly one panel row, the
+  ! extrados range, and its side-selected sewing/cut slot pair.
+  legacy_u = -777.0_real64
+  legacy_v = 888.0_real64
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(2, 1:2, legacy_production_lower_sewing_slot) = &
+      extrados_lower%sewing_u
+  expected_v(2, 1:2, legacy_production_lower_sewing_slot) = &
+      extrados_lower%sewing_v
+  expected_u(2, 1:2, legacy_production_lower_cut_slot) = &
+      extrados_lower%cut_u
+  expected_v(2, 1:2, legacy_production_lower_cut_slot) = &
+      extrados_lower%cut_v
+  call write_legacy_shaped_panel_side(extrados_lower, topology, legacy_u, &
+      legacy_v, valid, message)
+  call require(valid, 'lower extrados write rejected: '//trim(message))
+  call require_legacy_equal(legacy_u, legacy_v, expected_u, expected_v, &
+      'lower extrados exact-range write')
+
+  legacy_u = -777.0_real64
+  legacy_v = 888.0_real64
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(2, 1:2, legacy_production_higher_sewing_slot) = &
+      extrados_higher%sewing_u
+  expected_v(2, 1:2, legacy_production_higher_sewing_slot) = &
+      extrados_higher%sewing_v
+  expected_u(2, 1:2, legacy_production_higher_cut_slot) = &
+      extrados_higher%cut_u
+  expected_v(2, 1:2, legacy_production_higher_cut_slot) = &
+      extrados_higher%cut_v
+  call write_legacy_shaped_panel_side(extrados_higher, topology, legacy_u, &
+      legacy_v, valid, message)
+  call require(valid, 'higher extrados write rejected: '//trim(message))
+  call require_legacy_equal(legacy_u, legacy_v, expected_u, expected_v, &
+      'higher extrados exact-range write')
+
+  mismatched_extrados_side = extrados_higher
+  mismatched_extrados_side%contour_first_index = 2
+  mismatched_extrados_side%contour_last_index = 3
+  legacy_u = -777.0_real64
+  legacy_v = 888.0_real64
+  expected_u = legacy_u
+  expected_v = legacy_v
+  call write_legacy_shaped_panel_side(mismatched_extrados_side, topology, &
+      legacy_u, legacy_v, valid, message)
+  call require(.not. valid, 'mismatched extrados range was written')
+  call require_legacy_equal(legacy_u, legacy_v, expected_u, expected_v, &
+      'rejected extrados write transaction')
+
+  panel%surface = surface_intrados
 
   ! At a neutral-development join, the next segment's start may not equal the
   ! incoming segment's end.  Point two must retain the incoming endpoint bias.
@@ -360,6 +461,20 @@ contains
     call require(abs(actual - expected) <= 2.0e-14_real64, &
         trim(label)//' mismatch')
   end subroutine require_close_strict
+
+  subroutine require_legacy_equal(actual_u, actual_v, expected_u, expected_v, &
+      label)
+    real(real64), intent(in) :: actual_u(0:,:,:), actual_v(0:,:,:)
+    real(real64), intent(in) :: expected_u(0:,:,:), expected_v(0:,:,:)
+    character(len=*), intent(in) :: label
+
+    call require(all(shape(actual_u) == shape(expected_u)) .and. &
+        all(shape(actual_v) == shape(expected_v)), &
+        trim(label)//' shape mismatch')
+    call require(all(abs(actual_u-expected_u) <= 0.0_real64) .and. &
+        all(abs(actual_v-expected_v) <= 0.0_real64), &
+        trim(label)//' changed unowned legacy coordinates')
+  end subroutine require_legacy_equal
 
   subroutine require(condition, message_text)
     logical, intent(in) :: condition

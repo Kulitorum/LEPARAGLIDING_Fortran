@@ -97,8 +97,8 @@ The maintained structure now:
   after exact legacy agreement;
 - builds the corresponding sewing and cut contours with the pure
   `leparagliding_panel_shaping` compatibility kernel and publishes the agreeing
-  typed geometry for lower-intrados regular panels and their separately modeled
-  physical wingtip boundary;
+  typed geometry for both regular-panel extrados sides, lower-intrados regular
+  panels, and their separately modeled physical wingtip boundary;
 - applies the terminal `ndif=1000` length match through
   `leparagliding_panel_reformat`, preserving its historical arithmetic while
   moving the terminal sewing and cut contours together, including the
@@ -148,9 +148,10 @@ input direction into increasing developed-contour percentages, validated over
 the complete 0--100 percent interval, and stored with their overwidth values in
 a named per-boundary, per-surface law. For `k31d=1`, the typed evaluator owns
 both extrados-side offsets and lower-intrados offsets for panels
-`0:nribss-1`, including each final contour point. The typed shaping result owns
-the lower-intrados slot-9 sewing and slot-11 cut coordinates. All are published
-only after agreement with the retained legacy calculation.
+`0:nribss-1`, including each final contour point. Typed shaping results own
+extrados slots 9/11 and 10/12 plus lower-intrados slots 9/11. For extrados, an
+exact-range, side-selecting adapter publishes each complete side only after
+every coordinate agrees with the retained legacy calculation.
 Historical inclusive interval overlap, last-matching-interval selection,
 default-REAL promotion, normal direction, incoming-segment endpoint bias, and
 millimetre allowance conversion are preserved deliberately. The `k31d=1`
@@ -167,8 +168,8 @@ edge. Its slot-11 cut edge receives the same point displacement so the
 established allowance vectors remain attached. The historical extrapolated
 intake join immediately before the intrados range is represented independently,
 dual-compared, and publishes its slot-9/11 pair transactionally. Regular-row
-reformats, five-pass distortion correction, and remaining shaping
-surfaces/sides are later Phase-4 boundaries.
+reformats, five-pass distortion correction, and remaining intake/intrados
+shaping sides are later Phase-4 boundaries.
 
 The 3.29 sample supplied by Pere and the repository tests complete with all GNU
 Fortran runtime checks enabled. The legacy main program still produces

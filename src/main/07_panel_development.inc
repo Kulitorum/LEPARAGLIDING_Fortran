@@ -19,19 +19,20 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        do j=1,np(1,2)-1 ! extrados panels point j
 
-c      Distances between points rib 0 and 1
-       pa=dsqrt((x(i,j)-xx(i,j))**2.+(y(i,j)-yy(i,j))**2.+
-     + (z(i,j)-zz(i,j))**2.)
-       pb=dsqrt((x(i,j+1)-xx(i,j))**2.+(y(i,j+1)-yy(i,j))**2.+
-     + (z(i,j+1)-zz(i,j))**2.)
+c      Distances between points rib 0 and 1. Row 0 is the explicit mirrored
+c      spatial rib; the former xx/yy/zz arrays duplicated these coordinates.
+       pa=dsqrt((x(i,j)-x(0,j))**2.+(y(i,j)-y(0,j))**2.+
+     + (z(i,j)-z(0,j))**2.)
+       pb=dsqrt((x(i,j+1)-x(0,j))**2.+(y(i,j+1)-y(0,j))**2.+
+     + (z(i,j+1)-z(0,j))**2.)
        pc=dsqrt((x(i,j)-x(i,j+1))**2.+(y(i,j)-y(i,j+1))**2.+
      + (z(i,j)-z(i,j+1))**2.)
-       pd=dsqrt((x(i,j)-xx(i,j+1))**2.+(y(i,j)-yy(i,j+1))**2.+
-     + (z(i,j)-zz(i,j+1))**2.)
-       pe=dsqrt((xx(i,j+1)-xx(i,j))**2.+(yy(i,j+1)-yy(i,j))**2.+
-     + (zz(i,j+1)-zz(i,j))**2.)
-       pf=dsqrt((x(i,j+1)-xx(i,j+1))**2.+(y(i,j+1)-yy(i,j+1))**2.+
-     + (z(i,j+1)-zz(i,j+1))**2.)
+       pd=dsqrt((x(i,j)-x(0,j+1))**2.+(y(i,j)-y(0,j+1))**2.+
+     + (z(i,j)-z(0,j+1))**2.)
+       pe=dsqrt((x(0,j+1)-x(0,j))**2.+(y(0,j+1)-y(0,j))**2.+
+     + (z(0,j+1)-z(0,j))**2.)
+       pf=dsqrt((x(i,j+1)-x(0,j+1))**2.+
+     + (y(i,j+1)-y(0,j+1))**2.+(z(i,j+1)-z(0,j+1))**2.)
        
        pa2r=(pa*pa-pb*pb+pc*pc)/(2.*pa)
        pa1r=pa-pa2r
@@ -112,19 +113,19 @@ c      Box (2,3)
 
        do j=np(1,2)+np(1,3)-1,np(1,1)-1 ! extrados panels, point j
 
-c      Distances between points
-       pa=dsqrt((x(i,j)-xx(i,j))**2.+(y(i,j)-yy(i,j))**2.+
-     + (z(i,j)-zz(i,j))**2.)
-       pb=dsqrt((x(i,j+1)-xx(i,j))**2.+(y(i,j+1)-yy(i,j))**2.+
-     + (z(i,j+1)-zz(i,j))**2.)
+c      Distances between the explicit mirrored rib 0 and physical rib 1.
+       pa=dsqrt((x(i,j)-x(0,j))**2.+(y(i,j)-y(0,j))**2.+
+     + (z(i,j)-z(0,j))**2.)
+       pb=dsqrt((x(i,j+1)-x(0,j))**2.+(y(i,j+1)-y(0,j))**2.+
+     + (z(i,j+1)-z(0,j))**2.)
        pc=dsqrt((x(i,j)-x(i,j+1))**2.+(y(i,j)-y(i,j+1))**2.+
      + (z(i,j)-z(i,j+1))**2.)
-       pd=dsqrt((x(i,j)-xx(i,j+1))**2.+(y(i,j)-yy(i,j+1))**2.+
-     + (z(i,j)-zz(i,j+1))**2.)
-       pe=dsqrt((xx(i,j+1)-xx(i,j))**2.+(yy(i,j+1)-yy(i,j))**2.+
-     + (zz(i,j+1)-zz(i,j))**2.)
-       pf=dsqrt((x(i,j+1)-xx(i,j+1))**2.+(y(i,j+1)-yy(i,j+1))**2.+
-     + (z(i,j+1)-zz(i,j+1))**2.)
+       pd=dsqrt((x(i,j)-x(0,j+1))**2.+(y(i,j)-y(0,j+1))**2.+
+     + (z(i,j)-z(0,j+1))**2.)
+       pe=dsqrt((x(0,j+1)-x(0,j))**2.+(y(0,j+1)-y(0,j))**2.+
+     + (z(0,j+1)-z(0,j))**2.)
+       pf=dsqrt((x(i,j+1)-x(0,j+1))**2.+
+     + (y(i,j+1)-y(0,j+1))**2.+(z(i,j+1)-z(0,j+1))**2.)
        
 c       write (*,*) i,pa,pb,pc,pd,pe,pf
 
@@ -192,20 +193,20 @@ c      7.2.2 Air intakes (vents) panels
 
        do j=np(1,2), np(1,2)+np(1,3)-2 ! vent panels, point j
 
-c      Distances between points
+c      Distances between the explicit mirrored rib 0 and physical rib 1.
        
-       pa=dsqrt((x(i,j)-xx(i,j))**2.+(y(i,j)-yy(i,j))**2.+
-     + (z(i,j)-zz(i,j))**2.)
-       pb=dsqrt((x(i,j+1)-xx(i,j))**2.+(y(i,j+1)-yy(i,j))**2.+
-     + (z(i,j+1)-zz(i,j))**2.)
+       pa=dsqrt((x(i,j)-x(0,j))**2.+(y(i,j)-y(0,j))**2.+
+     + (z(i,j)-z(0,j))**2.)
+       pb=dsqrt((x(i,j+1)-x(0,j))**2.+(y(i,j+1)-y(0,j))**2.+
+     + (z(i,j+1)-z(0,j))**2.)
        pc=dsqrt((x(i,j)-x(i,j+1))**2.+(y(i,j)-y(i,j+1))**2.+
      + (z(i,j)-z(i,j+1))**2.)
-       pd=dsqrt((x(i,j)-xx(i,j+1))**2.+(y(i,j)-yy(i,j+1))**2.+
-     + (z(i,j)-zz(i,j+1))**2.)
-       pe=dsqrt((xx(i,j+1)-xx(i,j))**2.+(yy(i,j+1)-yy(i,j))**2.+
-     + (zz(i,j+1)-zz(i,j))**2.)
-       pf=dsqrt((x(i,j+1)-xx(i,j+1))**2.+(y(i,j+1)-yy(i,j+1))**2.+
-     + (z(i,j+1)-zz(i,j+1))**2.)
+       pd=dsqrt((x(i,j)-x(0,j+1))**2.+(y(i,j)-y(0,j+1))**2.+
+     + (z(i,j)-z(0,j+1))**2.)
+       pe=dsqrt((x(0,j+1)-x(0,j))**2.+(y(0,j+1)-y(0,j))**2.+
+     + (z(0,j+1)-z(0,j))**2.)
+       pf=dsqrt((x(i,j+1)-x(0,j+1))**2.+
+     + (y(i,j+1)-y(0,j+1))**2.+(z(i,j+1)-z(0,j+1))**2.)
        
        pa2r=(pa*pa-pb*pb+pc*pc)/(2.*pa)
        pa1r=pa-pa2r
@@ -402,22 +403,22 @@ c      the exact extrados segment indices first:last-1.
        end if
 
 c      Re-evaluate the legacy distance expressions here so the comparison is
-c      independent of the pure module's distance helper.  Panel 0 must use its
-c      original mirrored xx/yy/zz source, not the typed row-0 snapshot.
+c      independent of the pure module's distance helper. Panel 0 uses the
+c      explicit mirrored legacy row 0, which is also the typed snapshot source.
        if(i.eq.0) then
-       pa=dsqrt((x(1,j)-xx(1,j))**2.+(y(1,j)-yy(1,j))**2.+
-     + (z(1,j)-zz(1,j))**2.)
-       pb=dsqrt((x(1,j+1)-xx(1,j))**2.+
-     + (y(1,j+1)-yy(1,j))**2.+(z(1,j+1)-zz(1,j))**2.)
+       pa=dsqrt((x(1,j)-x(0,j))**2.+(y(1,j)-y(0,j))**2.+
+     + (z(1,j)-z(0,j))**2.)
+       pb=dsqrt((x(1,j+1)-x(0,j))**2.+
+     + (y(1,j+1)-y(0,j))**2.+(z(1,j+1)-z(0,j))**2.)
        pc=dsqrt((x(1,j+1)-x(1,j))**2.+
      + (y(1,j+1)-y(1,j))**2.+(z(1,j+1)-z(1,j))**2.)
-       pd=dsqrt((x(1,j)-xx(1,j+1))**2.+
-     + (y(1,j)-yy(1,j+1))**2.+(z(1,j)-zz(1,j+1))**2.)
-       pe=dsqrt((xx(1,j+1)-xx(1,j))**2.+
-     + (yy(1,j+1)-yy(1,j))**2.+(zz(1,j+1)-zz(1,j))**2.)
-       pf=dsqrt((x(1,j+1)-xx(1,j+1))**2.+
-     + (y(1,j+1)-yy(1,j+1))**2.+
-     + (z(1,j+1)-zz(1,j+1))**2.)
+       pd=dsqrt((x(1,j)-x(0,j+1))**2.+
+     + (y(1,j)-y(0,j+1))**2.+(z(1,j)-z(0,j+1))**2.)
+       pe=dsqrt((x(0,j+1)-x(0,j))**2.+
+     + (y(0,j+1)-y(0,j))**2.+(z(0,j+1)-z(0,j))**2.)
+       pf=dsqrt((x(1,j+1)-x(0,j+1))**2.+
+     + (y(1,j+1)-y(0,j+1))**2.+
+     + (z(1,j+1)-z(0,j+1))**2.)
        else
        pa=dsqrt((x(i+1,j)-x(i,j))**2.+(y(i+1,j)-y(i,j))**2.+
      + (z(i+1,j)-z(i,j))**2.)

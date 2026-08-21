@@ -306,15 +306,6 @@ c      dual-run; tip support nribss+1 is intentionally outside panel ownership.
        end if
        end do
 
-c      6.10 Assignation 3D coordinates airfoil 0:
-
-       i=1 ! WARNIING
-       do j=1,np(1,1)
-       xx(i,j)=-rib(i,6)+w(1,j,5)
-       yy(i,j)=rib(i,3)+u(1,j,5)
-       zz(i,j)=rib(i,7)-v(1,j,5)
-       end do
-
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      6.10+ Compute TE-anchor lengths along airfoil contour
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
