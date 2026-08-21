@@ -55,6 +55,7 @@ add_executable(leparagliding
     src/leparagliding_mark_types.f90
     src/leparagliding_geometry.f90
     src/leparagliding_domain_model.f90
+    src/leparagliding_spatial_geometry.f90
     src/leparagliding_neutral_development.f90
     src/leparagliding_skin_tension.f90
     src/leparagliding_panel_shaping.f90
@@ -101,6 +102,28 @@ if(BUILD_TESTING)
   endif()
 
   add_test(NAME domain_model COMMAND test_domain_model)
+
+  add_executable(test_spatial_geometry
+      tests/test_spatial_geometry.f90
+      src/leparagliding_domain_model.f90
+      src/leparagliding_spatial_geometry.f90)
+
+  set_target_properties(test_spatial_geometry PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-spatial-geometry-modules")
+  target_include_directories(test_spatial_geometry PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-spatial-geometry-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_spatial_geometry PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_spatial_geometry PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME spatial_geometry COMMAND test_spatial_geometry)
 
   add_executable(test_neutral_development
       tests/test_neutral_development.f90

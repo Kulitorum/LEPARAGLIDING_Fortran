@@ -218,47 +218,51 @@ cmake --build build-check --parallel
 ctest --test-dir build-check --output-on-failure
 ```
 
-Up to fifteen isolated tests are registered (thirteen do not require Python):
+Sixteen isolated tests are registered (fourteen do not require Python):
 
 1. `domain_model` checks named profile partitions, odd/even and virtual rib
    roles, spatial and production snapshots, exact neutral segments, panel 0,
    physical terminal comparison edges, explicit intake support, direct
    intrados publication, 500-point topology/real segment-499 behavior, and
    transactional adapters.
-2. `neutral_development` checks the pure quadrilateral developer, exact source
+2. `spatial_geometry` checks named rib definitions and the pure Stage-6-order
+   local-to-spatial transform, including each rotation, pivots, compound
+   transforms, explicit displacement policy, generated-rib provenance, and
+   transactional failure.
+3. `neutral_development` checks the pure quadrilateral developer, exact source
    distances, start-biased joins, all three neutral surfaces, panel zero, and
    transactional failure.
-3. `skin_tension` checks Section-31 direction normalization, column selection,
+4. `skin_tension` checks Section-31 direction normalization, column selection,
    validation, inclusive interval overlap, last-match selection, endpoints,
    and transactional failure.
-4. `panel_shaping` checks lower/higher normal conventions in every quadrant,
+5. `panel_shaping` checks lower/higher normal conventions in every quadrant,
    horizontal and vertical compatibility cases, incoming-segment endpoint
    ownership, allowance conversion, and transactional failure.
-5. `panel_reformat` checks terminal expand/shrink behavior, distinct measurement
+6. `panel_reformat` checks terminal expand/shrink behavior, distinct measurement
    and reconstruction indices, quadrant reconstruction, cut-vector retention,
    provenance, and transactional failure.
-6. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
+7. `profile_data` checks exact, shifted, and inserted `.dat` intake boundaries
    and verifies the rebuilt contour's topology identities.
-7. `color_geometry` checks robust color-edge interpolation, repeated profile
+8. `color_geometry` checks robust color-edge interpolation, repeated profile
    coordinates, both seam offsets, and the 1.1 mm inward mark calculation.
-8. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
+9. `dxf_semantic_diff` checks the dependency-free, tolerance-aware DXF geometry
    comparator (registered when Python 3 is available).
-9. `color_division_import` compares DXF import with a Swoop2-derived section-16
+10. `color_division_import` compares DXF import with a Swoop2-derived section-16
    oracle (registered when Python 3 is available).
-10. `plan_b_regression` compares all five principal outputs with the reviewed
+11. `plan_b_regression` compares all five principal outputs with the reviewed
    3.29 baseline, after normalizing line endings.
-11. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
+12. `even_cell_regression` runs the complete author-supplied 50-cell Swoop2
    design, checks its collapsed center and declared counts, rejects non-finite
    DXF geometry, and compares all five principal outputs.
-12. `classic_skin_regression` runs the realistic gnuA3 design through classic
+13. `classic_skin_regression` runs the realistic gnuA3 design through classic
    skin tension (`k31d=0`), rejects non-finite DXF geometry, checks its declared
    counts, and freezes all five principal outputs.
-13. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
+14. `disabled_shaping_regression` derives a section-29-disabled gnuA3 input,
    checks the one-based no-cut group path under runtime bounds checking, and
    freezes all five principal outputs.
-14. `profile_capacity_guard` verifies that an oversized 501-point profile is
+15. `profile_capacity_guard` verifies that an oversized 501-point profile is
    rejected before it can overrun the legacy arrays.
-15. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
+16. `version_329_features` exercises rod types 4 and 5, section-38 hole types,
    all new special codes, section-39 positioning, and UTF-8 DXF output; it also
    rejects NaN or infinity in the main DXF.
 
@@ -296,6 +300,7 @@ src/
   leparagliding_panel_reformat.f90   typed terminal length matching
   leparagliding_panel_shaping.f90  typed sewing/cut side-shaping kernel
   leparagliding_skin_tension.f90   normalized Section-31 laws and evaluator
+  leparagliding_spatial_geometry.f90 named rib definitions and spatial transform
   main/                             numbered main-program calculation stages
   procedures/                       procedures grouped by responsibility
 tests/
