@@ -1628,11 +1628,29 @@ c      Set 0 rib
        skinpoints(0)=skinpoints(1)
        ngroup31(0)=ngroup31(1)
        ntypei31(0)=ntypei31(1)
-       do k=1,npoints
+c      Row zero mirrors rib one, including rib one's own group point count.
+c      Using the final group's temporary npoints corrupted multi-group input.
+       do k=1,skinpoints(0)
        skinnew(0,k,1)=skinnew(1,k,1)
        skinnew(0,k,2)=skinnew(1,k,2)
        skinnew(0,k,3)=skinnew(1,k,3)
        skinnew(0,k,4)=skinnew(1,k,4)
+       end do
+
+c      Convert the Section 31 intrados definitions into named, validated
+c      boundary laws.  The typed laws own their data and no longer depend on
+c      the shared xsobnew/ysobnew scratch arrays used later in stage 8.
+       allocate(typed_intrados_tension_laws(0:nribss))
+       do i=0,nribss
+       call copy_legacy_new_skin_tension_law(skinnew(i,:,:),
+     + skinpoints(i),i,surface_intrados,ntypei31(i),
+     + typed_intrados_tension_laws(i),domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: invalid intrados tension law at rib ',
+     + i,': ',trim(domain_model_message)
+       stop 1
+       end if
        end do
 
        end if

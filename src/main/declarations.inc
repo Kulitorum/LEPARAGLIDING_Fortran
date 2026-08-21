@@ -281,13 +281,16 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
        type(neutral_panel_2d), allocatable :: neutral_intrados_panels(:)
        type(neutral_boundary_edge_2d) :: terminal_extrados_edge,
      + terminal_intake_edge,terminal_intrados_edge
+       type(skin_tension_law), allocatable ::
+     + typed_intrados_tension_laws(:)
+       type(shaped_panel_side_2d) :: typed_intrados_lower_side
        type(quadrilateral_distances_3d), allocatable ::
      + typed_extrados_source_distances(:),typed_intake_source_distances(:),
      + typed_intrados_source_distances(:)
        logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
      + neutral_gap_valid,typed_coordinates_match
        character(len=256) :: domain_model_message
-       real*8 :: typed_geometry_metric
+       real*8 :: typed_geometry_metric,typed_skin_tension_offset
 
        real*8 hol(0:100,200,20),skin(10,10)
 

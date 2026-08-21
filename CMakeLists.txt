@@ -56,6 +56,8 @@ add_executable(leparagliding
     src/leparagliding_geometry.f90
     src/leparagliding_domain_model.f90
     src/leparagliding_neutral_development.f90
+    src/leparagliding_skin_tension.f90
+    src/leparagliding_panel_shaping.f90
     src/leparagliding_color_geometry.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
@@ -120,6 +122,50 @@ if(BUILD_TESTING)
   endif()
 
   add_test(NAME neutral_development COMMAND test_neutral_development)
+
+  add_executable(test_skin_tension
+      tests/test_skin_tension.f90
+      src/leparagliding_domain_model.f90
+      src/leparagliding_skin_tension.f90)
+
+  set_target_properties(test_skin_tension PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-skin-tension-modules")
+  target_include_directories(test_skin_tension PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-skin-tension-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_skin_tension PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_skin_tension PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME skin_tension COMMAND test_skin_tension)
+
+  add_executable(test_panel_shaping
+      tests/test_panel_shaping.f90
+      src/leparagliding_domain_model.f90
+      src/leparagliding_panel_shaping.f90)
+
+  set_target_properties(test_panel_shaping PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-panel-shaping-modules")
+  target_include_directories(test_panel_shaping PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-panel-shaping-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_panel_shaping PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_panel_shaping PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME panel_shaping COMMAND test_panel_shaping)
 
   add_executable(test_profile_data
       tests/test_profile_data.f90

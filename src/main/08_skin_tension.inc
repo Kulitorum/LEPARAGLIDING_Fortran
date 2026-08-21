@@ -2181,7 +2181,7 @@ c      Assign lengths and sob distances
        u(i,np(i,2)+np(i,3)-1,8)=0.
 
        do j=np(i,2)+np(i,3)-1,np(i,1)-1
-       do k=1,skinpoints(i)
+       do k=1,skinpoints(i)-1
 
 c      Left side
        if (u(i,j,7).ge.xsobnew(i,k).and.u(i,j,7).le.xsobnew(i,k+1)
@@ -2217,13 +2217,37 @@ c      Right side
 
        end do ! k
 
+c      Regular lower intrados boundaries are the first authoritative typed
+c      skin-tension slice.  Keep the legacy calculation as an exact oracle,
+c      then publish the independently evaluated named law only after it
+c      agrees.  The terminal row remains a physical boundary, not a panel.
+       if (i.lt.nribss) then
+       call evaluate_skin_tension_offset(
+     + typed_intrados_tension_laws(i),rib(i,25),rib(i,24),u(i,j,7),
+     + typed_skin_tension_offset,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: typed intrados tension failed at panel ',i,', point ',j,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,7))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: typed/legacy intrados tension differs at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,7)
+       stop 1
+       end if
+       v(i,j,7)=typed_skin_tension_offset
+       end if
+
        end do ! j
 
 c      The final contour point has a tension value but no following segment.
 c      Evaluate its offset separately so segment accumulation stops at L-1
 c      without leaving the endpoint consumed by puntslat undefined.
        j=np(i,1)
-       do k=1,skinpoints(i)
+       do k=1,skinpoints(i)-1
        if (u(i,j,7).ge.xsobnew(i,k).and.u(i,j,7).le.xsobnew(i,k+1)
      + *1.001) then
        xm=(ysobnew(i,k+1)-ysobnew(i,k))/(xsobnew(i,k+1)-xsobnew(i,k))
@@ -2241,9 +2265,69 @@ c      without leaving the endpoint consumed by puntslat undefined.
        end if
        end do
 
+c      The endpoint has no following neutral segment, but it still receives
+c      a skin-tension offset and is consumed as the final shaped point.
+       if (i.lt.nribss) then
+       call evaluate_skin_tension_offset(
+     + typed_intrados_tension_laws(i),rib(i,25),rib(i,24),u(i,j,7),
+     + typed_skin_tension_offset,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed intrados endpoint tension failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,7))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: typed/legacy intrados endpoint tension differs at panel ',i,
+     + typed_skin_tension_offset,v(i,j,7)
+       stop 1
+       end if
+       v(i,j,7)=typed_skin_tension_offset
+       end if
+
 c      Compute points left side
        call puntslat(i,pl1x,pl1y,pl2x,pl2y,np(i,1)-np(i,4)+1,
      + np(i,1)-1,u,v,xlow,-1)
+
+c      Shape the same real-panel boundary from the exact typed neutral edge.
+c      All sewing and cut coordinates must agree with puntslat before the
+c      typed result is allowed to replace numbered slots 9 and 11.
+       if (i.lt.nribss) then
+       call shape_neutral_panel_side(neutral_intrados_panels(i),
+     + panel_side_lower,
+     + v(i,np(i,1)-np(i,4)+1:np(i,1),7),xlow,
+     + typed_intrados_lower_side,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed lower intrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=np(i,1)-np(i,4)+1,np(i,1)
+       k=j-(np(i,1)-np(i,4)+1)+1
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_intrados_lower_side%sewing_u(k),
+     + u(i,j,9)).and.
+     + geometry_values_are_close(typed_intrados_lower_side%sewing_v(k),
+     + v(i,j,9)).and.
+     + geometry_values_are_close(typed_intrados_lower_side%cut_u(k),
+     + u(i,j,11)).and.
+     + geometry_values_are_close(typed_intrados_lower_side%cut_v(k),
+     + v(i,j,11))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: typed/legacy lower intrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       u(i,j,9)=typed_intrados_lower_side%sewing_u(k)
+       v(i,j,9)=typed_intrados_lower_side%sewing_v(k)
+       u(i,j,11)=typed_intrados_lower_side%cut_u(k)
+       v(i,j,11)=typed_intrados_lower_side%cut_v(k)
+       end do
+       end if
 
 c      Compute points right side
        call puntslat(i,pr1x,pr1y,pr2x,pr2y,np(i,1)-np(i,4)+1,
