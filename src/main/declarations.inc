@@ -274,14 +274,24 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
        type(rib_identity), allocatable :: wing_rib_identities(:)
        type(rib_definition), allocatable :: wing_rib_definitions(:)
        logical, allocatable :: wing_rib_definition_available(:)
+       type(rib_anchor_definition), allocatable ::
+     + wing_anchor_definitions(:)
+       type(resolved_rib_anchors), allocatable ::
+     + wing_base_resolved_anchors(:)
+       logical, allocatable :: wing_base_resolved_anchor_available(:)
        type(profile_topology), allocatable :: wing_profile_topologies(:)
+       type(normalized_profile_2d) :: typed_normalized_profile
        type(spatial_rib_geometry_3d), allocatable :: wing_spatial_ribs(:)
+       type(spatial_rib_geometry_3d), allocatable ::
+     + typed_spatial_rib_candidates(:)
        type(neutral_panel_2d) :: neutral_extrados_panel,neutral_intake_panel
        type(neutral_panel_2d), allocatable :: neutral_intrados_panels(:)
        type(neutral_boundary_edge_2d) :: terminal_extrados_edge,
      + terminal_intake_edge,terminal_intrados_edge
        type(skin_tension_law), allocatable ::
      + typed_extrados_tension_laws(:),typed_intrados_tension_laws(:)
+       type(classic_skin_tension_law) :: classic_extrados_tension_law,
+     + classic_intrados_tension_law
        type(shaped_panel_side_2d) :: typed_extrados_lower_side,
      + typed_extrados_higher_side,typed_intrados_lower_side,
      + typed_intrados_higher_side
@@ -298,9 +308,12 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
      + typed_extrados_source_distances(:),typed_intake_source_distances(:),
      + typed_intrados_source_distances(:)
        logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
-     + neutral_gap_valid,typed_coordinates_match
+     + neutral_gap_valid,typed_coordinates_match,
+     + typed_spatial_geometry_exact
        character(len=256) :: domain_model_message
        real*8 :: typed_geometry_metric,typed_skin_tension_offset
+       integer :: typed_profile_source_index
+       integer :: anchor_saved_i,anchor_saved_j
 
        real*8 hol(0:100,200,20),skin(10,10)
 

@@ -105,6 +105,43 @@ c      named surface ranges; both input paths have already enforced capacity.
        end if
        end do
 
+c      Complete the two generated definitions from named authored sources.
+c      Their Stage-4 legacy rows are deliberately not adapter inputs: row 0
+c      and nribss+1 never received every late-scaled column.  The symmetry
+c      constructor mirrors the complete row-1 definition with explicit
+c      provenance.  The tip constructor takes profile fields from nribss-1
+c      and extrapolates station/height through physical wingtip nribss.
+       if (.not.allocated(wing_rib_definitions).or.
+     + .not.allocated(wing_rib_definition_available)) then
+       write (*,'(A)')
+     + 'ERROR: Stage-6 rib-definition collection is unavailable'
+       stop 1
+       end if
+       call build_symmetry_rib_definition(wing_rib_definitions(1),
+     + wing_rib_identities(0),wing_rib_definitions(0),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: symmetry definition failed: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       wing_rib_definition_available(0)=.true.
+       call build_tip_support_rib_definition(
+     + wing_rib_definitions(nribss-1),wing_rib_definitions(nribss),
+     + wing_rib_identities(nribss+1),wing_rib_definitions(nribss+1),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: tip-support definition failed: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       wing_rib_definition_available(nribss+1)=.true.
+       if (any(.not.wing_rib_definition_available)) then
+       write (*,'(A)')
+     + 'ERROR: Stage-6 rib-definition collection remains incomplete'
+       stop 1
+       end if
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Detect cut points if defined by points (case 1)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -287,24 +324,149 @@ c       v(0,j,3)=u(1,j,3)+rib(1,50)  ERROR
 
        end do
 
-c      Freeze spatial ribs only after row 0 has received its explicit mirrored
-c      geometry.  These snapshots are the inputs to the pure stage-7 extrados
-c      dual-run; tip support nribss+1 is intentionally outside panel ownership.
-       allocate(wing_spatial_ribs(0:nribss))
-       do i=0,nribss
+c      Dual-run complete-profile construction after all physical rows, the
+c      extrapolated tip support, and explicit mirrored row 0 exist in legacy
+c      X/Y/Z.  Normalized input is selected by each definition's named source
+c      provenance, never by assuming target row equals profile row.
+c
+c      Physical and tip rows use the exact Stage-6 transform kernel.  Row 0 is
+c      constructed last by mirroring the final typed row-1 geometry, matching
+c      the historical post-transform operation rather than transforming its
+c      incomplete compatibility row.  Every coordinate must agree before the
+c      checked adapter may publish typed X/Y/Z authority only when the entire
+c      wing is bit-exact.  A merely tolerance-close value is not published:
+c      downstream legacy geometry contains branch-sensitive comparisons that
+c      can amplify a last-bit change.  Slots u/v/w(:,3:5) remain untouched for
+c      their current downstream consumers.
+       allocate(typed_spatial_rib_candidates(0:nribss+1))
+       typed_spatial_geometry_exact=.true.
+       do i=1,nribss+1
+       typed_profile_source_index=
+     + wing_rib_definitions(i)%source_profile_number
+       call copy_legacy_normalized_profile(u,v,typed_profile_source_index,
+     + wing_profile_topologies(typed_profile_source_index),
+     + typed_normalized_profile,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: normalized profile source ',typed_profile_source_index,
+     + ' for spatial rib ',i,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (i.eq.nribss+1) then
+       call build_tip_support_spatial_rib(typed_normalized_profile,
+     + wing_rib_definitions(i),typed_spatial_rib_candidates(i),
+     + domain_model_valid,
+     + domain_model_message)
+       else
+       call build_spatial_rib_geometry(typed_normalized_profile,
+     + wing_rib_definitions(i),typed_spatial_rib_candidates(i),
+     + domain_model_valid,domain_model_message)
+       end if
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: typed spatial rib ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,wing_profile_topologies(i)%point_count
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_spatial_rib_candidates(i)%x(j),
+     + x(i,j)).and.
+     + geometry_values_are_close(typed_spatial_rib_candidates(i)%y(j),
+     + y(i,j)).and.
+     + geometry_values_are_close(typed_spatial_rib_candidates(i)%z(j),
+     + z(i,j))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0,A,6(1X,ES24.16))')
+     + 'ERROR: typed/legacy spatial mismatch at rib ',i,', point ',j,
+     + ':',typed_spatial_rib_candidates(i)%x(j),x(i,j),
+     + typed_spatial_rib_candidates(i)%y(j),y(i,j),
+     + typed_spatial_rib_candidates(i)%z(j),z(i,j)
+       stop 1
+       end if
+       if (any(abs([typed_spatial_rib_candidates(i)%x(j)-x(i,j),
+     + typed_spatial_rib_candidates(i)%y(j)-y(i,j),
+     + typed_spatial_rib_candidates(i)%z(j)-z(i,j)])
+     + .gt.0.0d0)) typed_spatial_geometry_exact=.false.
+       end do
+       end do
+
+       call build_symmetry_spatial_rib(typed_spatial_rib_candidates(1),
+     + wing_rib_definitions(0),typed_spatial_rib_candidates(0),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: typed symmetry geometry failed: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,wing_profile_topologies(0)%point_count
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_spatial_rib_candidates(0)%x(j),
+     + x(0,j)).and.
+     + geometry_values_are_close(typed_spatial_rib_candidates(0)%y(j),
+     + y(0,j)).and.
+     + geometry_values_are_close(typed_spatial_rib_candidates(0)%z(j),
+     + z(0,j))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,6(1X,ES24.16))')
+     + 'ERROR: typed/legacy symmetry mismatch at point ',j,':',
+     + typed_spatial_rib_candidates(0)%x(j),x(0,j),
+     + typed_spatial_rib_candidates(0)%y(j),y(0,j),
+     + typed_spatial_rib_candidates(0)%z(j),z(0,j)
+       stop 1
+       end if
+       if (any(abs([typed_spatial_rib_candidates(0)%x(j)-x(0,j),
+     + typed_spatial_rib_candidates(0)%y(j)-y(0,j),
+     + typed_spatial_rib_candidates(0)%z(j)-z(0,j)])
+     + .gt.0.0d0)) typed_spatial_geometry_exact=.false.
+       end do
+
+c      Publish all rows or none: partial typed authority would leave adjacent
+c      panels in mixed numerical domains.  If normalized-percent round trips
+c      change even one bit, the retained typed collection remains the checked
+c      dual-run oracle and compatibility X/Y/Z stay authoritative for now.
+       allocate(wing_spatial_ribs(0:nribss+1))
+       if (typed_spatial_geometry_exact) then
+       wing_spatial_ribs=typed_spatial_rib_candidates
+       do i=0,nribss+1
+       call write_legacy_spatial_rib_geometry(wing_spatial_ribs(i),x,y,z,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: spatial publication failed at rib ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end do
+       else
+c      Stage 7 already consumes wing_spatial_ribs.  Preserve its exact legacy
+c      authority whenever the independently constructed candidate differs by
+c      even one bit; tolerance-close candidates must never leak downstream.
+       do i=0,nribss+1
        call copy_legacy_spatial_rib(x,y,z,i,
      + wing_profile_topologies(i)%point_count,wing_spatial_ribs(i),
      + domain_model_valid,domain_model_message)
        if (.not.domain_model_valid) then
-       write (*,'(A,I0,2A)') 'ERROR: invalid spatial rib ',i,': ',
+       write (*,'(A,I0,2A)')
+     + 'ERROR: legacy spatial authority copy failed at rib ',i,': ',
      + trim(domain_model_message)
        stop 1
        end if
        end do
+       end if
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      6.10+ Compute TE-anchor lengths along airfoil contour
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+c      Column-group ownership at this compatibility producer is offset by the
+c      active A--E ordinal klz=1:rib(i,15):
+c        65+klz  -> 66:70  chordwise position in the restored rib-local plane
+c       110+klz  -> 111:115 interpolated intrados chord coordinate
+c       120+klz  -> 121:125 interpolated intrados height coordinate
+c       130+klz  -> 131:135 distance from trailing edge along the intrados
+c      Columns 110, 116:120, and 126:130 are not members of these arrays.  F
+c      (brake, Section-3 column 21) is intentionally outside this A--E contour
+c      distance producer.  The typed anchor module independently reconstructs
+c      and compares every active value after Stage 12 resolves spatial points.
 
        do i=0,nribss
 

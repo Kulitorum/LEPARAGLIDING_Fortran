@@ -3,7 +3,8 @@ program test_panel_shaping
   use, intrinsic :: ieee_arithmetic, only : ieee_quiet_nan, ieee_value
   use leparagliding_domain_model, only : profile_topology, neutral_panel_2d, &
       neutral_boundary_edge_2d, production_boundary_edge_2d, &
-      derive_neutral_boundary_edge, surface_extrados, surface_intrados, &
+      derive_neutral_boundary_edge, write_legacy_production_boundary, &
+      surface_extrados, surface_intrados, &
       legacy_production_lower_sewing_slot, &
       legacy_production_higher_sewing_slot, &
       legacy_production_lower_cut_slot, legacy_production_higher_cut_slot
@@ -220,6 +221,35 @@ program test_panel_shaping
   call require(valid, 'higher extrados write rejected: '//trim(message))
   call require_legacy_equal(legacy_u, legacy_v, expected_u, expected_v, &
       'higher extrados exact-range write')
+
+  ! A physical terminal extrados derives from the higher neutral edge but owns
+  ! only the boundary rib's exact lower/outward slot-9/11 pair.  Whole-array
+  ! sentinels prove that no fabricated panel row or slots 10/12 are published.
+  call derive_neutral_boundary_edge(panel, neutral_boundary, valid, message)
+  call require(valid, 'terminal extrados neutral edge rejected: '// &
+      trim(message))
+  call shape_neutral_boundary_edge(neutral_boundary, &
+      [0.25_real64, 0.75_real64], 10.0_real64, production_boundary, &
+      valid, message)
+  call require(valid, 'terminal extrados production edge rejected: '// &
+      trim(message))
+  legacy_u = -777.0_real64
+  legacy_v = 888.0_real64
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(3, 1:2, legacy_production_lower_sewing_slot) = &
+      production_boundary%sewing_u
+  expected_v(3, 1:2, legacy_production_lower_sewing_slot) = &
+      production_boundary%sewing_v
+  expected_u(3, 1:2, legacy_production_lower_cut_slot) = &
+      production_boundary%cut_u
+  expected_v(3, 1:2, legacy_production_lower_cut_slot) = &
+      production_boundary%cut_v
+  call write_legacy_production_boundary(production_boundary, topology, &
+      legacy_u, legacy_v, valid, message)
+  call require(valid, 'terminal extrados write rejected: '//trim(message))
+  call require_legacy_equal(legacy_u, legacy_v, expected_u, expected_v, &
+      'terminal extrados exact-range write')
 
   mismatched_extrados_side = extrados_higher
   mismatched_extrados_side%contour_first_index = 2

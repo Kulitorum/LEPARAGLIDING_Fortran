@@ -7,11 +7,87 @@ program test_skin_tension
   implicit none
 
   real(real64) :: legacy_values(4, 4)
+  real(real64) :: classic_values(6, 4)
   real(real64) :: offset
   real(real64) :: saved_position
+  real(real64) :: saved_classic_position
   type(skin_tension_law) :: law
+  type(classic_skin_tension_law) :: classic_law
   logical :: valid
   character(len=160) :: message
+
+  ! The classic input is one six-point table for the whole wing.  Each surface
+  ! has independent position/overwidth columns and reverses into developed
+  ! leading-to-trailing contour order.
+  classic_values(:, 1) = [0.0_real64, 10.0_real64, 20.0_real64, &
+      80.0_real64, 90.0_real64, 100.0_real64]
+  classic_values(:, 2) = [0.0_real64, 1.0_real64, 2.0_real64, &
+      4.0_real64, 2.0_real64, 0.0_real64]
+  classic_values(:, 3) = [0.0_real64, 15.0_real64, 30.0_real64, &
+      70.0_real64, 85.0_real64, 100.0_real64]
+  classic_values(:, 4) = [0.0_real64, 3.0_real64, 6.0_real64, &
+      9.0_real64, 3.0_real64, 0.0_real64]
+
+  call copy_legacy_classic_skin_tension_law(classic_values, &
+      surface_extrados, classic_law, valid, message)
+  call require(valid, 'valid classic extrados law rejected: '//trim(message))
+  call require(classic_law%is_valid(), 'classic extrados law is invalid')
+  call require(classic_law%surface == surface_extrados, &
+      'classic extrados surface identity was lost')
+  call require_close(classic_law%developed_position_percent(2), &
+      10.0_real64, 'classic reversed position')
+  call require_close(classic_law%overwidth_percent(2), 2.0_real64, &
+      'classic reversed overwidth')
+
+  call evaluate_classic_skin_tension_offset(classic_law, 100.0_real64, &
+      10.0_real64, 15.0_real64, offset, valid, message)
+  call require(valid, 'classic inner interval rejected: '//trim(message))
+  call require_close(offset, 0.3_real64, 'classic inner interval offset')
+  call evaluate_classic_skin_tension_offset(classic_law, 100.0_real64, &
+      10.0_real64, -10.0_real64, offset, valid, message)
+  call require(valid, 'classic leading extrapolation rejected: '//trim(message))
+  call require_close(offset, -0.2_real64, 'classic leading extrapolation')
+  call evaluate_classic_skin_tension_offset(classic_law, 100.0_real64, &
+      10.0_real64, 110.0_real64, offset, valid, message)
+  call require(valid, 'classic trailing extrapolation rejected: '//trim(message))
+  call require_close(offset, -0.1_real64, 'classic trailing extrapolation')
+
+  call copy_legacy_classic_skin_tension_law(classic_values, &
+      surface_intrados, classic_law, valid, message)
+  call require(valid, 'valid classic intrados law rejected: '//trim(message))
+  call require(classic_law%surface == surface_intrados, &
+      'classic intrados surface identity was lost')
+  call require_close(classic_law%developed_position_percent(2), &
+      15.0_real64, 'classic intrados position columns')
+  call require_close(classic_law%overwidth_percent(2), 3.0_real64, &
+      'classic intrados overwidth columns')
+
+  ! Failed classic conversions retain the previous complete law.
+  saved_classic_position = classic_law%developed_position_percent(2)
+  classic_values(2, 3) = classic_values(1, 3)
+  call copy_legacy_classic_skin_tension_law(classic_values, &
+      surface_intrados, classic_law, valid, message)
+  call require(.not. valid, 'duplicate classic positions were accepted')
+  call require_close(classic_law%developed_position_percent(2), &
+      saved_classic_position, 'classic conversion failure changed destination')
+  classic_values(2, 3) = 15.0_real64
+  classic_values(2, 4) = -1.0_real64
+  call copy_legacy_classic_skin_tension_law(classic_values, &
+      surface_intrados, classic_law, valid, message)
+  call require(.not. valid, 'negative classic overwidth was accepted')
+  classic_values(2, 4) = 3.0_real64
+  classic_values(2, 4) = ieee_value(0.0_real64, ieee_quiet_nan)
+  call copy_legacy_classic_skin_tension_law(classic_values, &
+      surface_intrados, classic_law, valid, message)
+  call require(.not. valid, 'nonfinite classic overwidth was accepted')
+  classic_values(2, 4) = 3.0_real64
+  call copy_legacy_classic_skin_tension_law(classic_values, surface_intake, &
+      classic_law, valid, message)
+  call require(.not. valid, 'classic intake law was accepted')
+
+  call evaluate_classic_skin_tension_offset(classic_law, 0.0_real64, &
+      10.0_real64, 0.0_real64, offset, valid, message)
+  call require(.not. valid, 'zero classic contour length was accepted')
 
   ! Authored positions increase from 0 to 100.  The adapter reverses them
   ! into the direction in which the flattened contour distance accumulates.

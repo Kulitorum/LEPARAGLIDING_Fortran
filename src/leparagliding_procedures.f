@@ -14,6 +14,9 @@ c***********************************************************************
        use leparagliding_domain_model
        use leparagliding_color_geometry
        use leparagliding_mark_types
+       use leparagliding_transformations, only : loc2glo2d
+       use leparagliding_file_cleanup, only : nonan,fix_dxf_nan,
+     + replace_in_string
 
        private :: typm1, typm2, typm3, typm4, typm5, typm6
        private :: dxf_point_entity, dxf_circle_entity
@@ -36,7 +39,5 @@ c***********************************************************************
        include 'procedures/profile_data.inc'
        include 'procedures/geometry_utilities.inc'
        include 'procedures/interpolation.inc'
-       include 'procedures/file_cleanup.inc'
-       include 'procedures/transformations.inc'
 
        end module leparagliding_procedures

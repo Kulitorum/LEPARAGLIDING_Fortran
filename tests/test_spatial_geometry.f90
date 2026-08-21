@@ -1,9 +1,12 @@
 program test_spatial_geometry
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
-  use leparagliding_domain_model, only : rib_identity, &
-      rib_role_physical_centerline, rib_role_symmetry_mirror_physical, &
-      rib_role_tip_extrapolated_support
+  use leparagliding_domain_model, only : index_range, normalized_profile_2d, &
+      rib_identity, rib_role_physical_centerline, &
+      rib_role_physical_interior, rib_role_physical_wingtip, &
+      rib_role_symmetry_centerline_alias, &
+      rib_role_symmetry_mirror_physical, &
+      rib_role_tip_extrapolated_support, spatial_rib_geometry_3d
   use leparagliding_spatial_geometry
   implicit none
 
@@ -310,6 +313,8 @@ program test_spatial_geometry
   spatial_point%x_cm = ieee_value(0.0_real64, ieee_quiet_nan)
   call require(.not. spatial_point%is_valid(), 'non-finite spatial point accepted')
 
+  call test_complete_profile_construction()
+
   write (*, '(A)') 'PASS: typed spatial-geometry foundation'
 
 contains
@@ -339,6 +344,217 @@ contains
     candidate%profile_height_scale = 1.0_real64
     candidate%cell_open = .true.
   end function make_center_definition
+
+  function make_normalized_profile(rib_index) result(profile)
+    integer, intent(in) :: rib_index
+    type(normalized_profile_2d) :: profile
+
+    profile%rib_index = rib_index
+    profile%topology%point_count = 6
+    profile%topology%extrados = index_range(1, 3)
+    profile%topology%intake = index_range(3, 4)
+    profile%topology%intrados = index_range(4, 6)
+    profile%topology%leading_edge_index = 3
+    profile%chord_percent = [100.0_real64, 50.0_real64, 0.0_real64, &
+        10.0_real64, 50.0_real64, 100.0_real64]
+    profile%height_percent = [0.0_real64, 5.0_real64, 0.0_real64, &
+        -2.0_real64, -4.0_real64, 0.0_real64]
+  end function make_normalized_profile
+
+  subroutine test_complete_profile_construction()
+    type(normalized_profile_2d) :: profile
+    type(rib_definition) :: source_definition, anchor_definition
+    type(rib_definition) :: generated_definition, saved_definition
+    type(spatial_rib_geometry_3d) :: geometry, source_geometry
+    type(spatial_rib_geometry_3d) :: saved_geometry, invalid_geometry
+    type(rib_identity) :: generated_identity, invalid_identity
+    real(real64) :: legacy_x(0:5, 10), legacy_y(0:5, 10)
+    real(real64) :: legacy_z(0:5, 10), short_legacy_z(0:5, 9)
+    real(real64) :: saved_legacy_x(0:5, 10)
+    logical :: construction_valid
+    character(len=160) :: construction_message
+
+    profile = make_normalized_profile(1)
+    call require(profile%is_valid(), 'complete-profile test profile invalid')
+    source_definition = make_center_definition()
+    source_definition%profile_vertical_displacement_cm = 1.0_real64
+    call build_spatial_rib_geometry(profile, source_definition, geometry, &
+        construction_valid, construction_message)
+    call require(construction_valid, 'complete profile rejected: '// &
+        trim(construction_message))
+    call require(geometry%rib_index == 1, 'complete profile target index')
+    call require(all(abs(geometry%x - 3.0_real64) <= tolerance), &
+        'complete profile X coordinates')
+    call require(all(abs(geometry%y - [20.0_real64, 15.0_real64, &
+        10.0_real64, 11.0_real64, 15.0_real64, 20.0_real64]) <= &
+        tolerance), 'complete profile Y coordinates')
+    call require(all(abs(geometry%z - [6.0_real64, 5.5_real64, &
+        6.0_real64, 6.2_real64, 6.4_real64, 6.0_real64]) <= tolerance), &
+        'complete profile displacement/Z coordinates')
+
+    saved_geometry = geometry
+    profile%rib_index = 2
+    call build_spatial_rib_geometry(profile, source_definition, geometry, &
+        construction_valid, construction_message)
+    call require(.not. construction_valid, &
+        'mismatched complete-profile provenance accepted')
+    call require_same_geometry(geometry, saved_geometry, &
+        'failed complete-profile build changed destination')
+
+    profile = make_normalized_profile(1)
+    source_definition = make_center_definition()
+    source_definition%planform_station_cm = 4.5_real64
+    source_definition%rib_plane_angle_rad = 0.2_real64
+    source_definition%profile_rotation_z_rad = -0.3_real64
+    source_definition%profile_vertical_displacement_cm = 1.25_real64
+    source_definition%profile_height_scale = 0.85_real64
+    generated_identity%legacy_index = 0
+    generated_identity%role = rib_role_symmetry_mirror_physical
+    generated_identity%profile_source_index = 1
+    generated_identity%placement_anchor_index = 1
+    call build_symmetry_rib_definition(source_definition, generated_identity, &
+        generated_definition, construction_valid, construction_message)
+    call require(construction_valid, 'symmetry definition rejected: '// &
+        trim(construction_message))
+    call require_close(generated_definition%planform_station_cm, -4.5_real64, &
+        'symmetry planform station')
+    call require_close(generated_definition%spatial_station_cm, -3.0_real64, &
+        'symmetry spatial station')
+    call require_close(generated_definition%rib_plane_angle_rad, -0.2_real64, &
+        'symmetry rib-plane angle')
+    call require_close(generated_definition%profile_rotation_z_rad, &
+        0.3_real64, 'symmetry profile-Z angle')
+    call require_close(generated_definition%profile_vertical_displacement_cm, &
+        1.25_real64, 'symmetry source displacement')
+    call require_close(generated_definition%profile_height_scale, 0.85_real64, &
+        'symmetry source height scale')
+
+    saved_definition = generated_definition
+    invalid_identity = generated_identity
+    invalid_identity%role = rib_role_physical_centerline
+    call build_symmetry_rib_definition(source_definition, invalid_identity, &
+        generated_definition, construction_valid, construction_message)
+    call require(.not. construction_valid, &
+        'nonsymmetry identity accepted by symmetry constructor')
+    call require_same_definition(generated_definition, saved_definition, &
+        'failed symmetry definition changed destination')
+
+    generated_identity%role = rib_role_symmetry_centerline_alias
+    call build_symmetry_rib_definition(source_definition, generated_identity, &
+        generated_definition, construction_valid, construction_message)
+    call require(construction_valid, 'centerline-alias definition rejected')
+    call build_spatial_rib_geometry(profile, source_definition, &
+        source_geometry, construction_valid, construction_message)
+    call require(construction_valid, 'symmetry source geometry rejected')
+    call build_symmetry_spatial_rib(source_geometry, generated_definition, &
+        geometry, construction_valid, construction_message)
+    call require(construction_valid, 'symmetry geometry rejected: '// &
+        trim(construction_message))
+    call require(all(abs(geometry%x + source_geometry%x) <= tolerance), &
+        'symmetry geometry X mirror')
+    call require(all(abs(geometry%y - source_geometry%y) <= tolerance), &
+        'symmetry geometry changed Y')
+    call require(all(abs(geometry%z - source_geometry%z) <= tolerance), &
+        'symmetry geometry changed Z')
+
+    saved_geometry = geometry
+    invalid_geometry = source_geometry
+    invalid_geometry%rib_index = 2
+    call build_symmetry_spatial_rib(invalid_geometry, generated_definition, &
+        geometry, construction_valid, construction_message)
+    call require(.not. construction_valid, &
+        'wrong-source symmetry geometry accepted')
+    call require_same_geometry(geometry, saved_geometry, &
+        'failed symmetry geometry changed destination')
+
+    source_definition = make_center_definition()
+    source_definition%identity%legacy_index = 2
+    source_definition%identity%role = rib_role_physical_interior
+    source_definition%identity%profile_source_index = 2
+    source_definition%identity%placement_anchor_index = 2
+    source_definition%source_profile_number = 2
+    source_definition%planform_station_cm = 8.0_real64
+    source_definition%spatial_station_cm = 10.0_real64
+    source_definition%spatial_height_cm = 4.0_real64
+    source_definition%profile_vertical_displacement_cm = 0.75_real64
+    anchor_definition = source_definition
+    anchor_definition%identity%legacy_index = 3
+    anchor_definition%identity%role = rib_role_physical_wingtip
+    anchor_definition%identity%profile_source_index = 3
+    anchor_definition%identity%placement_anchor_index = 3
+    anchor_definition%source_profile_number = 3
+    anchor_definition%planform_station_cm = 12.0_real64
+    anchor_definition%spatial_station_cm = 15.0_real64
+    anchor_definition%spatial_height_cm = 7.0_real64
+    generated_identity%legacy_index = 4
+    generated_identity%role = rib_role_tip_extrapolated_support
+    generated_identity%profile_source_index = 2
+    generated_identity%placement_anchor_index = 3
+    call build_tip_support_rib_definition(source_definition, &
+        anchor_definition, generated_identity, generated_definition, &
+        construction_valid, construction_message)
+    call require(construction_valid, 'tip-support definition rejected: '// &
+        trim(construction_message))
+    call require_close(generated_definition%spatial_station_cm, 20.0_real64, &
+        'tip-support extrapolated station')
+    call require_close(generated_definition%spatial_height_cm, 10.0_real64, &
+        'tip-support extrapolated height')
+    call require(generated_definition%source_profile_number == 2, &
+        'tip-support source profile')
+    call require_close(generated_definition%profile_vertical_displacement_cm, &
+        0.75_real64, 'tip-support source displacement')
+
+    saved_definition = generated_definition
+    invalid_identity = generated_identity
+    invalid_identity%placement_anchor_index = 2
+    call build_tip_support_rib_definition(source_definition, &
+        anchor_definition, invalid_identity, generated_definition, &
+        construction_valid, construction_message)
+    call require(.not. construction_valid, &
+        'invalid tip-support provenance accepted')
+    call require_same_definition(generated_definition, saved_definition, &
+        'failed tip-support definition changed destination')
+
+    profile = make_normalized_profile(2)
+    call build_tip_support_spatial_rib(profile, generated_definition, &
+        geometry, construction_valid, construction_message)
+    call require(construction_valid, 'tip-support geometry rejected: '// &
+        trim(construction_message))
+    call require(geometry%rib_index == 4, 'tip-support geometry target index')
+    call require(all(abs(geometry%x - 20.0_real64) <= tolerance), &
+        'tip-support geometry placement station')
+
+    legacy_x = -9.0_real64
+    legacy_y = -8.0_real64
+    legacy_z = -7.0_real64
+    call write_legacy_spatial_rib_geometry(geometry, legacy_x, legacy_y, &
+        legacy_z, construction_valid, construction_message)
+    call require(construction_valid, 'typed spatial publication rejected: '// &
+        trim(construction_message))
+    call require(all(abs(legacy_x(4, 1:6) - geometry%x) <= tolerance), &
+        'typed spatial publication X')
+    call require(all(abs(legacy_x(4, 7:10) + 9.0_real64) <= 0.0_real64), &
+        'typed spatial publication changed unused suffix')
+    call require(all(abs(legacy_x(3, :) + 9.0_real64) <= 0.0_real64), &
+        'typed spatial publication changed another row')
+
+    saved_legacy_x = legacy_x
+    invalid_geometry = geometry
+    invalid_geometry%rib_index = 6
+    call write_legacy_spatial_rib_geometry(invalid_geometry, legacy_x, &
+        legacy_y, legacy_z, construction_valid, construction_message)
+    call require(.not. construction_valid, &
+        'out-of-bounds typed spatial rib published')
+    call require(all(abs(legacy_x - saved_legacy_x) <= 0.0_real64), &
+        'failed spatial publication changed destination')
+    short_legacy_z = -6.0_real64
+    call write_legacy_spatial_rib_geometry(geometry, legacy_x, legacy_y, &
+        short_legacy_z, construction_valid, construction_message)
+    call require(.not. construction_valid, &
+        'mismatched legacy spatial shapes accepted')
+    call require(all(abs(legacy_x - saved_legacy_x) <= 0.0_real64), &
+        'shape failure changed spatial destination')
+  end subroutine test_complete_profile_construction
 
   subroutine fill_legacy_rib_row(legacy, rib_index)
     real(real64), intent(inout) :: legacy(0:,:)
@@ -395,6 +611,22 @@ contains
         expected%intake_start_fraction, expected%intake_end_fraction, &
         expected%profile_height_scale]) <= 0.0_real64), diagnostic)
   end subroutine require_same_definition
+
+  subroutine require_same_geometry(actual, expected, diagnostic)
+    type(spatial_rib_geometry_3d), intent(in) :: actual, expected
+    character(len=*), intent(in) :: diagnostic
+
+    call require(actual%rib_index == expected%rib_index, diagnostic)
+    call require(allocated(actual%x) .and. allocated(actual%y) .and. &
+        allocated(actual%z), diagnostic)
+    call require(all(shape(actual%x) == shape(expected%x)) .and. &
+        all(shape(actual%y) == shape(expected%y)) .and. &
+        all(shape(actual%z) == shape(expected%z)), diagnostic)
+    call require(all(abs(actual%x - expected%x) <= 0.0_real64) .and. &
+        all(abs(actual%y - expected%y) <= 0.0_real64) .and. &
+        all(abs(actual%z - expected%z) <= 0.0_real64), &
+        diagnostic)
+  end subroutine require_same_geometry
 
   subroutine require(condition, diagnostic)
     logical, intent(in) :: condition

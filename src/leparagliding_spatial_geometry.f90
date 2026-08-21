@@ -8,14 +8,16 @@
 module leparagliding_spatial_geometry
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-  use leparagliding_domain_model, only : rib_identity
+  use leparagliding_domain_model, only : normalized_profile_2d, &
+      rib_identity, rib_role_symmetry_centerline_alias, &
+      rib_role_symmetry_mirror_physical, rib_role_tip_extrapolated_support, &
+      spatial_rib_geometry_3d
   implicit none
   private
 
   real(real64), parameter :: chord_tolerance = 1.0e-10_real64
   real(real64), parameter :: integer_value_tolerance = 1.0e-10_real64
-  real(real64), parameter :: degrees_to_radians = &
-      4.0_real64 * atan(1.0_real64) / 180.0_real64
+  real(real64), parameter :: pi = 4.0_real64 * atan(1.0_real64)
   integer, parameter :: legacy_planform_station_column = 2
   integer, parameter :: legacy_leading_edge_position_column = 3
   integer, parameter :: legacy_trailing_edge_position_column = 4
@@ -92,7 +94,13 @@ module leparagliding_spatial_geometry
   end type rib_definition
 
   public :: copy_legacy_rib_definition
+  public :: build_spatial_rib_geometry
+  public :: build_symmetry_rib_definition
+  public :: build_symmetry_spatial_rib
+  public :: build_tip_support_rib_definition
+  public :: build_tip_support_spatial_rib
   public :: transform_adjusted_rib_local_point
+  public :: write_legacy_spatial_rib_geometry
 
 contains
 
@@ -250,17 +258,17 @@ contains
     candidate%spatial_height_cm = &
         legacy_rib(rib_index, legacy_spatial_height_column)
     candidate%washin_angle_rad = &
-        legacy_rib(rib_index, legacy_washin_angle_degrees_column) * &
-        degrees_to_radians
+        legacy_rib(rib_index, legacy_washin_angle_degrees_column) * pi / &
+        180.0_real64
     candidate%rib_plane_angle_rad = &
-        legacy_rib(rib_index, legacy_rib_plane_angle_degrees_column) * &
-        degrees_to_radians
+        legacy_rib(rib_index, legacy_rib_plane_angle_degrees_column) * pi / &
+        180.0_real64
     candidate%washin_pivot_fraction = &
         legacy_rib(rib_index, legacy_washin_pivot_percent_column) / &
         100.0_real64
     candidate%profile_rotation_z_rad = &
         legacy_rib(rib_index, &
-            legacy_profile_rotation_z_degrees_column) * degrees_to_radians
+            legacy_profile_rotation_z_degrees_column) * pi / 180.0_real64
     candidate%profile_rotation_pivot_fraction = &
         legacy_rib(rib_index, &
             legacy_profile_rotation_pivot_percent_column) / 100.0_real64
@@ -284,6 +292,138 @@ contains
     definition = candidate
     valid = .true.
   end subroutine copy_legacy_rib_definition
+
+  !> Build the explicit generated center/symmetry-row definition from rib one.
+  !!
+  !! The legacy row is not consulted because its late-scaled displacement and
+  !! height-scale fields are incomplete.  Every field instead comes from the
+  !! complete authored source definition, with only the four established
+  !! mirror operations applied: planform/spatial station, rib-plane angle, and
+  !! profile-Z rotation change sign.  Failure leaves `definition` unchanged.
+  pure subroutine build_symmetry_rib_definition(source_definition, identity, &
+      definition, valid, message)
+    type(rib_definition), intent(in) :: source_definition
+    type(rib_identity), intent(in) :: identity
+    type(rib_definition), intent(inout) :: definition
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(rib_definition) :: candidate
+
+    valid = .false.
+    message = ''
+    if (.not. source_definition%is_valid()) then
+      message = 'symmetry source definition is invalid'
+      return
+    end if
+    if (.not. source_definition%identity%is_authored_physical()) then
+      message = 'symmetry source is not an authored physical rib'
+      return
+    end if
+    if (.not. identity%is_valid() .or. identity%legacy_index /= 0) then
+      message = 'symmetry identity is invalid or is not row zero'
+      return
+    end if
+    if (identity%role /= rib_role_symmetry_mirror_physical .and. &
+        identity%role /= rib_role_symmetry_centerline_alias) then
+      message = 'row-zero identity does not have a symmetry role'
+      return
+    end if
+    if (identity%profile_source_index /= &
+        source_definition%identity%legacy_index .or. &
+        identity%placement_anchor_index /= &
+        source_definition%identity%legacy_index) then
+      message = 'symmetry provenance disagrees with its authored source'
+      return
+    end if
+
+    candidate = source_definition
+    candidate%identity = identity
+    candidate%source_profile_number = identity%profile_source_index
+    candidate%planform_station_cm = -source_definition%planform_station_cm
+    candidate%spatial_station_cm = -source_definition%spatial_station_cm
+    candidate%rib_plane_angle_rad = &
+        -source_definition%rib_plane_angle_rad
+    candidate%profile_rotation_z_rad = &
+        -source_definition%profile_rotation_z_rad
+    if (.not. candidate%is_valid()) then
+      message = 'generated symmetry definition failed validation'
+      return
+    end if
+
+    definition = candidate
+    valid = .true.
+  end subroutine build_symmetry_rib_definition
+
+  !> Build the generated support definition beyond the physical wingtip.
+  !!
+  !! The authored profile source supplies chord/profile/rotation fields and
+  !! the physical wingtip supplies the placement anchor.  Spatial station and
+  !! height are extrapolated through those two authored ribs in the same order
+  !! as legacy Stage 4.  This avoids reading incomplete generated columns 50
+  !! and 160 while retaining their named source provenance transactionally.
+  pure subroutine build_tip_support_rib_definition(source_definition, &
+      placement_anchor_definition, identity, definition, valid, message)
+    type(rib_definition), intent(in) :: source_definition
+    type(rib_definition), intent(in) :: placement_anchor_definition
+    type(rib_identity), intent(in) :: identity
+    type(rib_definition), intent(inout) :: definition
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(rib_definition) :: candidate
+
+    valid = .false.
+    message = ''
+    if (.not. source_definition%is_valid() .or. &
+        .not. placement_anchor_definition%is_valid()) then
+      message = 'tip-support source or placement definition is invalid'
+      return
+    end if
+    if (.not. source_definition%identity%is_authored_physical() .or. &
+        .not. placement_anchor_definition%identity%is_authored_physical()) then
+      message = 'tip-support inputs must be authored physical ribs'
+      return
+    end if
+    if (.not. identity%is_valid() .or. &
+        identity%role /= rib_role_tip_extrapolated_support) then
+      message = 'tip-support identity is invalid or has the wrong role'
+      return
+    end if
+    if (identity%profile_source_index /= &
+        source_definition%identity%legacy_index .or. &
+        identity%placement_anchor_index /= &
+        placement_anchor_definition%identity%legacy_index) then
+      message = 'tip-support provenance disagrees with its authored inputs'
+      return
+    end if
+    if (placement_anchor_definition%identity%legacy_index /= &
+        source_definition%identity%legacy_index + 1 .or. &
+        identity%legacy_index /= &
+        placement_anchor_definition%identity%legacy_index + 1) then
+      message = 'tip-support source, anchor, and generated rows are not adjacent'
+      return
+    end if
+
+    candidate = source_definition
+    candidate%identity = identity
+    candidate%source_profile_number = identity%profile_source_index
+    candidate%spatial_station_cm = &
+        placement_anchor_definition%spatial_station_cm + &
+        (placement_anchor_definition%spatial_station_cm - &
+        source_definition%spatial_station_cm)
+    candidate%spatial_height_cm = &
+        placement_anchor_definition%spatial_height_cm + &
+        (placement_anchor_definition%spatial_height_cm - &
+        source_definition%spatial_height_cm)
+    if (.not. candidate%is_valid()) then
+      message = 'generated tip-support definition failed validation'
+      return
+    end if
+
+    definition = candidate
+    valid = .true.
+  end subroutine build_tip_support_rib_definition
 
   !> Transform one displacement-adjusted rib-local point into wing space.
   !!
@@ -358,5 +498,191 @@ contains
     spatial_point = candidate
     valid = .true.
   end subroutine transform_adjusted_rib_local_point
+
+  !> Construct one complete spatial rib from a normalized source profile.
+  !!
+  !! `normalized_profile_2d` is the Stage-6 slot-2 boundary: its percentages
+  !! already include any profile-file-specific height modification made while
+  !! reading slot 1.  The routine therefore converts percentages to local
+  !! chord lengths exactly once, subtracts the named vertical displacement,
+  !! and applies `transform_adjusted_rib_local_point` point by point.  The
+  !! candidate owns newly allocated one-based arrays and is published only
+  !! after every point and the complete geometry validate.
+  pure subroutine build_spatial_rib_geometry(profile, definition, geometry, &
+      valid, message)
+    type(normalized_profile_2d), intent(in) :: profile
+    type(rib_definition), intent(in) :: definition
+    type(spatial_rib_geometry_3d), intent(inout) :: geometry
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(spatial_rib_geometry_3d) :: candidate
+    type(rib_local_point_2d) :: local_point
+    type(point_3d) :: spatial_point
+    logical :: point_valid
+    character(len=len(message)) :: point_message
+    integer :: point_index
+
+    valid = .false.
+    message = ''
+    if (.not. profile%is_valid()) then
+      message = 'normalized source profile is invalid'
+      return
+    end if
+    if (.not. definition%is_valid()) then
+      message = 'rib definition is invalid'
+      return
+    end if
+    if (profile%rib_index /= definition%source_profile_number) then
+      message = 'normalized profile disagrees with source provenance'
+      return
+    end if
+
+    candidate%rib_index = definition%identity%legacy_index
+    allocate(candidate%x(profile%topology%point_count), &
+        candidate%y(profile%topology%point_count), &
+        candidate%z(profile%topology%point_count))
+    do point_index = 1, profile%topology%point_count
+      local_point%chordwise_cm = definition%chord_length_cm * &
+          (profile%chord_percent(point_index) / 100.0_real64)
+      local_point%height_cm = definition%chord_length_cm * &
+          (profile%height_percent(point_index) / 100.0_real64) - &
+          definition%profile_vertical_displacement_cm
+      call transform_adjusted_rib_local_point(definition, local_point, &
+          spatial_point, point_valid, point_message)
+      if (.not. point_valid) then
+        message = 'profile point transform failed: '//trim(point_message)
+        return
+      end if
+      candidate%x(point_index) = spatial_point%x_cm
+      candidate%y(point_index) = spatial_point%y_cm
+      candidate%z(point_index) = spatial_point%z_cm
+    end do
+    if (.not. candidate%is_valid()) then
+      message = 'constructed spatial rib failed validation'
+      return
+    end if
+
+    geometry = candidate
+    valid = .true.
+  end subroutine build_spatial_rib_geometry
+
+  !> Mirror an authored spatial rib into explicit generated row zero.
+  !!
+  !! Legacy Stage 6 mirrors the final absolute X coordinate and retains Y/Z;
+  !! it does not run the generated row through the rotation chain a second
+  !! time.  The definition is used to validate named source/target provenance.
+  pure subroutine build_symmetry_spatial_rib(source_geometry, definition, &
+      geometry, valid, message)
+    type(spatial_rib_geometry_3d), intent(in) :: source_geometry
+    type(rib_definition), intent(in) :: definition
+    type(spatial_rib_geometry_3d), intent(inout) :: geometry
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(spatial_rib_geometry_3d) :: candidate
+
+    valid = .false.
+    message = ''
+    if (.not. source_geometry%is_valid()) then
+      message = 'symmetry source geometry is invalid'
+      return
+    end if
+    if (.not. definition%is_valid() .or. &
+        definition%identity%legacy_index /= 0) then
+      message = 'symmetry target definition is invalid'
+      return
+    end if
+    if (definition%identity%role /= rib_role_symmetry_mirror_physical .and. &
+        definition%identity%role /= rib_role_symmetry_centerline_alias) then
+      message = 'symmetry target definition has the wrong role'
+      return
+    end if
+    if (source_geometry%rib_index /= definition%source_profile_number .or. &
+        source_geometry%rib_index /= &
+        definition%identity%placement_anchor_index) then
+      message = 'symmetry geometry disagrees with source provenance'
+      return
+    end if
+
+    candidate%rib_index = definition%identity%legacy_index
+    candidate%x = -source_geometry%x
+    candidate%y = source_geometry%y
+    candidate%z = source_geometry%z
+    if (.not. candidate%is_valid()) then
+      message = 'generated symmetry geometry failed validation'
+      return
+    end if
+
+    geometry = candidate
+    valid = .true.
+  end subroutine build_symmetry_spatial_rib
+
+  !> Construct the extrapolated tip-support geometry from its named profile.
+  !!
+  !! The definition constructor has already resolved complete profile-source
+  !! fields and extrapolated placement, so this wrapper enforces the generated
+  !! role before delegating to the exact complete-profile construction path.
+  pure subroutine build_tip_support_spatial_rib(profile, definition, geometry, &
+      valid, message)
+    type(normalized_profile_2d), intent(in) :: profile
+    type(rib_definition), intent(in) :: definition
+    type(spatial_rib_geometry_3d), intent(inout) :: geometry
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    valid = .false.
+    message = ''
+    if (.not. definition%is_valid() .or. &
+        definition%identity%role /= rib_role_tip_extrapolated_support) then
+      message = 'tip-support target definition is invalid'
+      return
+    end if
+    call build_spatial_rib_geometry(profile, definition, geometry, valid, &
+        message)
+  end subroutine build_tip_support_spatial_rib
+
+  !> Publish one validated typed spatial rib to compatibility X/Y/Z arrays.
+  !!
+  !! Shape, zero-based row bounds, and point capacity are checked before any
+  !! assignment.  Consequently failure leaves all three legacy arrays
+  !! unchanged, while success writes only the target row's populated prefix.
+  pure subroutine write_legacy_spatial_rib_geometry(geometry, legacy_x, &
+      legacy_y, legacy_z, valid, message)
+    type(spatial_rib_geometry_3d), intent(in) :: geometry
+    real(real64), intent(inout) :: legacy_x(0:,:), legacy_y(0:,:)
+    real(real64), intent(inout) :: legacy_z(0:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    integer :: point_count, rib_index
+
+    valid = .false.
+    message = ''
+    if (.not. geometry%is_valid()) then
+      message = 'typed spatial rib is invalid'
+      return
+    end if
+    if (.not. all(shape(legacy_x) == shape(legacy_y)) .or. &
+        .not. all(shape(legacy_x) == shape(legacy_z))) then
+      message = 'legacy X/Y/Z array shapes differ'
+      return
+    end if
+    rib_index = geometry%rib_index
+    if (rib_index < 0 .or. rib_index > ubound(legacy_x, 1)) then
+      message = 'typed rib index is outside the legacy spatial array'
+      return
+    end if
+    point_count = size(geometry%x)
+    if (point_count > size(legacy_x, 2)) then
+      message = 'typed rib point count exceeds legacy spatial capacity'
+      return
+    end if
+
+    legacy_x(rib_index, 1:point_count) = geometry%x
+    legacy_y(rib_index, 1:point_count) = geometry%y
+    legacy_z(rib_index, 1:point_count) = geometry%z
+    valid = .true.
+  end subroutine write_legacy_spatial_rib_geometry
 
 end module leparagliding_spatial_geometry

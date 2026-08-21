@@ -1590,6 +1590,26 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        if (k31d.eq.0) then
 
+c      The classic table is global rather than grouped by rib.  Retain one
+c      validated law per surface so Stage 8 can dual-run the legacy arithmetic
+c      without consulting anonymous skin(:,1:4) columns.
+       call copy_legacy_classic_skin_tension_law(skin,surface_extrados,
+     + classic_extrados_tension_law,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid classic extrados tension law: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       call copy_legacy_classic_skin_tension_law(skin,surface_intrados,
+     + classic_intrados_tension_law,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: invalid classic intrados tension law: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+
        else
 
        if (k31d.eq.1) then
@@ -2619,6 +2639,53 @@ c     supply every field from named source and placement provenance.
      + 'ERROR: incomplete authored Stage-4 rib-definition collection'
       stop 1
       end if
+
+c     Retain Section-3 A--E/F inputs in a compact named collection only after
+c     the final rib identities are known.  Physical rows are checked copies of
+c     their authored input.  Row 0 and tip support are constructed from the
+c     exact Section-3 source rows (1 and nribss-1) named by each generated
+c     identity, then every active percentage and count is compared with the
+c     already-populated compatibility row.  No anchor calculation reads this
+c     collection yet; legacy rib columns remain authoritative.
+      if (allocated(wing_anchor_definitions))
+     + deallocate(wing_anchor_definitions)
+      allocate(wing_anchor_definitions(0:nribss+1))
+      do i=1,nribss
+      call copy_legacy_rib_anchor_definition(rib,wing_rib_identities(i),
+     + wing_anchor_definitions(i),domain_model_valid,domain_model_message)
+      if (.not.domain_model_valid) then
+      write (*,'(A,I0,2A)') 'ERROR: invalid Section-3 anchors at rib ',i,
+     + ': ',trim(domain_model_message)
+      stop 1
+      end if
+      end do
+      call build_generated_rib_anchor_definition(wing_anchor_definitions(1),
+     + wing_rib_identities(0),wing_anchor_definitions(0),
+     + domain_model_valid,domain_model_message)
+      if (.not.domain_model_valid) then
+      write (*,'(2A)') 'ERROR: generated center anchors failed: ',
+     + trim(domain_model_message)
+      stop 1
+      end if
+      call build_generated_rib_anchor_definition(
+     + wing_anchor_definitions(nribss-1),wing_rib_identities(nribss+1),
+     + wing_anchor_definitions(nribss+1),domain_model_valid,
+     + domain_model_message)
+      if (.not.domain_model_valid) then
+      write (*,'(2A)') 'ERROR: generated tip-support anchors failed: ',
+     + trim(domain_model_message)
+      stop 1
+      end if
+      do i=0,nribss+1
+      call rib_anchor_definition_matches_legacy(wing_anchor_definitions(i),
+     + rib,domain_model_valid,domain_model_message)
+      if (.not.domain_model_valid) then
+      write (*,'(A,I0,2A)')
+     + 'ERROR: typed/legacy Section-3 anchor mismatch at rib ',i,': ',
+     + trim(domain_model_message)
+      stop 1
+      end if
+      end do
 
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     4.8 DXF layers  (project)

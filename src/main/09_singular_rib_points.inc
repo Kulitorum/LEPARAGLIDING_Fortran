@@ -11,6 +11,12 @@ c        write (*,*) "pi 9. =",pi
 
 c      9.1 Compute anchor points
 
+c      Slot 6 is the restored rib-local profile plane.  A--E activity is
+c      governed by rib(:,15), while this interpolation also prepares F at
+c      ordinal 6 from the independent brake percentage rib(:,21).  Stage 6's
+c      columns 111:115/121:125 cover only the active A--E prefix; Stage 12.3
+c      later places that same prefix in absolute spatial slot 19.
+
        do i=0,nribss         ! Itera in ribs
 
        do k=1,6 ! Itera in A,B,C,D,E,F

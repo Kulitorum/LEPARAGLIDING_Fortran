@@ -41,9 +41,7 @@ set(LEPARAGLIDING_PROCEDURE_FRAGMENTS
     src/procedures/pattern_marks.inc
     src/procedures/profile_data.inc
     src/procedures/geometry_utilities.inc
-    src/procedures/interpolation.inc
-    src/procedures/file_cleanup.inc
-    src/procedures/transformations.inc)
+    src/procedures/interpolation.inc)
 
 set_source_files_properties(
     ${LEPARAGLIDING_MAIN_FRAGMENTS}
@@ -56,12 +54,15 @@ add_executable(leparagliding
     src/leparagliding_geometry.f90
     src/leparagliding_domain_model.f90
     src/leparagliding_spatial_geometry.f90
+    src/leparagliding_anchor_geometry.f90
     src/leparagliding_structural_geometry.f90
     src/leparagliding_neutral_development.f90
     src/leparagliding_skin_tension.f90
     src/leparagliding_panel_shaping.f90
     src/leparagliding_panel_reformat.f90
     src/leparagliding_color_geometry.f90
+    src/leparagliding_transformations.f90
+    src/leparagliding_file_cleanup.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
     ${LEPARAGLIDING_MAIN_FRAGMENTS}
@@ -126,6 +127,29 @@ if(BUILD_TESTING)
 
   add_test(NAME spatial_geometry COMMAND test_spatial_geometry)
 
+  add_executable(test_anchor_geometry
+      tests/test_anchor_geometry.f90
+      src/leparagliding_domain_model.f90
+      src/leparagliding_spatial_geometry.f90
+      src/leparagliding_anchor_geometry.f90)
+
+  set_target_properties(test_anchor_geometry PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-anchor-geometry-modules")
+  target_include_directories(test_anchor_geometry PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-anchor-geometry-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_anchor_geometry PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_anchor_geometry PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME anchor_geometry COMMAND test_anchor_geometry)
+
   add_executable(test_structural_geometry
       tests/test_structural_geometry.f90
       src/leparagliding_domain_model.f90
@@ -148,6 +172,49 @@ if(BUILD_TESTING)
   endif()
 
   add_test(NAME structural_geometry COMMAND test_structural_geometry)
+
+  add_executable(test_transformations
+      tests/test_transformations.f90
+      src/leparagliding_geometry.f90
+      src/leparagliding_transformations.f90)
+
+  set_target_properties(test_transformations PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-transformations-modules")
+  target_include_directories(test_transformations PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-transformations-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_transformations PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_transformations PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME transformations COMMAND test_transformations)
+
+  add_executable(test_file_cleanup
+      tests/test_file_cleanup.f90
+      src/leparagliding_file_cleanup.f90)
+
+  set_target_properties(test_file_cleanup PROPERTIES
+      Fortran_MODULE_DIRECTORY
+          "${CMAKE_CURRENT_BINARY_DIR}/test-file-cleanup-modules")
+  target_include_directories(test_file_cleanup PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}/test-file-cleanup-modules")
+
+  if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(test_file_cleanup PRIVATE
+        -std=f2008 -Wall -Wextra)
+    if(LEPARAGLIDING_RUNTIME_CHECKS)
+      target_compile_options(test_file_cleanup PRIVATE
+          -fcheck=all -fbacktrace)
+    endif()
+  endif()
+
+  add_test(NAME file_cleanup COMMAND test_file_cleanup)
 
   add_executable(test_neutral_development
       tests/test_neutral_development.f90
@@ -244,6 +311,8 @@ if(BUILD_TESTING)
       src/leparagliding_geometry.f90
       src/leparagliding_domain_model.f90
       src/leparagliding_color_geometry.f90
+      src/leparagliding_transformations.f90
+      src/leparagliding_file_cleanup.f90
       src/leparagliding_procedures.f
       ${LEPARAGLIDING_PROCEDURE_FRAGMENTS})
 

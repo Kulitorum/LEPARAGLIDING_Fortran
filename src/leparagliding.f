@@ -93,7 +93,16 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        use leparagliding_panel_shaping
        use leparagliding_panel_reformat
        use leparagliding_spatial_geometry, only : rib_definition,
-     + copy_legacy_rib_definition
+     + build_spatial_rib_geometry,build_symmetry_rib_definition,
+     + build_symmetry_spatial_rib,build_tip_support_rib_definition,
+     + build_tip_support_spatial_rib,copy_legacy_rib_definition,
+     + write_legacy_spatial_rib_geometry
+       use leparagliding_anchor_geometry, only : rib_anchor_definition,
+     + resolved_rib_anchors,copy_legacy_rib_anchor_definition,
+     + build_generated_rib_anchor_definition,
+     + rib_anchor_definition_matches_legacy,
+     + copy_legacy_resolved_rib_anchors,
+     + resolved_rib_anchors_match_legacy
        use leparagliding_mark_types
        use leparagliding_hvr_config
 

@@ -424,6 +424,30 @@ c      Potser hauria de ser pl1x i pl1y???? Yes
        u(i,1,11)=u(i,1,9)+siu(1)*xupp*0.1*dsin(alpl)
        v(i,1,11)=v(i,1,9)+siv(1)*xupp*0.1*dcos(alpl)
 
+c      Dual-run every regular lower boundary through the named classic law.
+c      The retained scalar arithmetic remains the compatibility oracle; only a
+c      complete agreeing offset contour is allowed to feed typed shaping.
+       if (i.lt.nribss) then
+       do j=1,np(i,2)
+       call evaluate_classic_skin_tension_offset(
+     + classic_extrados_tension_law,rib(i,23),rib(i,22),u(i,j,7),
+     + typed_skin_tension_offset,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: classic lower extrados tension failed at panel ',i,
+     + ', point ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,7))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: classic lower extrados tension differs at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,7)
+       stop 1
+       end if
+       v(i,j,7)=typed_skin_tension_offset
+       end do
+       end if
 
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Opció usar subrutina (sobreescriu punts anteriors)
@@ -431,6 +455,55 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        call puntslat(i,pl1x,pl1y,pl2x,pl2y,1,np(i,2)-1,u,v,xupp,-1)
 
+c      Build the same regular production side through the pure kernel, verify
+c      its complete contour, and publish slots 9/11 with the checked writer.
+       if (i.lt.nribss) then
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i,wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),surface_extrados,
+     + neutral_extrados_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: invalid classic neutral extrados at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       call shape_neutral_panel_side(neutral_extrados_panel,
+     + panel_side_lower,v(i,1:np(i,2),7),xupp,
+     + typed_extrados_lower_side,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic lower extrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,np(i,2)
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_extrados_lower_side%sewing_u(j),
+     + u(i,j,9)).and.
+     + geometry_values_are_close(typed_extrados_lower_side%sewing_v(j),
+     + v(i,j,9)).and.
+     + geometry_values_are_close(typed_extrados_lower_side%cut_u(j),
+     + u(i,j,11)).and.
+     + geometry_values_are_close(typed_extrados_lower_side%cut_v(j),
+     + v(i,j,11))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: classic lower extrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_shaped_panel_side(typed_extrados_lower_side,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic lower extrados publication failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end if
 
        end do  ! i
 
@@ -560,12 +633,86 @@ c      Initial point not defined in previous bucle
        u(i,1,12)=u(i,1,10)+siu(1)*xupp*0.1*dsin(alpr)
        v(i,1,12)=v(i,1,10)+siv(1)*xupp*0.1*dcos(alpr)
 
+c      The classic higher edge changes boundary contour length but retains the
+c      current panel width.  Preserve that asymmetric scaling exactly.
+       if (i.lt.nribss) then
+       do j=1,np(i,2)
+       call evaluate_classic_skin_tension_offset(
+     + classic_extrados_tension_law,rib(i+1,23),rib(i,22),u(i,j,8),
+     + typed_skin_tension_offset,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,2A)')
+     + 'ERROR: classic higher extrados tension failed at panel ',i,
+     + ', point ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,8))) then
+       write (*,'(A,I0,A,I0,2(1X,ES24.16))')
+     + 'ERROR: classic higher extrados tension differs at panel ',i,
+     + ', point ',j,typed_skin_tension_offset,v(i,j,8)
+       stop 1
+       end if
+       v(i,j,8)=typed_skin_tension_offset
+       end do
+       end if
+
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Opció usar subrutina (sobreescriu punts anteriors)
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
        call puntslat(i,pr1x,pr1y,pr2x,pr2y,1,np(i,2)-1,u,v,xupp,1)
 
+c      Publish a higher classic side only for a real panel; the terminal row's
+c      historical scratch writes remain untouched and are not modeled as a
+c      fabricated outward panel.
+       if (i.lt.nribss) then
+       call copy_legacy_neutral_panel(pl1x,pl1y,pl2x,pl2y,
+     + pr1x,pr1y,pr2x,pr2y,i,wing_profile_topologies(i),
+     + wing_profile_topologies(i+1),surface_extrados,
+     + neutral_extrados_panel,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: invalid classic neutral extrados at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       call shape_neutral_panel_side(neutral_extrados_panel,
+     + panel_side_higher,v(i,1:np(i,2),8),xupp,
+     + typed_extrados_higher_side,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic higher extrados shaping failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       do j=1,np(i,2)
+       typed_coordinates_match=
+     + geometry_values_are_close(typed_extrados_higher_side%sewing_u(j),
+     + u(i,j,10)).and.
+     + geometry_values_are_close(typed_extrados_higher_side%sewing_v(j),
+     + v(i,j,10)).and.
+     + geometry_values_are_close(typed_extrados_higher_side%cut_u(j),
+     + u(i,j,12)).and.
+     + geometry_values_are_close(typed_extrados_higher_side%cut_v(j),
+     + v(i,j,12))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0,A,I0)')
+     + 'ERROR: classic higher extrados shaping differs at panel ',i,
+     + ', point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_shaped_panel_side(typed_extrados_higher_side,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: classic higher extrados publication failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       end if
 
 c      Leading edge segment unformated rib(i,96) extra
 
@@ -2013,6 +2160,10 @@ c      scratch point is involved, and the non-panel row nribss is untouched.
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      Case classic skin tension k31d=0
 c      Includes 8.4.1 and 8.4.2
+c      NOTE: The first intrados point intentionally uses the preceding intake
+c      segment (npx-1).  The general pure side kernel uses the intrados segment
+c      itself, so this whole surface remains legacy-owned until that boundary
+c      convention is represented by an explicit shaping policy.
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
        if (k31d.eq.0) then
 

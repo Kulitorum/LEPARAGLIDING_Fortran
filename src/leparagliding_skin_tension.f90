@@ -16,6 +16,23 @@ module leparagliding_skin_tension
   private
 
   real(real64), parameter :: position_tolerance = 1.0e-12_real64
+  integer, parameter, public :: classic_skin_tension_point_count = 6
+
+  !> Global six-point skin-tension law used by the classic (`k31d=0`) path.
+  !!
+  !! Unlike Section 31, the classic path has one authored law per surface for
+  !! the whole wing.  Its outer interpolation segments deliberately extrapolate
+  !! before zero and beyond the contour length; that is part of the historical
+  !! numerical contract and is represented by a separate type.
+  type, public :: classic_skin_tension_law
+    integer :: surface = 0
+    real(real64) :: developed_position_percent( &
+        classic_skin_tension_point_count) = 0.0_real64
+    real(real64) :: overwidth_percent( &
+        classic_skin_tension_point_count) = 0.0_real64
+  contains
+    procedure :: is_valid => classic_skin_tension_law_is_valid
+  end type classic_skin_tension_law
 
   !> Piecewise-linear overwidth law for one rib boundary and one surface.
   !!
@@ -34,9 +51,202 @@ module leparagliding_skin_tension
   end type skin_tension_law
 
   public :: copy_legacy_new_skin_tension_law
+  public :: copy_legacy_classic_skin_tension_law
+  public :: evaluate_classic_skin_tension_offset
   public :: evaluate_skin_tension_offset
 
 contains
+
+  !> Test the six-point, whole-wing invariants of a classic tension law.
+  pure logical function classic_skin_tension_law_is_valid(law) result(valid)
+    class(classic_skin_tension_law), intent(in) :: law
+    integer :: point_index
+
+    valid = .false.
+    if (law%surface /= surface_extrados .and. &
+        law%surface /= surface_intrados) return
+    if (.not. all(ieee_is_finite(law%developed_position_percent))) return
+    if (.not. all(ieee_is_finite(law%overwidth_percent))) return
+    if (any(law%developed_position_percent < -position_tolerance)) return
+    if (any(law%developed_position_percent > &
+        100.0_real64 + position_tolerance)) return
+    if (any(law%overwidth_percent < 0.0_real64)) return
+    if (abs(law%developed_position_percent(1)) > &
+        position_tolerance) return
+    if (abs(law%developed_position_percent( &
+        classic_skin_tension_point_count) - 100.0_real64) > &
+        position_tolerance) return
+    do point_index = 2, classic_skin_tension_point_count
+      if (law%developed_position_percent(point_index) <= &
+          law%developed_position_percent(point_index - 1)) return
+    end do
+    valid = .true.
+  end function classic_skin_tension_law_is_valid
+
+  !> Convert the global legacy six-row table into one named surface law.
+  !!
+  !! Source rows run from trailing-edge percentage 0 to 100.  Classic panel
+  !! development traverses in the opposite direction, so both columns are
+  !! reversed and positions are complemented.  Assignment is transactional.
+  pure subroutine copy_legacy_classic_skin_tension_law(legacy_values, &
+      surface, law, valid, message)
+    real(real64), intent(in) :: legacy_values(:, :)
+    integer, intent(in) :: surface
+    type(classic_skin_tension_law), intent(inout) :: law
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+    type(classic_skin_tension_law) :: candidate
+    integer :: position_column
+    integer :: overwidth_column
+    integer :: source_index
+    integer :: target_index
+
+    valid = .false.
+    message = ''
+    if (size(legacy_values, 1) < classic_skin_tension_point_count .or. &
+        size(legacy_values, 2) < 4) then
+      message = 'classic skin-tension source needs six rows and four columns'
+      return
+    end if
+    select case (surface)
+    case (surface_extrados)
+      position_column = 1
+      overwidth_column = 2
+    case (surface_intrados)
+      position_column = 3
+      overwidth_column = 4
+    case default
+      message = 'classic skin-tension surface is unsupported'
+      return
+    end select
+    if (.not. all(ieee_is_finite(legacy_values( &
+        1:classic_skin_tension_point_count, position_column)))) then
+      message = 'classic skin-tension positions must be finite'
+      return
+    end if
+    if (.not. all(ieee_is_finite(legacy_values( &
+        1:classic_skin_tension_point_count, overwidth_column)))) then
+      message = 'classic skin-tension overwidths must be finite'
+      return
+    end if
+    if (any(legacy_values(1:classic_skin_tension_point_count, &
+        position_column) < -100.0_real64 * position_tolerance) .or. &
+        any(legacy_values(1:classic_skin_tension_point_count, &
+        position_column) > 100.0_real64 * &
+        (1.0_real64 + position_tolerance))) then
+      message = 'classic skin-tension positions must be percentages'
+      return
+    end if
+    if (any(legacy_values(1:classic_skin_tension_point_count, &
+        overwidth_column) < 0.0_real64)) then
+      message = 'classic skin-tension overwidths cannot be negative'
+      return
+    end if
+    do source_index = 2, classic_skin_tension_point_count
+      if (legacy_values(source_index, position_column) <= &
+          legacy_values(source_index - 1, position_column)) then
+        message = 'classic skin-tension positions must increase strictly'
+        return
+      end if
+    end do
+    if (abs(legacy_values(1, position_column)) > position_tolerance .or. &
+        abs(legacy_values(classic_skin_tension_point_count, &
+        position_column) - 100.0_real64) > position_tolerance) then
+      message = 'classic skin-tension positions must cover 0 through 100 percent'
+      return
+    end if
+
+    candidate%surface = surface
+    do target_index = 1, classic_skin_tension_point_count
+      source_index = classic_skin_tension_point_count + 1 - target_index
+      candidate%developed_position_percent(target_index) = &
+          100.0_real64 - legacy_values(source_index, position_column)
+      candidate%overwidth_percent(target_index) = &
+          legacy_values(source_index, overwidth_column)
+    end do
+    if (.not. candidate%is_valid()) then
+      message = 'converted classic skin-tension law violates its invariants'
+      return
+    end if
+
+    law = candidate
+    valid = .true.
+  end subroutine copy_legacy_classic_skin_tension_law
+
+  !> Evaluate the exact five-segment interpolation used by `k31d=0`.
+  !!
+  !! The first segment owns every distance through point two and the fifth owns
+  !! every distance after point five.  This intentionally preserves classic
+  !! endpoint extrapolation instead of imposing Section 31's bounded lookup.
+  pure subroutine evaluate_classic_skin_tension_offset(law, contour_length, &
+      panel_width, developed_distance, offset, valid, message)
+    type(classic_skin_tension_law), intent(in) :: law
+    real(real64), intent(in) :: contour_length
+    real(real64), intent(in) :: panel_width
+    real(real64), intent(in) :: developed_distance
+    real(real64), intent(out) :: offset
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+    real(real64) :: developed_position(classic_skin_tension_point_count)
+    real(real64) :: scaled_offset(classic_skin_tension_point_count)
+    real(real64) :: slope
+    real(real64) :: intercept
+    integer :: interval_index
+    integer :: point_index
+
+    offset = 0.0_real64
+    valid = .false.
+    message = ''
+    if (.not. law%is_valid()) then
+      message = 'classic skin-tension law is invalid'
+      return
+    end if
+    if (.not. ieee_is_finite(contour_length) .or. &
+        contour_length <= 0.0_real64) then
+      message = 'classic skin-tension contour length must be finite and positive'
+      return
+    end if
+    if (.not. ieee_is_finite(panel_width) .or. &
+        panel_width < 0.0_real64) then
+      message = 'classic skin-tension panel width must be finite and nonnegative'
+      return
+    end if
+    if (.not. ieee_is_finite(developed_distance)) then
+      message = 'classic skin-tension developed distance must be finite'
+      return
+    end if
+
+    do point_index = 1, classic_skin_tension_point_count
+      developed_position(point_index) = &
+          (law%developed_position_percent(point_index) / 100.0_real64) * &
+          contour_length
+      scaled_offset(point_index) = panel_width * &
+          law%overwidth_percent(point_index) / 100.0_real64
+    end do
+
+    interval_index = 1
+    if (developed_distance > developed_position(2) .and. &
+        developed_distance <= developed_position(3)) interval_index = 2
+    if (developed_distance > developed_position(3) .and. &
+        developed_distance <= developed_position(4)) interval_index = 3
+    if (developed_distance > developed_position(4) .and. &
+        developed_distance <= developed_position(5)) interval_index = 4
+    if (developed_distance > developed_position(5)) interval_index = 5
+
+    slope = (scaled_offset(interval_index + 1) - &
+        scaled_offset(interval_index)) / &
+        (developed_position(interval_index + 1) - &
+        developed_position(interval_index))
+    intercept = scaled_offset(interval_index + 1) - &
+        slope * developed_position(interval_index + 1)
+    offset = slope * developed_distance + intercept
+    if (.not. ieee_is_finite(offset)) then
+      message = 'classic skin-tension evaluation produced a nonfinite offset'
+      offset = 0.0_real64
+      return
+    end if
+    valid = .true.
+  end subroutine evaluate_classic_skin_tension_offset
 
   !> Test the invariants required by the piecewise-linear evaluator.
   pure logical function skin_tension_law_is_valid(law) result(valid)

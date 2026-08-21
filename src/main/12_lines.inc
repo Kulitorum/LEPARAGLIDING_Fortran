@@ -220,6 +220,62 @@ c 2      continue
        w(i,j,19)=w(1,j,19)
        end do
 
+c      Snapshot the unmodified Stage-12.3 A--E anchor boundary before brake
+c      displacement (12.4) or single-surface virtual-anchor replacement
+c      (12.4+) can change slot 19.  The checked transactional adapter retains
+c      each distinct legacy producer: requested chord, Stage-6 intrados mark
+c      point/TE distance, Stage-9 slot-6 profile point, and Stage-12.3 absolute
+c      X/Y/Z.  It does not force them equal: the even-cell terminal physical
+c      profile demonstrates that the old intrados search can have no segment.
+c
+c      Row 0 keeps its explicit mirrored identity.  Tip support nribss+1 stays
+c      available only in wing_anchor_definitions: Stage 9 never produces its
+c      slot-6 anchors even though old Stage 12 loops over that row.  No line
+c      consumer is migrated; legacy storage remains authoritative.  Save and
+c      restore shared loop indices so this read-only snapshot cannot perturb
+c      downstream drawing or mark placement.
+       if (.not.allocated(wing_anchor_definitions)) then
+       write (*,'(A)')
+     + 'ERROR: typed anchor dependencies unavailable at Stage 12.3'
+       stop 1
+       end if
+       if (allocated(wing_base_resolved_anchors))
+     + deallocate(wing_base_resolved_anchors)
+       if (allocated(wing_base_resolved_anchor_available))
+     + deallocate(wing_base_resolved_anchor_available)
+       allocate(wing_base_resolved_anchors(0:nribss+1))
+       allocate(wing_base_resolved_anchor_available(0:nribss+1))
+       wing_base_resolved_anchor_available=.false.
+       anchor_saved_i=i
+       anchor_saved_j=j
+       do i=0,nribss
+       call copy_legacy_resolved_rib_anchors(wing_anchor_definitions(i),
+     + rib,u,v,w,
+     + wing_base_resolved_anchors(i),domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)') 'ERROR: base anchor snapshot at rib ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       call resolved_rib_anchors_match_legacy(
+     + wing_base_resolved_anchors(i),wing_anchor_definitions(i),rib,u,v,w,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: typed/legacy base anchor mismatch at rib ',i,': ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       wing_base_resolved_anchor_available(i)=.true.
+       end do
+       if (any(.not.wing_base_resolved_anchor_available(0:nribss))) then
+       write (*,'(A)') 'ERROR: incomplete base anchor collection'
+       stop 1
+       end if
+       i=anchor_saved_i
+       j=anchor_saved_j
+
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     12.4 Compute singular rib points in 3D space
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
