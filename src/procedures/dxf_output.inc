@@ -1,3 +1,11 @@
+!> Serialize LEparagliding geometry and annotations as ASCII DXF entities.
+!!
+!! These compatibility procedures own the low-level group-code ordering,
+!! layer selection, AutoCAD color indices, 2D Y-axis convention, UTF-8 text
+!! escaping, and HEADER/ENTITIES framing used by the maintained output
+!! oracles.  Geometry-producing stages should call these routines instead of
+!! writing DXF records directly.  Unit 20 is the principal 2D drawing, while
+!! the explicitly unit-parameterized helpers also serve the 3D outputs.
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c      24. GRAPHICAL SUBROUTINES
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
