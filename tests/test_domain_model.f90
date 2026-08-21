@@ -5,12 +5,18 @@ program test_domain_model
   implicit none
 
   real(real64) :: legacy_u(0:2, 6, 12), legacy_v(0:2, 6, 12)
+  real(real64) :: saved_legacy_u(0:2, 6, 12)
+  real(real64) :: saved_legacy_v(0:2, 6, 12)
+  real(real64) :: expected_legacy_u(0:2, 6, 12)
+  real(real64) :: expected_legacy_v(0:2, 6, 12)
   integer :: legacy_np(0:2, 9)
   real(real64) :: legacy_x(0:2, 4), legacy_y(0:2, 4), legacy_z(0:2, 4)
   real(real64) :: pl1_u(0:2, 500), pl1_v(0:2, 500)
   real(real64) :: pl2_u(0:2, 500), pl2_v(0:2, 500)
   real(real64) :: pr1_u(0:2, 500), pr1_v(0:2, 500)
   real(real64) :: pr2_u(0:2, 500), pr2_v(0:2, 500)
+  real(real64) :: saved_terminal_start_u(500), saved_terminal_start_v(500)
+  real(real64) :: saved_terminal_end_u(500), saved_terminal_end_v(500)
   real(real64) :: planform_station(0:21), spatial_station(0:21)
   real(real64) :: spatial_height(0:21)
   type(normalized_profile_2d) :: profile
@@ -21,6 +27,8 @@ program test_domain_model
   type(spatial_rib_geometry_3d) :: spatial_rib, zero_based_spatial_rib
   type(production_panel_edges_2d) :: panel
   type(production_panel_2d) :: complete_panel
+  type(production_boundary_edge_2d) :: production_boundary
+  type(production_boundary_edge_2d) :: invalid_production_boundary
   type(neutral_panel_2d) :: neutral_panel, extrados_write_panel
   type(neutral_panel_2d) :: zero_based_neutral_panel
   type(neutral_panel_2d) :: disconnected_support_panel
@@ -32,7 +40,7 @@ program test_domain_model
   character(len=120) :: message
   logical :: valid, panel_zero_active, parity_consistent, gap_valid
   real(real64) :: gap
-  integer :: i
+  integer :: i, j, k
 
   legacy_u = 0.0_real64
   legacy_v = 0.0_real64
@@ -313,6 +321,228 @@ program test_domain_model
       5.75_real64, 'terminal boundary exact segment length')
   call require(.not. boundary_edge%has_post_surface_support, &
       'extrados boundary invented post-surface support')
+
+  ! The terminal neutral compatibility adapter seeds only the lower segment
+  ! row expected by legacy Stage 8; it does not manufacture another panel.
+  pl1_u(1, :) = 901.0_real64
+  pl1_v(1, :) = 902.0_real64
+  pl2_u(1, :) = 903.0_real64
+  pl2_v(1, :) = 904.0_real64
+  call write_legacy_neutral_boundary(boundary_edge, pl1_u, pl1_v, pl2_u, &
+      pl2_v, valid, message)
+  call require(valid, &
+      'valid terminal neutral write rejected: '//trim(message))
+  call require(all(abs(pl1_u(1, 1:2) - boundary_edge%segment_start_u) <= &
+      0.0_real64) .and. &
+      all(abs(pl1_v(1, 1:2) - boundary_edge%segment_start_v) <= &
+      0.0_real64) .and. &
+      all(abs(pl2_u(1, 1:2) - boundary_edge%segment_end_u) <= &
+      0.0_real64) .and. &
+      all(abs(pl2_v(1, 1:2) - boundary_edge%segment_end_v) <= &
+      0.0_real64), 'terminal neutral segments were not published exactly')
+  call require(abs(pl1_u(1, 3) - 901.0_real64) <= 0.0_real64 .and. &
+      abs(pl1_v(1, 3) - 902.0_real64) <= 0.0_real64 .and. &
+      abs(pl2_u(1, 3) - 903.0_real64) <= 0.0_real64 .and. &
+      abs(pl2_v(1, 3) - 904.0_real64) <= 0.0_real64, &
+      'terminal neutral write changed a point outside its segment range')
+  saved_terminal_start_u = pl1_u(1, :)
+  saved_terminal_start_v = pl1_v(1, :)
+  saved_terminal_end_u = pl2_u(1, :)
+  saved_terminal_end_v = pl2_v(1, :)
+  invalid_boundary_edge = boundary_edge
+  invalid_boundary_edge%source_panel_index = 2
+  invalid_boundary_edge%boundary_rib_index = 3
+  call write_legacy_neutral_boundary(invalid_boundary_edge, pl1_u, pl1_v, &
+      pl2_u, pl2_v, valid, message)
+  call require(.not. valid, 'out-of-bounds terminal neutral row accepted')
+  call require(all(abs(pl1_u(1, :) - saved_terminal_start_u) <= &
+      0.0_real64) .and. &
+      all(abs(pl1_v(1, :) - saved_terminal_start_v) <= 0.0_real64) .and. &
+      all(abs(pl2_u(1, :) - saved_terminal_end_u) <= 0.0_real64) .and. &
+      all(abs(pl2_v(1, :) - saved_terminal_end_v) <= 0.0_real64), &
+      'failed terminal neutral write changed its destination')
+
+  ! A physical terminal production boundary has no fabricated panel or higher
+  ! side.  Its exact point range is published only through slots 9 and 11.
+  production_boundary%source_panel_index = &
+      boundary_edge%source_panel_index
+  production_boundary%boundary_rib_index = &
+      boundary_edge%boundary_rib_index
+  production_boundary%surface = surface_extrados
+  production_boundary%contour_first_index = &
+      neutral_topology%extrados%first
+  production_boundary%contour_last_index = &
+      neutral_topology%extrados%last
+  production_boundary%sewing_u = &
+      [11.0_real64, 12.0_real64, 13.0_real64]
+  production_boundary%sewing_v = &
+      [21.0_real64, 22.0_real64, 23.0_real64]
+  production_boundary%cut_u = &
+      [10.5_real64, 11.5_real64, 12.5_real64]
+  production_boundary%cut_v = &
+      [21.5_real64, 22.5_real64, 23.5_real64]
+  call require(production_boundary%is_valid(), &
+      'valid production boundary rejected')
+
+  invalid_production_boundary = production_boundary
+  invalid_production_boundary%boundary_rib_index = 2
+  call require(.not. invalid_production_boundary%is_valid(), &
+      'production boundary accepted inconsistent provenance')
+  invalid_production_boundary = production_boundary
+  invalid_production_boundary%surface = surface_intake
+  call require(.not. invalid_production_boundary%is_valid(), &
+      'production boundary accepted intake geometry')
+  invalid_production_boundary = production_boundary
+  deallocate(invalid_production_boundary%sewing_u)
+  allocate(invalid_production_boundary%sewing_u(0:2))
+  invalid_production_boundary%sewing_u = production_boundary%sewing_u
+  call require(.not. invalid_production_boundary%is_valid(), &
+      'production boundary accepted a zero-based coordinate array')
+  invalid_production_boundary = production_boundary
+  deallocate(invalid_production_boundary%cut_v)
+  allocate(invalid_production_boundary%cut_v(2))
+  invalid_production_boundary%cut_v = production_boundary%cut_v(1:2)
+  call require(.not. invalid_production_boundary%is_valid(), &
+      'production boundary accepted unequal coordinate sizes')
+  invalid_production_boundary = production_boundary
+  invalid_production_boundary%sewing_v(2) = &
+      ieee_value(0.0_real64, ieee_quiet_nan)
+  call require(.not. invalid_production_boundary%is_valid(), &
+      'production boundary accepted a non-finite coordinate')
+
+  do i = 0, 2
+    do j = 1, 6
+      do k = 1, 12
+        legacy_u(i, j, k) = real(10000*i + 100*j + k, real64)
+        legacy_v(i, j, k) = -real(10000*i + 100*j + k, real64)
+      end do
+    end do
+  end do
+  saved_legacy_u = legacy_u
+  saved_legacy_v = legacy_v
+  expected_legacy_u = saved_legacy_u
+  expected_legacy_v = saved_legacy_v
+  expected_legacy_u(1, 1:3, legacy_production_lower_sewing_slot) = &
+      production_boundary%sewing_u
+  expected_legacy_v(1, 1:3, legacy_production_lower_sewing_slot) = &
+      production_boundary%sewing_v
+  expected_legacy_u(1, 1:3, legacy_production_lower_cut_slot) = &
+      production_boundary%cut_u
+  expected_legacy_v(1, 1:3, legacy_production_lower_cut_slot) = &
+      production_boundary%cut_v
+  call write_legacy_production_boundary(production_boundary, &
+      neutral_topology, legacy_u, legacy_v, valid, message)
+  call require(valid, &
+      'valid extrados production-boundary write rejected: '//trim(message))
+  call require(all(abs(legacy_u - expected_legacy_u) <= 0.0_real64) .and. &
+      all(abs(legacy_v - expected_legacy_v) <= 0.0_real64), &
+      'extrados production-boundary write changed an unowned value')
+  call require(all(abs(legacy_u(:, :, &
+      legacy_production_higher_sewing_slot) - saved_legacy_u(:, :, &
+      legacy_production_higher_sewing_slot)) <= 0.0_real64) .and. &
+      all(abs(legacy_v(:, :, legacy_production_higher_sewing_slot) - &
+      saved_legacy_v(:, :, legacy_production_higher_sewing_slot)) <= &
+      0.0_real64), &
+      'production-boundary write changed slot 10')
+  call require(all(abs(legacy_u(:, :, legacy_production_higher_cut_slot) - &
+      saved_legacy_u(:, :, legacy_production_higher_cut_slot)) <= &
+      0.0_real64) .and. &
+      all(abs(legacy_v(:, :, legacy_production_higher_cut_slot) - &
+      saved_legacy_v(:, :, legacy_production_higher_cut_slot)) <= &
+      0.0_real64), &
+      'production-boundary write changed slot 12')
+  call require(all(abs(legacy_u(0, :, :) - saved_legacy_u(0, :, :)) <= &
+      0.0_real64) .and. &
+      all(abs(legacy_v(0, :, :) - saved_legacy_v(0, :, :)) <= &
+      0.0_real64) .and. &
+      all(abs(legacy_u(2, :, :) - saved_legacy_u(2, :, :)) <= &
+      0.0_real64) .and. &
+      all(abs(legacy_v(2, :, :) - saved_legacy_v(2, :, :)) <= &
+      0.0_real64), &
+      'production-boundary write changed another row')
+  call require(all(abs(legacy_u(1, 4:6, &
+      legacy_production_lower_sewing_slot) - saved_legacy_u(1, 4:6, &
+      legacy_production_lower_sewing_slot)) <= 0.0_real64) .and. &
+      all(abs(legacy_v(1, 4:6, legacy_production_lower_sewing_slot) - &
+      saved_legacy_v(1, 4:6, legacy_production_lower_sewing_slot)) <= &
+      0.0_real64), &
+      'extrados production-boundary write changed outside points')
+
+  ! Intrados publication uses the same physical row and distinct exact range;
+  ! the previously written extrados range must remain untouched.
+  production_boundary%surface = surface_intrados
+  production_boundary%contour_first_index = &
+      neutral_topology%intrados%first
+  production_boundary%contour_last_index = &
+      neutral_topology%intrados%last
+  production_boundary%sewing_u = &
+      [31.0_real64, 32.0_real64, 33.0_real64]
+  production_boundary%sewing_v = &
+      [41.0_real64, 42.0_real64, 43.0_real64]
+  production_boundary%cut_u = &
+      [30.5_real64, 31.5_real64, 32.5_real64]
+  production_boundary%cut_v = &
+      [41.5_real64, 42.5_real64, 43.5_real64]
+  call require(production_boundary%is_valid(), &
+      'valid intrados production boundary rejected')
+  saved_legacy_u = legacy_u
+  saved_legacy_v = legacy_v
+  expected_legacy_u = saved_legacy_u
+  expected_legacy_v = saved_legacy_v
+  expected_legacy_u(1, 4:6, legacy_production_lower_sewing_slot) = &
+      production_boundary%sewing_u
+  expected_legacy_v(1, 4:6, legacy_production_lower_sewing_slot) = &
+      production_boundary%sewing_v
+  expected_legacy_u(1, 4:6, legacy_production_lower_cut_slot) = &
+      production_boundary%cut_u
+  expected_legacy_v(1, 4:6, legacy_production_lower_cut_slot) = &
+      production_boundary%cut_v
+  call write_legacy_production_boundary(production_boundary, &
+      neutral_topology, legacy_u, legacy_v, valid, message)
+  call require(valid, &
+      'valid intrados production-boundary write rejected: '//trim(message))
+  call require(all(abs(legacy_u - expected_legacy_u) <= 0.0_real64) .and. &
+      all(abs(legacy_v - expected_legacy_v) <= 0.0_real64), &
+      'intrados production-boundary write changed an unowned value')
+  call require(all(abs(legacy_u(1, 1:3, &
+      legacy_production_lower_sewing_slot) - saved_legacy_u(1, 1:3, &
+      legacy_production_lower_sewing_slot)) <= 0.0_real64) .and. &
+      all(abs(legacy_v(1, 1:3, legacy_production_lower_sewing_slot) - &
+      saved_legacy_v(1, 1:3, legacy_production_lower_sewing_slot)) <= &
+      0.0_real64), &
+      'intrados production-boundary write changed extrados points')
+
+  ! Every rejected publication is transactional.
+  saved_legacy_u = legacy_u
+  saved_legacy_v = legacy_v
+  call write_legacy_production_boundary(production_boundary, saved_topology, &
+      legacy_u, legacy_v, valid, message)
+  call require(.not. valid, 'mismatched production topology was accepted')
+  call require(all(abs(legacy_u - saved_legacy_u) <= 0.0_real64) .and. &
+      all(abs(legacy_v - saved_legacy_v) <= 0.0_real64), &
+      'topology failure changed production destinations')
+
+  invalid_production_boundary = production_boundary
+  invalid_production_boundary%source_panel_index = 2
+  invalid_production_boundary%boundary_rib_index = 3
+  call require(invalid_production_boundary%is_valid(), &
+      'out-of-bounds production fixture is structurally invalid')
+  call write_legacy_production_boundary(invalid_production_boundary, &
+      neutral_topology, legacy_u, legacy_v, valid, message)
+  call require(.not. valid, 'out-of-bounds production row was accepted')
+  call require(all(abs(legacy_u - saved_legacy_u) <= 0.0_real64) .and. &
+      all(abs(legacy_v - saved_legacy_v) <= 0.0_real64), &
+      'row-bound failure changed production destinations')
+
+  invalid_production_boundary = production_boundary
+  invalid_production_boundary%cut_u(2) = &
+      ieee_value(0.0_real64, ieee_quiet_nan)
+  call write_legacy_production_boundary(invalid_production_boundary, &
+      neutral_topology, legacy_u, legacy_v, valid, message)
+  call require(.not. valid, 'non-finite production boundary was accepted')
+  call require(all(abs(legacy_u - saved_legacy_u) <= 0.0_real64) .and. &
+      all(abs(legacy_v - saved_legacy_v) <= 0.0_real64), &
+      'invalid-boundary failure changed production destinations')
 
   ! Invalid source geometry and invalid provenance are rejected without
   ! changing the previously derived destination.

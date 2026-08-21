@@ -2168,6 +2168,17 @@ c       write (*,*) i,k,xsobnew(i,k),ysobnew(i,k)
        end do ! k
        end do ! i (initialize all sob points)
 
+c      Stage 7 creates only real panels.  Seed the legacy terminal lower row
+c      from the exact higher edge of the final real intrados panel so the old
+c      distance and puntslat calculations have a physical, defined oracle.
+       call write_legacy_neutral_boundary(terminal_intrados_edge,
+     + pl1x,pl1y,pl2x,pl2y,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal intrados neutral write-back: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+
        do i=0,nribss
  
 c      Initialize vector extrados left side
@@ -2287,6 +2298,62 @@ c      a skin-tension offset and is consumed as the final shaped point.
        v(i,j,7)=typed_skin_tension_offset
        end if
 
+c      The physical terminal rib is not a panel.  Independently traverse its
+c      exact retained edge, validate the legacy cumulative distances and
+c      offsets, and retain one offset per terminal contour point for shaping.
+       if (i.eq.nribss) then
+       if (allocated(typed_terminal_intrados_offsets))
+     + deallocate(typed_terminal_intrados_offsets)
+       allocate(typed_terminal_intrados_offsets(
+     + terminal_intrados_edge%contour_last_index-
+     + terminal_intrados_edge%contour_first_index+1))
+       typed_geometry_metric=0.d0
+       do j=terminal_intrados_edge%contour_first_index,
+     + terminal_intrados_edge%contour_last_index
+       k=j-terminal_intrados_edge%contour_first_index+1
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + u(i,j,7))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: typed/legacy terminal intrados distance differs at point ',j,
+     + typed_geometry_metric,u(i,j,7)
+       stop 1
+       end if
+       call evaluate_skin_tension_offset(
+     + typed_intrados_tension_laws(i),rib(i,25),rib(i,24),
+     + typed_geometry_metric,typed_skin_tension_offset,
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: terminal intrados tension failed at point ',j,
+     + ': ',trim(domain_model_message)
+       stop 1
+       end if
+       if (.not.geometry_values_are_close(typed_skin_tension_offset,
+     + v(i,j,7))) then
+       write (*,'(A,I0,2(1X,ES24.16))')
+     + 'ERROR: typed/legacy terminal intrados tension differs at point ',j,
+     + typed_skin_tension_offset,v(i,j,7)
+       stop 1
+       end if
+       typed_terminal_intrados_offsets(k)=typed_skin_tension_offset
+       v(i,j,7)=typed_skin_tension_offset
+       if (j.lt.terminal_intrados_edge%contour_last_index) then
+       typed_geometry_metric=typed_geometry_metric+sqrt(
+     + (terminal_intrados_edge%segment_end_u(k)-
+     + terminal_intrados_edge%segment_start_u(k))**2+
+     + (terminal_intrados_edge%segment_end_v(k)-
+     + terminal_intrados_edge%segment_start_v(k))**2)
+       end if
+       end do
+       if (.not.geometry_values_are_close(typed_geometry_metric,
+     + rib(i,25))) then
+       write (*,'(A,2(1X,ES24.16))')
+     + 'ERROR: terminal intrados typed length differs:',
+     + typed_geometry_metric,rib(i,25)
+       stop 1
+       end if
+       end if
+
 c      Compute points left side
        call puntslat(i,pl1x,pl1y,pl2x,pl2y,np(i,1)-np(i,4)+1,
      + np(i,1)-1,u,v,xlow,-1)
@@ -2329,9 +2396,53 @@ c      typed result is allowed to replace numbered slots 9 and 11.
        end do
        end if
 
+c      Publish the separately modeled physical terminal production boundary.
+c      It uses the lower/outward normal but the final real panel's higher
+c      neutral source; no panel or higher-side slots exist beyond the wingtip.
+       if (i.eq.nribss) then
+       call shape_neutral_boundary_edge(terminal_intrados_edge,
+     + typed_terminal_intrados_offsets,xlow,
+     + typed_terminal_intrados_production_edge,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal intrados shaping failed: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       do j=terminal_intrados_edge%contour_first_index,
+     + terminal_intrados_edge%contour_last_index
+       k=j-terminal_intrados_edge%contour_first_index+1
+       typed_coordinates_match=
+     + geometry_values_are_close(
+     + typed_terminal_intrados_production_edge%sewing_u(k),u(i,j,9)).and.
+     + geometry_values_are_close(
+     + typed_terminal_intrados_production_edge%sewing_v(k),v(i,j,9)).and.
+     + geometry_values_are_close(
+     + typed_terminal_intrados_production_edge%cut_u(k),u(i,j,11)).and.
+     + geometry_values_are_close(
+     + typed_terminal_intrados_production_edge%cut_v(k),v(i,j,11))
+       if (.not.typed_coordinates_match) then
+       write (*,'(A,I0)')
+     + 'ERROR: typed/legacy terminal intrados shaping differs at point ',j
+       stop 1
+       end if
+       end do
+       call write_legacy_production_boundary(
+     + typed_terminal_intrados_production_edge,
+     + wing_profile_topologies(i),u,v,domain_model_valid,
+     + domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(2A)') 'ERROR: terminal intrados production write-back: ',
+     + trim(domain_model_message)
+       stop 1
+       end if
+       end if
+
 c      Compute points right side
+       if (i.lt.nribss) then
        call puntslat(i,pr1x,pr1y,pr2x,pr2y,np(i,1)-np(i,4)+1,
      + np(i,1)-1,u,v,xlow,1)
+       end if
 
 c      Leading edge segment unformated rib(i,98) intra
        if (i.lt.nribss) then

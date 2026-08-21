@@ -68,6 +68,13 @@ program test_skin_tension
   call require_close(law%overwidth_percent(2), 3.0_real64, &
       'extrados overwidth columns')
 
+  law%developed_position_percent(1) = 1.0_real64
+  call require(.not. law%is_valid(), 'law without zero endpoint was valid')
+  law%developed_position_percent(1) = 0.0_real64
+  law%developed_position_percent(4) = 99.0_real64
+  call require(.not. law%is_valid(), 'law without full endpoint was valid')
+  law%developed_position_percent(4) = 100.0_real64
+
   ! Rejected adapters are transactional and leave the previous law intact.
   saved_position = law%developed_position_percent(2)
   call copy_legacy_new_skin_tension_law(legacy_values, 1, 3, &

@@ -18,6 +18,7 @@ module leparagliding_panel_shaping
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
   use leparagliding_domain_model, only : neutral_panel_2d, &
+      neutral_boundary_edge_2d, production_boundary_edge_2d, &
       surface_extrados, surface_intake, surface_intrados
   implicit none
   private
@@ -55,6 +56,7 @@ module leparagliding_panel_shaping
   end type shaped_panel_side_2d
 
   public :: shape_neutral_panel_side
+  public :: shape_neutral_boundary_edge
 
 contains
 
@@ -105,33 +107,108 @@ contains
       return
     end if
 
+    candidate%panel_index = panel%panel_index
+    candidate%surface = panel%surface
+    candidate%side = side
+    candidate%contour_first_index = panel%contour_first_index
+    candidate%contour_last_index = panel%contour_last_index
     select case (side)
     case (panel_side_lower)
-      call build_shaped_side(panel, side, shaping_offset, allowance_mm, &
+      call build_shaped_coordinates(side, shaping_offset, allowance_mm, &
           panel%lower_segment_start_u, panel%lower_segment_start_v, &
-          panel%lower_segment_end_u, panel%lower_segment_end_v, candidate, &
-          valid, message)
+          panel%lower_segment_end_u, panel%lower_segment_end_v, &
+          candidate%sewing_u, candidate%sewing_v, candidate%cut_u, &
+          candidate%cut_v, valid, message)
     case (panel_side_higher)
-      call build_shaped_side(panel, side, shaping_offset, allowance_mm, &
+      call build_shaped_coordinates(side, shaping_offset, allowance_mm, &
           panel%higher_segment_start_u, panel%higher_segment_start_v, &
-          panel%higher_segment_end_u, panel%higher_segment_end_v, candidate, &
-          valid, message)
+          panel%higher_segment_end_u, panel%higher_segment_end_v, &
+          candidate%sewing_u, candidate%sewing_v, candidate%cut_u, &
+          candidate%cut_v, valid, message)
     end select
     if (.not. valid) return
+    if (.not. candidate%is_valid()) then
+      valid = .false.
+      message = 'panel shaping produced invalid geometry'
+      return
+    end if
 
     shaped_side = candidate
   end subroutine shape_neutral_panel_side
 
+  !> Shape one physical terminal edge without inventing an outward panel.
+  !!
+  !! A terminal production boundary always uses the lower/outward normal and
+  !! owns only sewing/cut geometry for legacy slots 9/11.  Its neutral source
+  !! is the higher edge of the final real panel, retained in a distinct type.
+  pure subroutine shape_neutral_boundary_edge(neutral_edge, shaping_offset, &
+      allowance_mm, production_edge, valid, message)
+    type(neutral_boundary_edge_2d), intent(in) :: neutral_edge
+    real(real64), intent(in) :: shaping_offset(:)
+    real(real64), intent(in) :: allowance_mm
+    type(production_boundary_edge_2d), intent(inout) :: production_edge
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(production_boundary_edge_2d) :: candidate
+    integer :: point_count
+
+    valid = .false.
+    message = ''
+    if (.not. neutral_edge%is_valid()) then
+      message = 'cannot shape an invalid neutral boundary edge'
+      return
+    end if
+    if (neutral_edge%surface /= surface_extrados .and. &
+        neutral_edge%surface /= surface_intrados) then
+      message = 'terminal production shaping supports skin surfaces only'
+      return
+    end if
+    point_count = neutral_edge%contour_last_index - &
+        neutral_edge%contour_first_index + 1
+    if (size(shaping_offset) /= point_count) then
+      message = 'shaping-offset count differs from boundary point count'
+      return
+    end if
+    if (.not. all(ieee_is_finite(shaping_offset))) then
+      message = 'terminal shaping offsets must be finite'
+      return
+    end if
+    if (.not. ieee_is_finite(allowance_mm)) then
+      message = 'terminal sewing allowance must be finite'
+      return
+    end if
+
+    candidate%boundary_rib_index = neutral_edge%boundary_rib_index
+    candidate%source_panel_index = neutral_edge%source_panel_index
+    candidate%surface = neutral_edge%surface
+    candidate%contour_first_index = neutral_edge%contour_first_index
+    candidate%contour_last_index = neutral_edge%contour_last_index
+    call build_shaped_coordinates(panel_side_lower, shaping_offset, &
+        allowance_mm, neutral_edge%segment_start_u, &
+        neutral_edge%segment_start_v, neutral_edge%segment_end_u, &
+        neutral_edge%segment_end_v, candidate%sewing_u, candidate%sewing_v, &
+        candidate%cut_u, candidate%cut_v, valid, message)
+    if (.not. valid) return
+    if (.not. candidate%is_valid()) then
+      valid = .false.
+      message = 'terminal shaping produced invalid geometry'
+      return
+    end if
+
+    production_edge = candidate
+  end subroutine shape_neutral_boundary_edge
+
   !> Apply the legacy normal convention to an already selected exact edge.
-  pure subroutine build_shaped_side(panel, side, shaping_offset, allowance_mm, &
+  pure subroutine build_shaped_coordinates(side, shaping_offset, allowance_mm, &
       segment_start_u, segment_start_v, segment_end_u, segment_end_v, &
-      candidate, valid, message)
-    type(neutral_panel_2d), intent(in) :: panel
+      sewing_u, sewing_v, cut_u, cut_v, valid, message)
     integer, intent(in) :: side
     real(real64), intent(in) :: shaping_offset(:), allowance_mm
     real(real64), intent(in) :: segment_start_u(:), segment_start_v(:)
     real(real64), intent(in) :: segment_end_u(:), segment_end_v(:)
-    type(shaped_panel_side_2d), intent(out) :: candidate
+    real(real64), allocatable, intent(out) :: sewing_u(:), sewing_v(:)
+    real(real64), allocatable, intent(out) :: cut_u(:), cut_v(:)
     logical, intent(out) :: valid
     character(len=*), intent(out) :: message
 
@@ -142,6 +219,17 @@ contains
     valid = .false.
     message = ''
     point_count = size(shaping_offset)
+    if (point_count < 2) then
+      message = 'shaped edge needs at least two contour points'
+      return
+    end if
+    if (size(segment_start_u) /= point_count - 1 .or. &
+        size(segment_start_v) /= point_count - 1 .or. &
+        size(segment_end_u) /= point_count - 1 .or. &
+        size(segment_end_v) /= point_count - 1) then
+      message = 'neutral edge segment count differs from point count'
+      return
+    end if
 
     ! Reject all degenerate segments before allocating or computing a partial
     ! candidate.  The original routine gave such a segment arbitrary axis
@@ -157,14 +245,8 @@ contains
       end if
     end do
 
-    candidate%panel_index = panel%panel_index
-    candidate%surface = panel%surface
-    candidate%side = side
-    candidate%contour_first_index = panel%contour_first_index
-    candidate%contour_last_index = panel%contour_last_index
-    allocate(candidate%sewing_u(point_count), &
-        candidate%sewing_v(point_count), candidate%cut_u(point_count), &
-        candidate%cut_v(point_count))
+    allocate(sewing_u(point_count), sewing_v(point_count), &
+        cut_u(point_count), cut_v(point_count))
     allowance_model = allowance_mm*legacy_allowance_mm_to_model
 
     ! `puntslat` computed its initial angle after the segment loop and omitted
@@ -172,13 +254,13 @@ contains
     delta_u = segment_end_u(1) - segment_start_u(1)
     delta_v = segment_end_v(1) - segment_start_v(1)
     call legacy_normal(delta_u, delta_v, side, .true., normal_u, normal_v)
-    candidate%sewing_u(1) = segment_start_u(1) + &
+    sewing_u(1) = segment_start_u(1) + &
         shaping_offset(1)*normal_u
-    candidate%sewing_v(1) = segment_start_v(1) + &
+    sewing_v(1) = segment_start_v(1) + &
         shaping_offset(1)*normal_v
-    candidate%cut_u(1) = candidate%sewing_u(1) + &
+    cut_u(1) = sewing_u(1) + &
         allowance_model*normal_u
-    candidate%cut_v(1) = candidate%sewing_v(1) + &
+    cut_v(1) = sewing_v(1) + &
         allowance_model*normal_v
 
     do segment_index = 1, point_count - 1
@@ -191,26 +273,29 @@ contains
       ! Deliberately use the incoming segment endpoint.  At a triangulation
       ! join this can differ from the next segment start and is the exact
       ! selection made by the legacy loop's final write to a shared point.
-      candidate%sewing_u(segment_index + 1) = &
+      sewing_u(segment_index + 1) = &
           segment_end_u(segment_index) + &
           shaping_offset(segment_index + 1)*normal_u
-      candidate%sewing_v(segment_index + 1) = &
+      sewing_v(segment_index + 1) = &
           segment_end_v(segment_index) + &
           shaping_offset(segment_index + 1)*normal_v
-      candidate%cut_u(segment_index + 1) = &
-          candidate%sewing_u(segment_index + 1) + &
+      cut_u(segment_index + 1) = &
+          sewing_u(segment_index + 1) + &
           allowance_model*normal_u
-      candidate%cut_v(segment_index + 1) = &
-          candidate%sewing_v(segment_index + 1) + &
+      cut_v(segment_index + 1) = &
+          sewing_v(segment_index + 1) + &
           allowance_model*normal_v
     end do
 
-    if (.not. candidate%is_valid()) then
-      message = 'panel shaping produced non-finite geometry'
+    if (.not. all(ieee_is_finite(sewing_u)) .or. &
+        .not. all(ieee_is_finite(sewing_v)) .or. &
+        .not. all(ieee_is_finite(cut_u)) .or. &
+        .not. all(ieee_is_finite(cut_v))) then
+      message = 'edge shaping produced non-finite geometry'
       return
     end if
     valid = .true.
-  end subroutine build_shaped_side
+  end subroutine build_shaped_coordinates
 
   !> Return the unit normal encoded by the branch order in `puntslat`.
   pure subroutine legacy_normal(delta_u, delta_v, side, initial_point, &

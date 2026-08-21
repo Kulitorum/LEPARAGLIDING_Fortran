@@ -1,12 +1,17 @@
 program test_panel_shaping
   use, intrinsic :: iso_fortran_env, only : real64
   use, intrinsic :: ieee_arithmetic, only : ieee_quiet_nan, ieee_value
-  use leparagliding_domain_model, only : neutral_panel_2d, surface_intrados
+  use leparagliding_domain_model, only : neutral_panel_2d, &
+      neutral_boundary_edge_2d, production_boundary_edge_2d, &
+      derive_neutral_boundary_edge, surface_intrados
   use leparagliding_panel_shaping
   implicit none
 
   type(neutral_panel_2d) :: panel, bad_panel, empty_panel
+  type(neutral_boundary_edge_2d) :: neutral_boundary
   type(shaped_panel_side_2d) :: shaped, saved
+  type(production_boundary_edge_2d) :: production_boundary
+  type(production_boundary_edge_2d) :: saved_production_boundary
   character(len=160) :: message
   logical :: valid
   integer :: quadrant
@@ -142,6 +147,39 @@ program test_panel_shaping
   call require(abs(shaped%sewing_u(2) - &
       panel%lower_segment_start_u(2)) > 20.0_real64, &
       'join point incorrectly used the following segment start')
+
+  ! A physical terminal boundary comes from the final panel's higher neutral
+  ! edge but deliberately uses the lower/outward normal.  It is not a panel
+  ! and owns no higher-side sewing or cut coordinates.
+  call derive_neutral_boundary_edge(panel, neutral_boundary, valid, message)
+  call require(valid, 'terminal neutral edge rejected: '//trim(message))
+  call shape_neutral_boundary_edge(neutral_boundary, &
+      [0.0_real64, 2.0_real64, 0.0_real64], 0.0_real64, &
+      production_boundary, valid, message)
+  call require(valid, 'terminal production edge rejected: '//trim(message))
+  call require(production_boundary%is_valid(), &
+      'terminal production result is invalid')
+  call require(production_boundary%source_panel_index == panel%panel_index, &
+      'terminal source-panel identity')
+  call require(production_boundary%boundary_rib_index == &
+      panel%higher_rib_index, 'terminal boundary-rib identity')
+  call require_close(production_boundary%sewing_u(2), 101.4_real64, &
+      'terminal incoming-segment endpoint bias U')
+  call require_close(production_boundary%sewing_v(2), 105.2_real64, &
+      'terminal incoming-segment endpoint bias V')
+  saved_production_boundary = production_boundary
+  call shape_neutral_boundary_edge(neutral_boundary, [0.0_real64], &
+      0.0_real64, production_boundary, valid, message)
+  call require(.not. valid, 'terminal offset-count mismatch was accepted')
+  call require(all(abs(production_boundary%sewing_u - &
+      saved_production_boundary%sewing_u) <= 0.0_real64) .and. &
+      all(abs(production_boundary%sewing_v - &
+      saved_production_boundary%sewing_v) <= 0.0_real64) .and. &
+      all(abs(production_boundary%cut_u - &
+      saved_production_boundary%cut_u) <= 0.0_real64) .and. &
+      all(abs(production_boundary%cut_v - &
+      saved_production_boundary%cut_v) <= 0.0_real64), &
+      'failed terminal shaping changed its destination')
 
   ! Every failure below must retain this complete successful value.
   saved = shaped

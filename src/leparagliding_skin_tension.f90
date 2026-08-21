@@ -61,6 +61,11 @@ contains
     if (any(law%developed_position_percent > &
         100.0_real64 + position_tolerance)) return
     if (any(law%overwidth_percent < 0.0_real64)) return
+    if (abs(law%developed_position_percent(1)) > &
+        position_tolerance) return
+    if (abs(law%developed_position_percent( &
+        size(law%developed_position_percent)) - 100.0_real64) > &
+        position_tolerance) return
     do point_index = 2, size(law%developed_position_percent)
       if (law%developed_position_percent(point_index) <= &
           law%developed_position_percent(point_index - 1)) return

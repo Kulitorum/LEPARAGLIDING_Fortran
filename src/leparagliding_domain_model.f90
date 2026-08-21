@@ -147,6 +147,26 @@ module leparagliding_domain_model
     procedure :: is_valid => production_panel_edges_is_valid
   end type production_panel_edges_2d
 
+  !> Tensioned production edge at one physical terminal rib.
+  !!
+  !! The boundary is derived from the higher side of the final real panel but
+  !! is deliberately not itself a panel.  It owns only the sewing and cut
+  !! contours published through the legacy lower-edge slots.  No higher-side
+  !! geometry exists beyond the physical wingtip.
+  type, public :: production_boundary_edge_2d
+    integer :: boundary_rib_index = -1
+    integer :: source_panel_index = -1
+    integer :: surface = 0
+    integer :: contour_first_index = 0
+    integer :: contour_last_index = -1
+    real(real64), allocatable :: sewing_u(:)
+    real(real64), allocatable :: sewing_v(:)
+    real(real64), allocatable :: cut_u(:)
+    real(real64), allocatable :: cut_v(:)
+  contains
+    procedure :: is_valid => production_boundary_edge_is_valid
+  end type production_boundary_edge_2d
+
   !> Complete typed view of one flattened panel and its source profiles.
   !!
   !! This is the production-facing migration unit: color geometry can use the
@@ -268,6 +288,8 @@ module leparagliding_domain_model
   public :: write_legacy_extrados_panel
   public :: write_legacy_intake_panel
   public :: write_legacy_intrados_panel
+  public :: write_legacy_production_boundary
+  public :: write_legacy_neutral_boundary
   public :: derive_neutral_boundary_edge
   public :: polyline_length_2d
   public :: neutral_panel_lower_edge_length
@@ -470,6 +492,37 @@ contains
     if (.not. all(ieee_is_finite(panel%higher_cut_v))) return
     valid = .true.
   end function production_panel_edges_is_valid
+
+  !> Test whether one physical terminal production edge is self-consistent.
+  pure logical function production_boundary_edge_is_valid(edge) result(valid)
+    class(production_boundary_edge_2d), intent(in) :: edge
+    integer :: point_count
+
+    valid = .false.
+    if (edge%source_panel_index < 0) return
+    if (edge%boundary_rib_index /= edge%source_panel_index + 1) return
+    if (edge%surface /= surface_extrados .and. &
+        edge%surface /= surface_intrados) return
+    if (edge%contour_first_index < 1) return
+    if (edge%contour_last_index < edge%contour_first_index) return
+    point_count = edge%contour_last_index - edge%contour_first_index + 1
+    if (point_count < 2) return
+    if (.not. allocated(edge%sewing_u)) return
+    if (.not. allocated(edge%sewing_v)) return
+    if (.not. allocated(edge%cut_u)) return
+    if (.not. allocated(edge%cut_v)) return
+    if (any([lbound(edge%sewing_u, 1), lbound(edge%sewing_v, 1), &
+        lbound(edge%cut_u, 1), lbound(edge%cut_v, 1)] /= 1)) return
+    if (size(edge%sewing_u) /= point_count) return
+    if (size(edge%sewing_v) /= point_count) return
+    if (size(edge%cut_u) /= point_count) return
+    if (size(edge%cut_v) /= point_count) return
+    if (.not. all(ieee_is_finite(edge%sewing_u))) return
+    if (.not. all(ieee_is_finite(edge%sewing_v))) return
+    if (.not. all(ieee_is_finite(edge%cut_u))) return
+    if (.not. all(ieee_is_finite(edge%cut_v))) return
+    valid = .true.
+  end function production_boundary_edge_is_valid
 
   !> Test whether a complete developed panel satisfies its nested invariants.
   pure logical function production_panel_is_valid(panel) result(valid)
@@ -1268,6 +1321,140 @@ contains
     panel = candidate
     valid = .true.
   end subroutine copy_legacy_production_panel
+
+  !> Publish one physical terminal production edge to legacy slots 9 and 11.
+  !!
+  !! The boundary row represents the outward side of the physical wingtip, not
+  !! a panel beyond it.  Consequently this adapter writes only the legacy
+  !! lower sewing/cut slots over the exact surface contour.  Slots 10 and 12,
+  !! all other rows and points, and all neutral `pl*/pr*` arrays remain outside
+  !! its ownership.  Every precondition is checked before the first assignment,
+  !! so rejected calls leave both destination arrays unchanged.  `legacy_u` and
+  !! `legacy_v` must be distinct actual arguments.
+  pure subroutine write_legacy_production_boundary(boundary, topology, &
+      legacy_u, legacy_v, valid, message)
+    type(production_boundary_edge_2d), intent(in) :: boundary
+    type(profile_topology), intent(in) :: topology
+    real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(index_range) :: contour_range
+
+    valid = .false.
+    message = ''
+    if (.not. legacy_shapes_match(legacy_u, legacy_v)) then
+      message = 'legacy U/V production-boundary destination shapes differ'
+      return
+    end if
+    if (.not. boundary%is_valid()) then
+      message = 'cannot write an invalid production boundary'
+      return
+    end if
+    if (.not. topology%is_valid()) then
+      message = 'production-boundary write-back received invalid topology'
+      return
+    end if
+    select case (boundary%surface)
+    case (surface_extrados)
+      contour_range = topology%extrados
+    case (surface_intrados)
+      contour_range = topology%intrados
+    case default
+      message = 'production-boundary write-back does not support this surface'
+      return
+    end select
+    if (boundary%contour_first_index /= contour_range%first .or. &
+        boundary%contour_last_index /= contour_range%last) then
+      message = 'production boundary range differs from source topology'
+      return
+    end if
+    if (boundary%boundary_rib_index < lbound(legacy_u, 1) .or. &
+        boundary%boundary_rib_index > ubound(legacy_u, 1)) then
+      message = 'production boundary rib is outside legacy destinations'
+      return
+    end if
+    if (boundary%contour_first_index < lbound(legacy_u, 2) .or. &
+        boundary%contour_last_index > ubound(legacy_u, 2)) then
+      message = 'production boundary exceeds legacy point capacity'
+      return
+    end if
+    if (legacy_production_lower_sewing_slot < lbound(legacy_u, 3) .or. &
+        legacy_production_lower_cut_slot > ubound(legacy_u, 3)) then
+      message = 'legacy array has no terminal production-boundary slots'
+      return
+    end if
+
+    legacy_u(boundary%boundary_rib_index, &
+        boundary%contour_first_index:boundary%contour_last_index, &
+        legacy_production_lower_sewing_slot) = boundary%sewing_u
+    legacy_v(boundary%boundary_rib_index, &
+        boundary%contour_first_index:boundary%contour_last_index, &
+        legacy_production_lower_sewing_slot) = boundary%sewing_v
+    legacy_u(boundary%boundary_rib_index, &
+        boundary%contour_first_index:boundary%contour_last_index, &
+        legacy_production_lower_cut_slot) = boundary%cut_u
+    legacy_v(boundary%boundary_rib_index, &
+        boundary%contour_first_index:boundary%contour_last_index, &
+        legacy_production_lower_cut_slot) = boundary%cut_v
+    valid = .true.
+  end subroutine write_legacy_production_boundary
+
+  !> Publish one exact terminal neutral edge to the legacy lower segment row.
+  !!
+  !! Stage 7 owns only real panels, so it intentionally does not construct a
+  !! fictitious panel at `boundary_rib_index`. Legacy Stage 8 nevertheless
+  !! expects the physical terminal edge in that row's `pl1/pl2` arrays. This
+  !! adapter supplies only those exact segment endpoints and leaves every
+  !! other row, point, and higher-side `pr*` array outside its ownership.
+  pure subroutine write_legacy_neutral_boundary(edge, legacy_start_u, &
+      legacy_start_v, legacy_end_u, legacy_end_v, valid, message)
+    type(neutral_boundary_edge_2d), intent(in) :: edge
+    real(real64), intent(inout) :: legacy_start_u(0:,:), legacy_start_v(0:,:)
+    real(real64), intent(inout) :: legacy_end_u(0:,:), legacy_end_v(0:,:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+    integer :: write_last_index
+
+    valid = .false.
+    message = ''
+    if (.not. all(shape(legacy_start_u) == shape(legacy_start_v)) .or. &
+        .not. all(shape(legacy_start_u) == shape(legacy_end_u)) .or. &
+        .not. all(shape(legacy_start_u) == shape(legacy_end_v))) then
+      message = 'terminal neutral-edge destination shapes differ'
+      return
+    end if
+    if (.not. edge%is_valid()) then
+      message = 'cannot write an invalid terminal neutral edge'
+      return
+    end if
+    if (edge%surface /= surface_extrados .and. &
+        edge%surface /= surface_intrados) then
+      message = 'terminal neutral write-back supports skin surfaces only'
+      return
+    end if
+    if (edge%boundary_rib_index < lbound(legacy_start_u, 1) .or. &
+        edge%boundary_rib_index > ubound(legacy_start_u, 1)) then
+      message = 'terminal neutral boundary rib is outside destination'
+      return
+    end if
+    write_last_index = edge%contour_last_index - 1
+    if (edge%contour_first_index < lbound(legacy_start_u, 2) .or. &
+        write_last_index > ubound(legacy_start_u, 2)) then
+      message = 'terminal neutral segments exceed destination capacity'
+      return
+    end if
+
+    legacy_start_u(edge%boundary_rib_index, &
+        edge%contour_first_index:write_last_index) = edge%segment_start_u
+    legacy_start_v(edge%boundary_rib_index, &
+        edge%contour_first_index:write_last_index) = edge%segment_start_v
+    legacy_end_u(edge%boundary_rib_index, &
+        edge%contour_first_index:write_last_index) = edge%segment_end_u
+    legacy_end_v(edge%boundary_rib_index, &
+        edge%contour_first_index:write_last_index) = edge%segment_end_v
+    valid = .true.
+  end subroutine write_legacy_neutral_boundary
 
   !> Copy one neutral developed surface from legacy quadrilateral corners.
   !!

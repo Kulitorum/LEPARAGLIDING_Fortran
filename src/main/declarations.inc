@@ -284,6 +284,9 @@ c      arrays.  They own snapshots and never alias the numbered global slots.
        type(skin_tension_law), allocatable ::
      + typed_intrados_tension_laws(:)
        type(shaped_panel_side_2d) :: typed_intrados_lower_side
+       type(production_boundary_edge_2d) ::
+     + typed_terminal_intrados_production_edge
+       real*8, allocatable :: typed_terminal_intrados_offsets(:)
        type(quadrilateral_distances_3d), allocatable ::
      + typed_extrados_source_distances(:),typed_intake_source_distances(:),
      + typed_intrados_source_distances(:)
