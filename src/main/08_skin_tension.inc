@@ -1466,67 +1466,18 @@ c      Correction only for case ndif=1000
 
        do i=1,nribss-1
 
-       k=jirl(i)
-
-       dist=dsqrt(((u(i,k,9)-u(i,np(i,2),9))**2.)+
-     + ((v(i,k,9)-v(i,np(i,2),9))**2.))
-      
-       epsilon=(rib(i,97)-rib(i,96))
-
-c      Angle of rotation
-       if (abs(epsilon).lt.0.01) then
-       omega=0.
-       else
-c      Experimental correction
-       omega=1.0*dasin(epsilon/dist)*epsilon/(abs(epsilon))
+c      One pass owns the lower extrados sewing contour of real panel i.
+c      Incoming scratch remains explicit because jirl and jirr are distinct;
+c      the typed result is published only after its fixed-form oracle agrees.
+       call apply_legacy_regular_extrados_distortion_pass(i,np(i,2),
+     + int(jirl(i)),int(jirr(i)),rib(i,96),rib(i,97),u,v,
+     + anglee,distee,siu,siv,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,2A)')
+     + 'ERROR: extrados distortion pass failed at panel ',i,
+     + ': ',trim(domain_model_message)
+       stop 1
        end if
-
-c      Rotate left side (all correction)
-
-       do j=jirl(i),np(i,2)-1
-
-c      Atention whit angle definition using abs tangents
-c      Make subroutines
-c      Angles and distances, left side
-
-       xdv=(v(i,j+1,9)-v(i,j,9))
-       xdu=(u(i,j+1,9)-u(i,j,9))
-       if (xdu.ne.0.) then
-       anglee(j)=abs(datan(xdv/xdu))+omega
-       else
-       anglee(j)=2.*datan(1.0d0)+omega
-       end if
-
-       if (xdu.ge.0.and.xdv.ge.0) then ! case 1-I
-       siu(j)=1.
-       siv(j)=1.
-       end if
-       if (xdu.le.0.and.xdv.ge.0) then ! case 1-II
-       siu(j)=-1.
-       siv(j)=1.
-       end if
-       if (xdu.ge.0.and.xdv.le.0) then ! case 1-III
-       siu(j)=1.
-       siv(j)=-1.
-       end if
-       if (xdu.le.0.and.xdv.le.0) then ! case 1-IV
-       siu(j)=-1.
-       siv(j)=-1.
-       end if
-
-       distee(j)=dsqrt((v(i,j,9)-v(i,j+1,9))**2.+
-     + (u(i,j,9)-u(i,j+1,9))**2.)
-
-       end do  ! end j
-
-c      Define
-
-       do j=jirr(i),np(i,2)-1
-       u(i,j+1,32)=u(i,j,9)+siu(j)*distee(j)*dcos(anglee(j))
-       v(i,j+1,32)=v(i,j,9)+siv(j)*distee(j)*dsin(anglee(j))
-       u(i,j+1,9)=u(i,j+1,32)
-       v(i,j+1,9)=v(i,j+1,32)
-       end do
 
        end do  ! end i
 

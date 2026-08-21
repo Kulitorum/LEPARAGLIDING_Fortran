@@ -1,16 +1,17 @@
 # Data-model refactor: inventory and migration design
 
 Status: implementation in progress. Phase 0 and the typed neutral/spatial-wing
-authority boundaries are complete. Phase 4 owns the regular shaping slices and
-length-match checkpoints documented below; Phase 6 owns typed anchor and first
-3D structural boundaries; Phase 7 is retiring executable includes one checked
-module at a time. Final removal of ambiguous legacy stores remains blocked by
-the terminology decisions listed at the end of this document.
+authority boundaries are complete. Phase 4 owns the regular shaping slices,
+length-match checkpoints, and five-pass extrados distortion kernel documented
+below; Phase 6 owns typed anchor and first 3D structural boundaries; Phase 7 is
+retiring executable includes one checked module at a time. Final removal of
+ambiguous legacy stores remains blocked by the terminology decisions listed at
+the end of this document.
 
 Evidence baseline: original-3.28 compatibility, exact and semantic 3.29 output
 oracles, typed adapter/color/topology, authoritative spatial and neutral wings,
-regular-panel shaping/reformat, physical-terminal intrados, anchors, and first
-structural-surface checkpoints
+regular-panel shaping/reformat/distortion, physical-terminal intrados, anchors,
+and first structural-surface/segment checkpoints
 
 Primary scope: profiles, ribs, the spatial wing, flattened panels, production
 edges, and their immediate consumers
@@ -944,7 +945,9 @@ neutral-development pipeline.
 Phase 4 now owns new-law extrados/intrados and classic intrados sewing/cut
 shaping on both regular-panel sides, both real extrados `ndif=1000` reformat
 edges, plus the separate physical terminal intrados production edge and length
-match. Distortion, intake shaping, vent, and special-path migration follows.
+match. The unchanged five-pass regular-extrados distortion sequence now calls
+one typed pass with explicit retained scratch; intake shaping, other distortion,
+vent, and special-path migration follows.
 Retiring the duplicate stage-7 comparison oracle can follow once downstream
 boundaries have equivalent semantic regression coverage.
 
@@ -964,7 +967,10 @@ by focused pure modules; stage 8 compares them with the old calculations before
 publishing compatibility slots. Both sides of every real extrados panel now
 cross the bit-exact `ndif=1000` boundary, including the final real higher/tip
 edge; the unseeded outward scratch row and intake-support point remain outside
-that ownership. Distortion and intake production shaping remain to be migrated.
+that ownership. The regular-extrados five-pass distortion calculation is also
+typed-authoritative after exact agreement with an independent oracle, including
+its distinct scratch-refresh and reconstruction starts. Other distortion and
+intake production shaping remain to be migrated.
 
 1. Extract `skin_tension_law` parsing and evaluation from slots 7/8.
    **Complete for Section-31 extrados and intrados laws on both sides of every
@@ -982,8 +988,8 @@ that ownership. Distortion and intake production shaping remain to be migrated.
    features; delete `ufa/ufb/ufc/uft` workspaces as each path migrates.
    **In progress: exact-range terminal intrados and both regular extrados
    `ndif=1000` length matches are typed and authoritative; the separate
-   preceding join support is owned, while distortion and other special paths
-   remain.**
+   preceding join support and five-pass regular-extrados distortion kernel are
+   owned, while other distortion and special paths remain.**
 5. Keep a write-back adapter for remaining internal-rib consumers.
 
 Exit criterion: stage 8 no longer writes slots 7:12 for migrated surfaces;
@@ -1032,9 +1038,11 @@ slots 48/49. `rib_anchor_definition` and
 Stage 12 independently reconstructs their absolute points with its historically
 distinct displacement-after-wash-in ordering, mirrors row 0, and publishes
 slot 19 for all physical rows only after bit-exact agreement. Tip support stays
-excluded because Stage 9 never defines its local anchor point. Remaining intake
-singular points, line/brake mutation, and Stage-16 feature families still use
-compatibility storage.
+excluded because Stage 9 never defines its local anchor point. Stage 16's
+type-6 3D output now copies each historical endpoint pair transactionally,
+exact-checks all six components, and draws an owned `structural_segment_3d`
+including its mirrored view. Remaining intake singular points, line/brake
+mutation, and Stage-16 feature families still use compatibility storage.
 
 1. Replace slots 47:55 and 69:72 with `spatial_panel_surface` and local-frame
    objects.
@@ -1051,11 +1059,12 @@ the raw `rib/np/u/v/w/pl*/pr*/uf*` stores.
 ### Phase 7 — Remove compatibility storage and includes
 
 Implementation status: incremental include retirement is active. Local/global
-2D transformations, generated-file cleanup, arc-length interpolation, and the
-six-routine 2D geometry group now live in documented free-form modules with
-explicit interfaces and focused tests. Their old executable includes have been
-deleted; the procedure facade temporarily re-exports compatibility entry
-points. The numbered main includes and larger procedure groups remain.
+2D transformations, generated-file cleanup, arc-length interpolation, profile
+input/auxiliary transforms, and the six-routine 2D geometry group now live in
+documented free-form modules with explicit interfaces and focused tests. Their
+old executable includes have been deleted; the procedure facade temporarily
+re-exports compatibility entry points. The numbered main includes and larger
+procedure groups remain.
 
 1. Replace `declarations.inc` with an owning `wing_model` plus run/output
    configuration.

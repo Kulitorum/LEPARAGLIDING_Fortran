@@ -1,10 +1,13 @@
 program test_profile_data
   use, intrinsic :: iso_fortran_env, only : real64
-  use leparagliding_procedures, only : datair
+  use leparagliding_procedures, only : datair, xyzt
   implicit none
 
   integer, allocatable :: profile_counts(:,:)
   real(real64), allocatable :: rib(:,:), profile_u(:,:,:), profile_v(:,:,:)
+  real(real64), allocatable :: profile_w(:,:,:)
+  real(real64), allocatable :: auxiliary_u(:,:,:), auxiliary_v(:,:,:)
+  real(real64), allocatable :: auxiliary_w(:,:,:)
   real(real64), parameter :: fixture_u(10) = [ &
       1.00_real64, 0.50_real64, 0.00_real64, 0.02_real64, &
       0.03_real64, 0.04_real64, 0.06_real64, 0.08_real64, &
@@ -36,6 +39,7 @@ program test_profile_data
       'interpolated inlet-boundary insertions')
   call run_case(3.4_real64, 3.6_real64, 12, 6, 7, 0, 0, &
       'two insertions within one source segment')
+  call test_auxiliary_profile_transform()
 
   close (24)
   write (*, '(A)') 'PASS: .dat profile boundary rebuild'
@@ -124,6 +128,41 @@ contains
     endfile (24)
     rewind (24)
   end subroutine write_profile_fixture
+
+  subroutine test_auxiliary_profile_transform()
+    allocate(profile_w(0:100, 500, 99))
+    allocate(auxiliary_u(0:100, 500, 10))
+    allocate(auxiliary_v(0:100, 500, 10))
+    allocate(auxiliary_w(0:100, 500, 10))
+    profile_w = 0.0_real64
+    auxiliary_u = -777.0_real64
+    auxiliary_v = -777.0_real64
+    auxiliary_w = -777.0_real64
+
+    rib(1, :) = 0.0_real64
+    rib(1, 3) = 100.0_real64
+    rib(1, 6) = 200.0_real64
+    rib(1, 7) = 300.0_real64
+    rib(1, 5) = 10.0_real64
+    auxiliary_u(1, 2, 1) = 2.0_real64
+    auxiliary_v(1, 2, 1) = 3.0_real64
+    auxiliary_w(1, 2, 1) = 0.0_real64
+
+    call xyzt(1, 2, profile_u, profile_v, profile_w, rib, profile_counts, &
+        auxiliary_u, auxiliary_v, auxiliary_w)
+    call require_close(auxiliary_u(1, 2, 2), 2.0_real64, &
+        'auxiliary wash-in X')
+    call require_close(auxiliary_v(1, 2, 2), 3.0_real64, &
+        'auxiliary wash-in Y')
+    call require_close(auxiliary_u(1, 2, 5), 102.0_real64, &
+        'auxiliary absolute X')
+    call require_close(auxiliary_v(1, 2, 5), 297.0_real64, &
+        'auxiliary absolute Y')
+    call require_close(auxiliary_w(1, 2, 5), 200.0_real64, &
+        'auxiliary absolute Z')
+
+    deallocate(profile_w, auxiliary_u, auxiliary_v, auxiliary_w)
+  end subroutine test_auxiliary_profile_transform
 
   function lower_surface_height(chord_fraction) result(height)
     real(real64), intent(in) :: chord_fraction

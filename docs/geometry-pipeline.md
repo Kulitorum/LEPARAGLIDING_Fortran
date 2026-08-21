@@ -59,14 +59,14 @@ a chord percentage at ribs, then mapped onto developed `u/v` panel edges.
 | `05_graphic_design.inc` | Draws planform/vault references and design annotations |
 | `06_airfoil_geometry.inc` | Loads fraction-normalized profiles, constructs named rib definitions and the complete typed spatial wing, compares every point bit-exactly, publishes compatibility `x/y/z`, and falls back all-or-none on an unproved input |
 | `07_panel_development.inc` | Flattens consecutive 3D quadrilaterals, exactly compares legacy and pure typed regular extrados/intake/intrados results, publishes extrados/intake, and retains intrados across vent processing |
-| `08_skin_tension.inc` | Makes agreeing typed surface metrics authoritative, processes vents, checked-writes retained intrados, owns new/classic migrated shaping and both regular-extrados plus terminal-intrados `ndif=1000` boundaries before continuing legacy distortion, edges, borders, and layouts |
+| `08_skin_tension.inc` | Makes agreeing typed surface metrics authoritative, processes vents, checked-writes retained intrados, owns new/classic migrated shaping, both regular-extrados plus terminal-intrados `ndif=1000` boundaries, and the five-pass regular-extrados distortion kernel before continuing remaining legacy edges, borders, and layouts |
 | `09_singular_rib_points.inc` | Resolves anchors, intake limits, and named construction points |
 | `10_calage.inc` | Calculates aerodynamic reference angles and balance geometry |
 | `11_panel_lengths.inc` | Measures corresponding sides and places assembly marks |
 | `12_lines.inc` | Expands suspension topology, makes agreeing A--E base spatial anchors typed-authoritative, then calculates line geometry through compatibility slots |
 | `14_brakes.inc` | Expands brake topology and distribution |
 | `15_colors.inc` | Builds one checked typed production-panel collection at the compatibility boundary, then adds internal color seams, allowances, and inset registration marks without exposing raw slots to the color consumer |
-| `16_internal_ribs.inc` | Builds H/V/VH parts, junctions, rods, holes, and reinforcements |
+| `16_internal_ribs.inc` | Builds H/V/VH parts, junctions, rods, holes, and reinforcements; type-6 3D output exact-checks and draws named structural segments rather than raw component endpoints |
 | `17_equilibrium.inc` | Optionally solves force/moment equilibrium |
 | `18_text_output.inc` | Writes the detailed design report |
 | `19_lines_output.inc` | Writes the line schedule |

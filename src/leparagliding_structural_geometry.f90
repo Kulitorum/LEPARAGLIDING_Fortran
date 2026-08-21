@@ -47,6 +47,18 @@ module leparagliding_structural_geometry
     procedure :: is_valid => local_frame_is_valid
   end type local_frame_3d
 
+  !> One finite structural line segment in the global spatial frame.
+  !!
+  !! Endpoint ordinals are intentionally neutral: the historical H/V-rib
+  !! arrays encode several different construction roles, and those physical
+  !! names must not be inferred from array numbers alone.
+  type, public :: structural_segment_3d
+    type(point_3d) :: endpoint_1
+    type(point_3d) :: endpoint_2
+  contains
+    procedure :: is_valid => structural_segment_is_valid
+  end type structural_segment_3d
+
   !> Complete legacy `panels3d` result for one real panel.
   !!
   !! Lower/higher skin points are the adjacent spatial ribs copied through
@@ -72,6 +84,8 @@ module leparagliding_structural_geometry
 
   public :: copy_legacy_spatial_panel_surface
   public :: spatial_panel_surface_matches_legacy
+  public :: copy_legacy_structural_segment
+  public :: structural_segment_matches_legacy
 
 contains
 
@@ -127,6 +141,78 @@ contains
 
     value = left%x * right%x + left%y * right%y + left%z * right%z
   end function direction_dot
+
+  pure logical function structural_segment_is_valid(segment) result(valid)
+    class(structural_segment_3d), intent(in) :: segment
+
+    valid = segment%endpoint_1%is_valid() .and. &
+        segment%endpoint_2%is_valid()
+  end function structural_segment_is_valid
+
+  !> Copy two legacy structure endpoints into one transactional spatial value.
+  pure subroutine copy_legacy_structural_segment(endpoint_1_x, endpoint_1_y, &
+      endpoint_1_z, endpoint_2_x, endpoint_2_y, endpoint_2_z, segment, &
+      valid, message)
+    real(real64), intent(in) :: endpoint_1_x, endpoint_1_y, endpoint_1_z
+    real(real64), intent(in) :: endpoint_2_x, endpoint_2_y, endpoint_2_z
+    type(structural_segment_3d), intent(inout) :: segment
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(structural_segment_3d) :: candidate
+
+    valid = .false.
+    message = ''
+    candidate%endpoint_1 = point_3d(endpoint_1_x, endpoint_1_y, endpoint_1_z)
+    candidate%endpoint_2 = point_3d(endpoint_2_x, endpoint_2_y, endpoint_2_z)
+    if (.not. candidate%is_valid()) then
+      message = 'legacy structural segment contains a non-finite endpoint'
+      return
+    end if
+    segment = candidate
+    valid = .true.
+  end subroutine copy_legacy_structural_segment
+
+  !> Check an owned segment against its six source components exactly.
+  pure subroutine structural_segment_matches_legacy(segment, endpoint_1_x, &
+      endpoint_1_y, endpoint_1_z, endpoint_2_x, endpoint_2_y, endpoint_2_z, &
+      matches, message)
+    type(structural_segment_3d), intent(in) :: segment
+    real(real64), intent(in) :: endpoint_1_x, endpoint_1_y, endpoint_1_z
+    real(real64), intent(in) :: endpoint_2_x, endpoint_2_y, endpoint_2_z
+    logical, intent(out) :: matches
+    character(len=*), intent(out) :: message
+
+    type(structural_segment_3d) :: legacy_segment
+    logical :: copied
+    character(len=len(message)) :: copy_message
+
+    matches = .false.
+    message = ''
+    if (.not. segment%is_valid()) then
+      message = 'typed structural segment is invalid'
+      return
+    end if
+    call copy_legacy_structural_segment(endpoint_1_x, endpoint_1_y, &
+        endpoint_1_z, endpoint_2_x, endpoint_2_y, endpoint_2_z, &
+        legacy_segment, copied, copy_message)
+    if (.not. copied) then
+      message = 'legacy structural segment comparison failed: '// &
+          trim(copy_message)
+      return
+    end if
+    if (.not. points_match_exactly([segment%endpoint_1], &
+        [legacy_segment%endpoint_1])) then
+      message = 'typed and legacy structural endpoint 1 differ'
+      return
+    end if
+    if (.not. points_match_exactly([segment%endpoint_2], &
+        [legacy_segment%endpoint_2])) then
+      message = 'typed and legacy structural endpoint 2 differ'
+      return
+    end if
+    matches = .true.
+  end subroutine structural_segment_matches_legacy
 
   pure logical function spatial_panel_surface_is_valid(surface) result(valid)
     class(spatial_panel_surface), intent(in) :: surface

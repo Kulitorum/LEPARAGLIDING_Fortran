@@ -7102,12 +7102,41 @@ c      Colors definition if even or odd
        icolor=30
        end if
 
-c      Draw in 3D model
+c      Draw in 3D model.  Type-6 endpoints still originate in the historical
+c      component arrays, but the production drawing consumes one finite owned
+c      segment only after exact agreement with all six source coordinates.
        do j=1,21
-       call line3d(rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
-     + rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),icolor)
-       call line3d(-rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
-     + -rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),icolor)
+       call copy_legacy_structural_segment(rx2(i,j,ii),ry2(i,j,ii),
+     + rz2(i,j,ii),rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),
+     + typed_internal_rib_segment,domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,A,I0,2A)')
+     + 'ERROR: typed type-6 segment at rib ',i,', feature ',ii,
+     + ', station ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       call structural_segment_matches_legacy(typed_internal_rib_segment,
+     + rx2(i,j,ii),ry2(i,j,ii),rz2(i,j,ii),
+     + rx3(i,j,ii),ry3(i,j,ii),rz3(i,j,ii),
+     + domain_model_valid,domain_model_message)
+       if (.not.domain_model_valid) then
+       write (*,'(A,I0,A,I0,A,I0,2A)')
+     + 'ERROR: typed/legacy type-6 segment mismatch at rib ',i,
+     + ', feature ',ii,', station ',j,': ',trim(domain_model_message)
+       stop 1
+       end if
+       call line3d(typed_internal_rib_segment%endpoint_1%x_cm,
+     + typed_internal_rib_segment%endpoint_1%y_cm,
+     + typed_internal_rib_segment%endpoint_1%z_cm,
+     + typed_internal_rib_segment%endpoint_2%x_cm,
+     + typed_internal_rib_segment%endpoint_2%y_cm,
+     + typed_internal_rib_segment%endpoint_2%z_cm,icolor)
+       call line3d(-typed_internal_rib_segment%endpoint_1%x_cm,
+     + typed_internal_rib_segment%endpoint_1%y_cm,
+     + typed_internal_rib_segment%endpoint_1%z_cm,
+     + -typed_internal_rib_segment%endpoint_2%x_cm,
+     + typed_internal_rib_segment%endpoint_2%y_cm,
+     + typed_internal_rib_segment%endpoint_2%z_cm,icolor)
        end do
 
 c      end if V-rib type 6

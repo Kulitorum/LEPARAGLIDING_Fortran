@@ -11,6 +11,7 @@ program test_structural_geometry
   real(real64) :: ballooning(0:rib_count, point_capacity)
   type(spatial_panel_surface) :: surface, saved_surface
   type(local_frame_3d) :: frame
+  type(structural_segment_3d) :: segment, saved_segment
   logical :: valid, matches
   character(len=160) :: message
   integer :: rib_index, point_index, slot_index
@@ -82,6 +83,29 @@ program test_structural_geometry
   frame%axis_2%x = 0.1_real64
   call require(.not. frame%is_valid(), 'non-orthogonal frame accepted')
 
+  call copy_legacy_structural_segment(1.0_real64, 2.0_real64, &
+      3.0_real64, 4.0_real64, 5.0_real64, 6.0_real64, segment, valid, message)
+  call require(valid, 'valid structural segment rejected: '//trim(message))
+  call require_point(segment%endpoint_1, 1.0_real64, 2.0_real64, &
+      3.0_real64, 'structural endpoint 1')
+  call require_point(segment%endpoint_2, 4.0_real64, 5.0_real64, &
+      6.0_real64, 'structural endpoint 2')
+  call structural_segment_matches_legacy(segment, 1.0_real64, 2.0_real64, &
+      3.0_real64, 4.0_real64, 5.0_real64, 6.0_real64, matches, message)
+  call require(matches, 'exact structural segment comparison failed')
+  call structural_segment_matches_legacy(segment, 1.0_real64, 2.0_real64, &
+      3.0_real64, 4.0_real64, 5.0_real64, 6.5_real64, matches, message)
+  call require(.not. matches .and. index(message, 'endpoint 2') > 0, &
+      'structural endpoint drift was not rejected precisely')
+
+  saved_segment = segment
+  call copy_legacy_structural_segment(1.0_real64, 2.0_real64, &
+      ieee_value(0.0_real64, ieee_quiet_nan), 4.0_real64, 5.0_real64, &
+      6.0_real64, segment, valid, message)
+  call require(.not. valid, 'non-finite structural segment accepted')
+  call require_same_segment(segment, saved_segment, &
+      'failed structural copy mutated the destination')
+
   saved_surface = surface
   legacy_u(2, 2, 49) = ieee_value(0.0_real64, ieee_quiet_nan)
   call copy_legacy_spatial_panel_surface(legacy_u, legacy_v, legacy_w, &
@@ -136,6 +160,24 @@ contains
         all(abs(actual%ballooning_height - expected%ballooning_height) <= &
         0.0_real64), label)
   end subroutine require_same_surface
+
+  subroutine require_same_segment(actual, expected, label)
+    type(structural_segment_3d), intent(in) :: actual, expected
+    character(len=*), intent(in) :: label
+
+    call require(abs(actual%endpoint_1%x_cm - expected%endpoint_1%x_cm) <= &
+        0.0_real64 .and. &
+        abs(actual%endpoint_1%y_cm - expected%endpoint_1%y_cm) <= &
+        0.0_real64 .and. &
+        abs(actual%endpoint_1%z_cm - expected%endpoint_1%z_cm) <= &
+        0.0_real64 .and. &
+        abs(actual%endpoint_2%x_cm - expected%endpoint_2%x_cm) <= &
+        0.0_real64 .and. &
+        abs(actual%endpoint_2%y_cm - expected%endpoint_2%y_cm) <= &
+        0.0_real64 .and. &
+        abs(actual%endpoint_2%z_cm - expected%endpoint_2%z_cm) <= &
+        0.0_real64, label)
+  end subroutine require_same_segment
 
   subroutine require_close(actual, expected, diagnostic)
     real(real64), intent(in) :: actual, expected

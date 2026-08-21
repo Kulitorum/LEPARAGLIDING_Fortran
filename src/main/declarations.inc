@@ -317,6 +317,7 @@ c      writers publish only production boundaries proven bit-exact.
      + typed_extrados_source_distances(:),typed_intake_source_distances(:),
      + typed_intrados_source_distances(:)
        type(spatial_panel_surface) :: typed_dxf_panel_surface
+       type(structural_segment_3d) :: typed_internal_rib_segment
        logical :: domain_model_valid,panel_zero_active,rib_parity_consistent,
      + neutral_gap_valid,typed_coordinates_match,
      + typed_spatial_geometry_exact,typed_base_anchor_spatial_exact

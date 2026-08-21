@@ -341,12 +341,13 @@ src/
   leparagliding_mark_types.f90      shared mark drawing configuration
   leparagliding_neutral_development.f90
                                       pure neutral-surface development
-  leparagliding_panel_reformat.f90   typed terminal length matching
+  leparagliding_panel_reformat.f90   typed length matching and distortion passes
   leparagliding_panel_shaping.f90  typed sewing/cut side-shaping kernel
   leparagliding_polyline_interpolation.f90 checked arc-length interpolation
+  leparagliding_profile_data.f90   profile input and auxiliary transforms
   leparagliding_skin_tension.f90   normalized Section-31 laws and evaluator
   leparagliding_spatial_geometry.f90 named rib definitions and spatial transform
-  leparagliding_structural_geometry.f90 named 3D surfaces and local frames
+  leparagliding_structural_geometry.f90 named 3D surfaces, frames, and segments
   leparagliding_transformations.f90 checked 2D local/global transforms
   main/                             numbered main-program calculation stages
   procedures/                       procedures grouped by responsibility
@@ -370,13 +371,12 @@ Important procedure groups:
 | `offsets_reinforcements.inc` | offsets, straps, mylars, interpolation |
 | `geometry_3d.inc` | 3D panels, planes, local/global geometry |
 | `pattern_marks.inc` | print, alignment, and Romano marks |
-| `profile_data.inc` | profile reading, remapping, coordinate transforms |
 | `geometry_utilities.inc` | distances, arcs, interpolation, tessellation |
 
-The former `geometry_2d.inc`, `interpolation.inc`, `file_cleanup.inc`, and
-`transformations.inc` groups are free-form modules listed in the source map;
-the procedure facade re-exports their compatibility entry points while legacy
-callers migrate.
+The former `profile_data.inc`, `geometry_2d.inc`, `interpolation.inc`,
+`file_cleanup.inc`, and `transformations.inc` groups are free-form modules
+listed in the source map; the procedure facade re-exports their compatibility
+entry points while legacy callers migrate.
 
 ## Maintenance rules
 

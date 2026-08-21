@@ -89,6 +89,7 @@ module leparagliding_panel_reformat
   public :: reformat_terminal_intrados_boundary
   public :: reformat_legacy_regular_lower_extrados_row
   public :: reformat_legacy_regular_higher_extrados_row
+  public :: apply_legacy_regular_extrados_distortion_pass
   public :: copy_legacy_preceding_join_support
   public :: reformat_preceding_join_support
   public :: write_legacy_preceding_join_support
@@ -312,6 +313,342 @@ contains
         typed_sign_v(reconstruction_start_index:point_count - 1)
     valid = .true.
   end subroutine reformat_legacy_regular_extrados_row
+
+  !> Apply one legacy-compatible leading-edge distortion pass to a real panel.
+  !!
+  !! The pass owns the lower extrados sewing contour in slot 9 for one real
+  !! panel row.  Slot 11 is carried through unchanged.  `angle_start_index`
+  !! names the segments whose angle/distance scratch is refreshed, while
+  !! `reconstruction_start_index` names the first segment rebuilt.  Keeping
+  !! those indices distinct is essential: historical inputs may intentionally
+  !! consume scratch retained by the immediately preceding row/pass.
+  !!
+  !! A typed candidate and an independent fixed-form oracle are evaluated from
+  !! the same immutable source and incoming scratch.  Coordinates and scratch
+  !! are published transactionally only after bit-exact agreement.
+  pure subroutine apply_legacy_regular_extrados_distortion_pass(panel_index, &
+      contour_last_index, angle_start_index, reconstruction_start_index, &
+      original_leading_edge_length, current_leading_edge_length, legacy_u, &
+      legacy_v, segment_angle, segment_distance, segment_sign_u, &
+      segment_sign_v, valid, message)
+    integer, intent(in) :: panel_index, contour_last_index
+    integer, intent(in) :: angle_start_index, reconstruction_start_index
+    real(real64), intent(in) :: original_leading_edge_length
+    real(real64), intent(in) :: current_leading_edge_length
+    real(real64), intent(inout) :: legacy_u(0:,:,:), legacy_v(0:,:,:)
+    real(real64), intent(inout) :: segment_angle(0:), segment_distance(0:)
+    real(real64), intent(inout) :: segment_sign_u(0:), segment_sign_v(0:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    type(regular_extrados_edge_2d) :: source, typed_candidate, legacy_oracle
+    real(real64), allocatable :: typed_angle(:), typed_distance(:)
+    real(real64), allocatable :: typed_sign_u(:), typed_sign_v(:)
+    real(real64), allocatable :: oracle_angle(:), oracle_distance(:)
+    real(real64), allocatable :: oracle_sign_u(:), oracle_sign_v(:)
+    integer :: point_count
+
+    valid = .false.
+    message = ''
+    if (any(shape(legacy_u) /= shape(legacy_v))) then
+      message = 'legacy U/V distortion-pass shapes differ'
+      return
+    end if
+    if (panel_index < lbound(legacy_u, 1) .or. &
+        panel_index > ubound(legacy_u, 1)) then
+      message = 'distortion-pass panel index is outside legacy storage'
+      return
+    end if
+    if (contour_last_index < 2 .or. &
+        contour_last_index > ubound(legacy_u, 2)) then
+      message = 'distortion-pass contour is outside legacy storage'
+      return
+    end if
+    if (legacy_production_lower_sewing_slot < lbound(legacy_u, 3) .or. &
+        legacy_production_lower_cut_slot > ubound(legacy_u, 3)) then
+      message = 'legacy array has no lower distortion-pass production slots'
+      return
+    end if
+    if (angle_start_index < 1 .or. &
+        angle_start_index >= contour_last_index .or. &
+        reconstruction_start_index < 1 .or. &
+        reconstruction_start_index >= contour_last_index) then
+      message = 'distortion-pass segment range is outside the contour'
+      return
+    end if
+    if (any([ubound(segment_angle, 1), ubound(segment_distance, 1), &
+        ubound(segment_sign_u, 1), ubound(segment_sign_v, 1)] < &
+        contour_last_index - 1)) then
+      message = 'distortion-pass segment scratch arrays are too small'
+      return
+    end if
+    if (.not. ieee_is_finite(original_leading_edge_length) .or. &
+        original_leading_edge_length < 0.0_real64 .or. &
+        .not. ieee_is_finite(current_leading_edge_length) .or. &
+        current_leading_edge_length < 0.0_real64) then
+      message = 'distortion-pass leading-edge lengths are invalid'
+      return
+    end if
+
+    point_count = contour_last_index
+    source%panel_index = panel_index
+    source%contour_last_index = contour_last_index
+    source%sewing_u = legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot)
+    source%sewing_v = legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot)
+    source%cut_u = legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot)
+    source%cut_v = legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot)
+    if (.not. source%is_valid()) then
+      message = 'legacy distortion-pass source contains invalid geometry'
+      return
+    end if
+
+    call build_extrados_distortion_candidate(source, angle_start_index, &
+        reconstruction_start_index, original_leading_edge_length, &
+        current_leading_edge_length, segment_angle, segment_distance, &
+        segment_sign_u, segment_sign_v, typed_candidate, typed_angle, &
+        typed_distance, typed_sign_u, typed_sign_v, valid, message)
+    if (.not. valid) return
+    call build_legacy_extrados_distortion_oracle(source, angle_start_index, &
+        reconstruction_start_index, original_leading_edge_length, &
+        current_leading_edge_length, segment_angle, segment_distance, &
+        segment_sign_u, segment_sign_v, legacy_oracle, oracle_angle, &
+        oracle_distance, oracle_sign_u, oracle_sign_v, valid, message)
+    if (.not. valid) return
+    if (.not. edges_are_bit_exact(typed_candidate, legacy_oracle) .or. &
+        .not. scratch_is_bit_exact(typed_angle, oracle_angle, &
+        min(angle_start_index, reconstruction_start_index), &
+        point_count - 1) .or. &
+        .not. scratch_is_bit_exact(typed_distance, oracle_distance, &
+        min(angle_start_index, reconstruction_start_index), &
+        point_count - 1) .or. &
+        .not. scratch_is_bit_exact(typed_sign_u, oracle_sign_u, &
+        min(angle_start_index, reconstruction_start_index), &
+        point_count - 1) .or. &
+        .not. scratch_is_bit_exact(typed_sign_v, oracle_sign_v, &
+        min(angle_start_index, reconstruction_start_index), &
+        point_count - 1)) then
+      valid = .false.
+      message = 'typed and legacy extrados distortion passes differ'
+      return
+    end if
+
+    legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot) = typed_candidate%sewing_u
+    legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_sewing_slot) = typed_candidate%sewing_v
+    legacy_u(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot) = typed_candidate%cut_u
+    legacy_v(panel_index, 1:point_count, &
+        legacy_production_lower_cut_slot) = typed_candidate%cut_v
+    segment_angle(angle_start_index:point_count - 1) = &
+        typed_angle(angle_start_index:point_count - 1)
+    segment_distance(angle_start_index:point_count - 1) = &
+        typed_distance(angle_start_index:point_count - 1)
+    segment_sign_u(angle_start_index:point_count - 1) = &
+        typed_sign_u(angle_start_index:point_count - 1)
+    segment_sign_v(angle_start_index:point_count - 1) = &
+        typed_sign_v(angle_start_index:point_count - 1)
+    valid = .true.
+  end subroutine apply_legacy_regular_extrados_distortion_pass
+
+  !> Construct one typed distortion-pass candidate from immutable inputs.
+  pure subroutine build_extrados_distortion_candidate(source, &
+      angle_start_index, reconstruction_start_index, &
+      original_leading_edge_length, current_leading_edge_length, &
+      incoming_angle, incoming_distance, incoming_sign_u, incoming_sign_v, &
+      candidate, segment_angle, segment_distance, segment_sign_u, &
+      segment_sign_v, valid, message)
+    type(regular_extrados_edge_2d), intent(in) :: source
+    integer, intent(in) :: angle_start_index, reconstruction_start_index
+    real(real64), intent(in) :: original_leading_edge_length
+    real(real64), intent(in) :: current_leading_edge_length
+    real(real64), intent(in) :: incoming_angle(0:), incoming_distance(0:)
+    real(real64), intent(in) :: incoming_sign_u(0:), incoming_sign_v(0:)
+    type(regular_extrados_edge_2d), intent(inout) :: candidate
+    real(real64), allocatable, intent(out) :: segment_angle(:)
+    real(real64), allocatable, intent(out) :: segment_distance(:)
+    real(real64), allocatable, intent(out) :: segment_sign_u(:)
+    real(real64), allocatable, intent(out) :: segment_sign_v(:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    real(real32) :: legacy_epsilon, legacy_omega
+    real(real64) :: straight_distance, delta_u, delta_v
+    integer :: copy_first_index, point_count, point_index
+
+    valid = .false.
+    message = ''
+    if (.not. source%is_valid()) then
+      message = 'cannot distort an invalid regular extrados edge'
+      return
+    end if
+    point_count = size(source%sewing_u)
+    straight_distance = sqrt( &
+        (source%sewing_u(angle_start_index) - &
+        source%sewing_u(point_count))**legacy_square_exponent + &
+        (source%sewing_v(angle_start_index) - &
+        source%sewing_v(point_count))**legacy_square_exponent)
+    legacy_epsilon = current_leading_edge_length - &
+        original_leading_edge_length
+    if (abs(legacy_epsilon) < real(0.01, real32)) then
+      legacy_omega = 0.0_real32
+    else
+      if (.not. ieee_is_finite(straight_distance) .or. &
+          straight_distance <= 0.0_real64 .or. &
+          abs(real(legacy_epsilon, real64)/straight_distance) > &
+          1.0_real64) then
+        message = 'extrados distortion rotation is outside asin domain'
+        return
+      end if
+      legacy_omega = real(1.0, real32)*asin( &
+          real(legacy_epsilon, real64)/straight_distance)* &
+          legacy_epsilon/abs(legacy_epsilon)
+    end if
+
+    allocate(segment_angle(point_count), segment_distance(point_count), &
+        segment_sign_u(point_count), segment_sign_v(point_count))
+    segment_angle = 0.0_real64
+    segment_distance = 0.0_real64
+    segment_sign_u = 0.0_real64
+    segment_sign_v = 0.0_real64
+    copy_first_index = min(angle_start_index, reconstruction_start_index)
+    segment_angle(copy_first_index:point_count - 1) = &
+        incoming_angle(copy_first_index:point_count - 1)
+    segment_distance(copy_first_index:point_count - 1) = &
+        incoming_distance(copy_first_index:point_count - 1)
+    segment_sign_u(copy_first_index:point_count - 1) = &
+        incoming_sign_u(copy_first_index:point_count - 1)
+    segment_sign_v(copy_first_index:point_count - 1) = &
+        incoming_sign_v(copy_first_index:point_count - 1)
+    do point_index = angle_start_index, point_count - 1
+      delta_v = source%sewing_v(point_index + 1) - &
+          source%sewing_v(point_index)
+      delta_u = source%sewing_u(point_index + 1) - &
+          source%sewing_u(point_index)
+      if (delta_u /= 0.0_real64) then
+        segment_angle(point_index) = abs(atan(delta_v/delta_u)) + &
+            legacy_omega
+      else
+        segment_angle(point_index) = half_pi + legacy_omega
+      end if
+      call legacy_axis_signs(delta_u, delta_v, &
+          segment_sign_u(point_index), segment_sign_v(point_index))
+      segment_distance(point_index) = sqrt( &
+          (source%sewing_v(point_index) - &
+          source%sewing_v(point_index + 1))**legacy_square_exponent + &
+          (source%sewing_u(point_index) - &
+          source%sewing_u(point_index + 1))**legacy_square_exponent)
+    end do
+
+    candidate = source
+    do point_index = reconstruction_start_index, point_count - 1
+      candidate%sewing_u(point_index + 1) = &
+          candidate%sewing_u(point_index) + &
+          segment_sign_u(point_index)*segment_distance(point_index)* &
+          cos(segment_angle(point_index))
+      candidate%sewing_v(point_index + 1) = &
+          candidate%sewing_v(point_index) + &
+          segment_sign_v(point_index)*segment_distance(point_index)* &
+          sin(segment_angle(point_index))
+    end do
+    if (.not. candidate%is_valid()) then
+      message = 'extrados distortion pass produced invalid geometry'
+      return
+    end if
+    valid = .true.
+  end subroutine build_extrados_distortion_candidate
+
+  !> Independently reproduce one fixed-form distortion pass as an oracle.
+  pure subroutine build_legacy_extrados_distortion_oracle(source, &
+      angle_start_index, reconstruction_start_index, &
+      original_leading_edge_length, current_leading_edge_length, &
+      incoming_angle, incoming_distance, incoming_sign_u, incoming_sign_v, &
+      oracle, anglee, distee, siu, siv, valid, message)
+    type(regular_extrados_edge_2d), intent(in) :: source
+    integer, intent(in) :: angle_start_index, reconstruction_start_index
+    real(real64), intent(in) :: original_leading_edge_length
+    real(real64), intent(in) :: current_leading_edge_length
+    real(real64), intent(in) :: incoming_angle(0:), incoming_distance(0:)
+    real(real64), intent(in) :: incoming_sign_u(0:), incoming_sign_v(0:)
+    type(regular_extrados_edge_2d), intent(inout) :: oracle
+    real(real64), allocatable, intent(out) :: anglee(:), distee(:)
+    real(real64), allocatable, intent(out) :: siu(:), siv(:)
+    logical, intent(out) :: valid
+    character(len=*), intent(out) :: message
+
+    real(real32) :: epsilon, omega
+    real(real64) :: dist, xdu, xdv
+    integer :: copy_first_index, j, point_count
+
+    valid = .false.
+    message = ''
+    point_count = size(source%sewing_u)
+    dist = sqrt( &
+        (source%sewing_u(angle_start_index) - &
+        source%sewing_u(point_count))**legacy_square_exponent + &
+        (source%sewing_v(angle_start_index) - &
+        source%sewing_v(point_count))**legacy_square_exponent)
+    epsilon = current_leading_edge_length - original_leading_edge_length
+    if (abs(epsilon) < real(0.01, real32)) then
+      omega = 0.0_real32
+    else
+      if (.not. ieee_is_finite(dist) .or. dist <= 0.0_real64 .or. &
+          abs(real(epsilon, real64)/dist) > 1.0_real64) then
+        message = 'legacy distortion rotation is outside asin domain'
+        return
+      end if
+      omega = real(1.0, real32)*asin(real(epsilon, real64)/dist)* &
+          epsilon/abs(epsilon)
+    end if
+
+    allocate(anglee(point_count), distee(point_count), siu(point_count), &
+        siv(point_count))
+    anglee = 0.0_real64
+    distee = 0.0_real64
+    siu = 0.0_real64
+    siv = 0.0_real64
+    copy_first_index = min(angle_start_index, reconstruction_start_index)
+    anglee(copy_first_index:point_count - 1) = &
+        incoming_angle(copy_first_index:point_count - 1)
+    distee(copy_first_index:point_count - 1) = &
+        incoming_distance(copy_first_index:point_count - 1)
+    siu(copy_first_index:point_count - 1) = &
+        incoming_sign_u(copy_first_index:point_count - 1)
+    siv(copy_first_index:point_count - 1) = &
+        incoming_sign_v(copy_first_index:point_count - 1)
+    do j = angle_start_index, point_count - 1
+      xdv = source%sewing_v(j + 1) - source%sewing_v(j)
+      xdu = source%sewing_u(j + 1) - source%sewing_u(j)
+      if (xdu /= 0.0_real64) then
+        anglee(j) = abs(atan(xdv/xdu)) + omega
+      else
+        anglee(j) = half_pi + omega
+      end if
+      call legacy_axis_signs(xdu, xdv, siu(j), siv(j))
+      distee(j) = sqrt( &
+          (source%sewing_v(j) - source%sewing_v(j + 1))** &
+          legacy_square_exponent + &
+          (source%sewing_u(j) - source%sewing_u(j + 1))** &
+          legacy_square_exponent)
+    end do
+
+    oracle = source
+    do j = reconstruction_start_index, point_count - 1
+      oracle%sewing_u(j + 1) = oracle%sewing_u(j) + &
+          siu(j)*distee(j)*cos(anglee(j))
+      oracle%sewing_v(j + 1) = oracle%sewing_v(j) + &
+          siv(j)*distee(j)*sin(anglee(j))
+    end do
+    if (.not. oracle%is_valid()) then
+      message = 'legacy extrados distortion pass produced invalid geometry'
+      return
+    end if
+    valid = .true.
+  end subroutine build_legacy_extrados_distortion_oracle
 
   !> Construct the typed forward reconstruction used as production authority.
   pure subroutine build_regular_forward_candidate(source, start_index, &

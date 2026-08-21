@@ -38,7 +38,6 @@ set(LEPARAGLIDING_PROCEDURE_FRAGMENTS
     src/procedures/offsets_reinforcements.inc
     src/procedures/geometry_3d.inc
     src/procedures/pattern_marks.inc
-    src/procedures/profile_data.inc
     src/procedures/geometry_utilities.inc)
 
 set_source_files_properties(
@@ -63,6 +62,7 @@ add_executable(leparagliding
     src/leparagliding_transformations.f90
     src/leparagliding_file_cleanup.f90
     src/leparagliding_polyline_interpolation.f90
+    src/leparagliding_profile_data.f90
     src/leparagliding_procedures.f
     src/leparagliding.f
     ${LEPARAGLIDING_MAIN_FRAGMENTS}
@@ -357,6 +357,7 @@ if(BUILD_TESTING)
       src/leparagliding_transformations.f90
       src/leparagliding_file_cleanup.f90
       src/leparagliding_polyline_interpolation.f90
+      src/leparagliding_profile_data.f90
       src/leparagliding_procedures.f
       ${LEPARAGLIDING_PROCEDURE_FRAGMENTS})
 

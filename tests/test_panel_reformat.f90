@@ -1,5 +1,5 @@
 program test_panel_reformat
-  use, intrinsic :: iso_fortran_env, only : real64
+  use, intrinsic :: iso_fortran_env, only : real32, real64
   use, intrinsic :: ieee_arithmetic, only : ieee_quiet_nan, ieee_value
   use leparagliding_domain_model, only : production_boundary_edge_2d, &
       surface_intrados, legacy_production_lower_sewing_slot, &
@@ -23,6 +23,8 @@ program test_panel_reformat
   real(real64) :: expected_sign_u(0:10), expected_sign_v(0:10)
   character(len=160) :: message
   logical :: valid
+  real(real32) :: legacy_omega
+  real(real64) :: cosine_omega, sine_omega
 
   ! A regular lower extrados row is reformatted only over its exact contour.
   ! The module evaluates both the typed candidate and the fixed-form oracle;
@@ -119,6 +121,56 @@ program test_panel_reformat
       all(segment_sign_u == expected_sign_u) .and. &
       all(segment_sign_v == expected_sign_v), &
       'regular higher reformat did not preserve exact scratch ownership')
+
+  ! One distortion pass refreshes scratch only from jirl onward but may rebuild
+  ! from the earlier jirr segment.  Segment 2 therefore deliberately exercises
+  ! the historical retained-scratch contract.
+  legacy_u = -505.0_real64
+  legacy_v = -606.0_real64
+  legacy_u(1, 1:5, legacy_production_lower_sewing_slot) = &
+      [0.0_real64, 1.0_real64, 2.0_real64, 3.0_real64, 4.0_real64]
+  legacy_v(1, 1:5, legacy_production_lower_sewing_slot) = 0.0_real64
+  legacy_u(1, 1:5, legacy_production_lower_cut_slot) = &
+      [0.25_real64, 1.25_real64, 2.25_real64, 3.25_real64, 4.25_real64]
+  legacy_v(1, 1:5, legacy_production_lower_cut_slot) = 1.0_real64
+  segment_angle = -31.0_real64
+  segment_distance = -32.0_real64
+  segment_sign_u = -33.0_real64
+  segment_sign_v = -34.0_real64
+  segment_angle(2) = 0.0_real64
+  segment_distance(2) = 1.0_real64
+  segment_sign_u(2) = 1.0_real64
+  segment_sign_v(2) = -1.0_real64
+  legacy_omega = asin(0.5_real64)
+  cosine_omega = cos(real(legacy_omega, real64))
+  sine_omega = sin(real(legacy_omega, real64))
+  expected_u = legacy_u
+  expected_v = legacy_v
+  expected_u(1, 3:5, legacy_production_lower_sewing_slot) = &
+      [2.0_real64, 2.0_real64 + cosine_omega, &
+      2.0_real64 + 2.0_real64*cosine_omega]
+  expected_v(1, 3:5, legacy_production_lower_sewing_slot) = &
+      [0.0_real64, -sine_omega, -2.0_real64*sine_omega]
+  expected_angle = segment_angle
+  expected_distance = segment_distance
+  expected_sign_u = segment_sign_u
+  expected_sign_v = segment_sign_v
+  expected_angle(3:4) = real(legacy_omega, real64)
+  expected_distance(3:4) = 1.0_real64
+  expected_sign_u(3:4) = 1.0_real64
+  expected_sign_v(3:4) = -1.0_real64
+  call apply_legacy_regular_extrados_distortion_pass(1, 5, 3, 2, &
+      0.0_real64, 1.0_real64, legacy_u, legacy_v, segment_angle, &
+      segment_distance, segment_sign_u, segment_sign_v, valid, message)
+  call require(valid, 'valid extrados distortion pass rejected: '// &
+      trim(message))
+  call require(all(legacy_u == expected_u) .and. all(legacy_v == expected_v), &
+      'extrados distortion pass escaped its exact sewing contour')
+  call require(all(segment_angle == expected_angle) .and. &
+      all(segment_distance == expected_distance) .and. &
+      all(segment_sign_u == expected_sign_u) .and. &
+      all(segment_sign_v == expected_sign_v), &
+      'extrados distortion pass did not preserve retained scratch exactly')
 
   boundary%source_panel_index = 3
   boundary%boundary_rib_index = 4
