@@ -1,4 +1,4 @@
-"""Dependency-free tests for tools/dxf_semantic_diff.py."""
+"""Dependency-free tests for the semantic regression tools."""
 
 from __future__ import annotations
 
@@ -24,6 +24,10 @@ from text_semantic_snapshot import (  # noqa: E402
     compare_snapshot as compare_text_snapshot,
     create_snapshot as create_text_snapshot,
     parse_text_deliverable,
+)
+from check_328_compatibility import (  # noqa: E402
+    CompatibilityError,
+    project_report,
 )
 
 
@@ -224,6 +228,73 @@ Plan A
         result = compare_text_records(expected, actual, abs_tol=1.0e-9)
 
         self.assertTrue(result.equivalent, result.differences)
+
+    LEGACY = """\
+LABORATORI D'ENVOL PARAGLIDING 3.28
+Scale: 1.00000
+Total height hcp (inc risers)    -0. cm
+Jonc   1 sup    51.2 inf    46.9
+z3      1    13.36    19.64     6.28
+f13     1     1.57
+z4      1     6.49     6.49     0.00
+ Rib    phi      chi
+  1     0.19     6.95
+Stable result = 12.5 cm
+  8 special codes used
+"""
+
+    CURRENT = """\
+LABORATORI D'ENVOL PARAGLIDING 3.29
+Edition date: 2026-05-01
+Scale: 1.00000
+Total height hcp (inc risers)   535. cm
+Jonc   1 type  3 sup    51.2 inf    46.9
+z3      1    13.53    19.86     6.34
+f13     1     1.58
+z4      1     6.57     6.57     0.00
+ Rib    phi      chi
+  1     0.19     2.77
+Stable result = 12.5 cm
+  8 special codes used
+   1  1291
+   2  1341
+   3  1146
+   4  1351
+   5  1352
+   6  1353
+   7  2000
+   8  3001
+"""
+
+    def test_only_reviewed_report_deltas_are_projected_out(self) -> None:
+        legacy = project_report(self.LEGACY, expected_version="3.28")
+        current = project_report(self.CURRENT, expected_version="3.29")
+
+        result = compare_text_records(legacy.records, current.records)
+
+        self.assertTrue(result.equivalent, result.differences)
+        self.assertEqual(0, legacy.edition_dates)
+        self.assertEqual(1, current.edition_dates)
+        self.assertEqual(0, legacy.jonc_type_labels)
+        self.assertEqual(1, current.jonc_type_labels)
+        self.assertEqual((1291, 1341, 1146, 1351, 1352, 1353, 2000, 3001),
+                         current.special_codes)
+
+    def test_unapproved_report_value_change_remains_visible(self) -> None:
+        legacy = project_report(self.LEGACY, expected_version="3.28")
+        changed = project_report(
+            self.CURRENT.replace("Stable result = 12.5", "Stable result = 13.5"),
+            expected_version="3.29",
+        )
+
+        result = compare_text_records(legacy.records, changed.records)
+
+        self.assertFalse(result.equivalent)
+        self.assertIn("delta 1", "\n".join(result.differences))
+
+    def test_unexpected_version_is_rejected(self) -> None:
+        with self.assertRaisesRegex(CompatibilityError, "expected report version"):
+            project_report(self.LEGACY, expected_version="3.29")
 
     def test_numeric_tolerance_is_explicit_and_actionable(self) -> None:
         expected = parse_text_deliverable(self.REPORT)

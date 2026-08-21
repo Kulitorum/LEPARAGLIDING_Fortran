@@ -6,6 +6,7 @@ endforeach()
 
 include("${CMAKE_CURRENT_LIST_DIR}/check_dxf_semantics.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/check_text_semantics.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/check_328_compatibility.cmake")
 
 if(NOT EXISTS "${PROGRAM}")
   message(FATAL_ERROR "LEparagliding executable does not exist: ${PROGRAM}")
@@ -105,5 +106,7 @@ endforeach()
 if(NOT changed_outputs STREQUAL "")
   message(FATAL_ERROR "Plan B outputs changed:${changed_outputs}")
 endif()
+
+leparagliding_assert_328_compatibility("${CASE_DIR}" "${WORK_DIR}")
 
 message(STATUS "Plan B outputs match the reviewed 3.29 baseline")
